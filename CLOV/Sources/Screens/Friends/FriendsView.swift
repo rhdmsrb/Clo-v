@@ -14,14 +14,14 @@ struct FriendsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("Friends").font(.system(.largeTitle, design: .rounded).weight(.heavy))
+                Text("Friends").font(Theme.editorialFont(size: 38))
                 Text("Build the circle that helps you choose your best fit.")
                     .foregroundStyle(Theme.mutedForeground)
                 HStack {
                     TextField("Nickname, account code, email, or phone", text: $query)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     Button("Search") { Task { await search() } }
-                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .font(.system(.subheadline, design: .default).weight(.bold))
                         .foregroundStyle(Theme.accent)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
@@ -61,7 +61,7 @@ struct FriendsView: View {
         HStack(spacing: 12) {
             AvatarView(url: person?.avatarUrl, nickname: person?.nickname, size: 42)
             VStack(alignment: .leading, spacing: 2) {
-                Text(person?.nickname ?? "Someone").font(.system(.subheadline, design: .rounded).weight(.semibold))
+                Text(person?.nickname ?? "Someone").font(.system(.subheadline, design: .default).weight(.semibold))
                 if let person {
                     Text(person.accountCode + (person.mutualCount > 0 ? " · \(person.mutualCount) mutual" : ""))
                         .font(.caption2).foregroundStyle(Theme.mutedForeground)

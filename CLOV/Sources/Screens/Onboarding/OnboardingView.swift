@@ -12,21 +12,26 @@ struct OnboardingView: View {
     @State private var selectedStyles: Set<String> = []
     @State private var error: String?
     @State private var isSaving = false
+    @FocusState private var nicknameFocused: Bool
 
     private var nicknameValid: Bool {
         let re = try! NSRegularExpression(pattern: "^[a-zA-Z0-9_]{3,20}$")
         return re.firstMatch(in: nickname, range: NSRange(nickname.startIndex..., in: nickname)) != nil
     }
 
+    private var canContinue: Bool {
+        nicknameValid && !selectedStyles.isEmpty && !isSaving
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Text("CLO·V")
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .font(.system(size: 22, weight: .heavy, design: .default))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Pick your fit persona")
-                        .font(.system(.largeTitle, design: .rounded).weight(.heavy))
+                        .font(Theme.editorialFont(size: 38))
                     Text("This is how your circle will see you when they're voting.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.mutedForeground)
@@ -36,6 +41,12 @@ struct OnboardingView: View {
                     TextField("fitqueen99", text: $nickname)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .focused($nicknameFocused)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            guard canContinue else { return }
+                            Task { await submit() }
+                        }
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -60,12 +71,13 @@ struct OnboardingView: View {
                 }
 
                 Button {
+                    nicknameFocused = false
                     Task { await submit() }
                 } label: {
                     Text(isSaving ? "Please wait…" : "Let's go")
                 }
-                .buttonStyle(PrimaryButtonStyle(isDisabled: isSaving))
-                .disabled(isSaving)
+                .buttonStyle(PrimaryButtonStyle(isDisabled: !canContinue))
+                .disabled(!canContinue)
 
                 Button("Back to log in") {
                     Task { await appState.signOut() }
@@ -77,6 +89,13 @@ struct OnboardingView: View {
             .padding(24)
         }
         .background(Theme.background)
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { nicknameFocused = false }
+            }
+        }
     }
 
     private func submit() async {
@@ -92,10 +111,25 @@ struct OnboardingView: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            try await API.saveOnboarding(id: appState.userId, nickname: nickname, styles: Array(selectedStyles))
+            try await API.saveOnboarding(nickname: nickname, styles: Array(selectedStyles))
             await appState.refreshProfile()
         } catch {
-            self.error = error.localizedDescription
+            if error.isLikelyExpiredSession {
+                await appState.signOut()
+            } else {
+                self.error = error.localizedDescription
+            }
         }
+    }
+}
+
+private extension Error {
+    var isLikelyExpiredSession: Bool {
+        let message = localizedDescription.lowercased()
+        return message.contains("jwt expired")
+            || message.contains("session expired")
+            || message.contains("not authenticated")
+            || message.contains("invalid refresh token")
+            || message.contains("refresh token") && message.contains("expired")
     }
 }

@@ -5,25 +5,33 @@ import SwiftUI
 /// between this (previously: copy-to-clipboard + a checkmark toggle)
 /// and `GroupDetailView`'s separate native `ShareLink`. The system sheet
 /// already offers "Copy" among its options, so nothing is lost, and
-/// Messages/AirDrop/etc. are gained. The `clov://` scheme deep-links
-/// straight back into this app on a device that has it installed (see
-/// `.onOpenURL` in CLOVApp); the `https://` line is a stand-in for
-/// wherever this ships publicly, since no real domain is set up yet for
-/// this prototype.
+/// Messages/AirDrop/etc. are gained. Use the deployed web vote page when
+/// configured, with the app scheme as a working fallback during development.
 struct ShareLinkButton: View {
     let fitCheckId: UUID
+    var title: String = "Share Fit-Check"
+    var summary: String?
+
+    private var shareURL: URL {
+        if let base = Bundle.main.object(forInfoDictionaryKey: "CLOVShareBaseURL") as? String,
+           let url = URL(string: base), url.scheme == "https", url.host != nil {
+            return url.appending(path: "vote/\(fitCheckId.uuidString.lowercased())")
+        }
+        return URL(string: "clov://vote/\(fitCheckId.uuidString.lowercased())")!
+    }
 
     private var shareText: String {
-        "https://clov.app/vote/\(fitCheckId.uuidString) (clov://vote/\(fitCheckId.uuidString))"
+        if let summary, !summary.isEmpty { return "\(summary)\n\nVote on CLO·V: \(shareURL.absoluteString)" }
+        return "Vote on my Fit-Check on CLO·V: \(shareURL.absoluteString)"
     }
 
     var body: some View {
-        ShareLink(item: shareText) {
+        ShareLink(item: shareText, subject: Text(title)) {
             Image(systemName: "square.and.arrow.up")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.mutedForeground)
                 .frame(width: 32, height: 32)
         }
-        .accessibilityLabel("Share")
+        .accessibilityLabel(title)
     }
 }

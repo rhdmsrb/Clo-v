@@ -3,13 +3,29 @@ import SwiftUI
 @main
 struct CLOVApp: App {
     @StateObject private var appState = AppState()
+    @UIApplicationDelegateAdaptor(CLOVAppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
                 .tint(Theme.accent)
+                .preferredColorScheme(.light)
                 .onOpenURL { url in handle(url) }
+                .task(id: appState.session?.user.id) {
+                    if appState.isSignedIn {
+                        appDelegate.requestPushPermission()
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .clovAPNsToken)) { notification in
+                    guard let token = notification.object as? String, appState.isSignedIn else { return }
+                    Task { try? await API.registerDeviceToken(token, userId: appState.userId) }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await appState.restoreSessionIfNeeded() }
+                }
         }
     }
 
@@ -41,6 +57,13 @@ struct RootView: View {
                 VStack(spacing: 16) {
                     Text(error)
                         .multilineTextAlignment(.center)
+                    #if DEBUG
+                    if let detail = appState.profileLoadDebugError {
+                        Text(detail)
+                            .font(.caption2.monospaced())
+                            .textSelection(.enabled)
+                    }
+                    #endif
                     Button("Try again") {
                         Task { await appState.refreshProfile() }
                     }

@@ -21,6 +21,22 @@ struct FitCheckDetailView: View {
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
+    @State private var showingReportReasons = false
+    @State private var showingBlockConfirmation = false
+    @State private var safetyMessage: String?
+
+    private struct ReportReason: Identifiable {
+        let title: String
+        let value: String
+        var id: String { value }
+    }
+
+    private let reportReasons = [
+        ReportReason(title: "Inappropriate content", value: "inappropriate"),
+        ReportReason(title: "Harassment or bullying", value: "harassment"),
+        ReportReason(title: "Spam", value: "spam"),
+        ReportReason(title: "Other", value: "other")
+    ]
 
     private var voteCounts: [UUID: Int] {
         Dictionary(grouping: votes, by: \.photoId).mapValues(\.count)
@@ -47,7 +63,13 @@ struct FitCheckDetailView: View {
                                     .font(.system(size: 40, weight: .black, design: .default))
                             }
                             Spacer()
-                            ShareLinkButton(fitCheckId: detail.id)
+                            if !expired {
+                                ShareLinkButton(
+                                    fitCheckId: detail.id,
+                                    title: "Share Fit-Check",
+                                    summary: shareSummary
+                                )
+                            }
                         }
 
                         HStack(spacing: 10) {
@@ -65,7 +87,25 @@ struct FitCheckDetailView: View {
                         statusStrip(for: detail, expired: expired)
 
                         if expired {
-                            VotingEndedView()
+                            if detail.creatorId == appState.userId {
+                                Text("Voting has ended. Your results are saved here for you.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Theme.mutedForeground)
+                                VotingPhotoGridView(
+                                    fitCheckId: detail.id,
+                                    creatorId: detail.creatorId,
+                                    status: detail.status,
+                                    photos: detail.fitCheckPhotos,
+                                    voteCounts: voteCounts,
+                                    totalVotes: votes.count,
+                                    myVote: nil,
+                                    voterId: appState.userId,
+                                    expiresAt: detail.expiresAt,
+                                    prompt: detail.votePrompt
+                                )
+                            } else {
+                                VotingEndedView()
+                            }
                         } else {
                             if let caption = detail.caption, !caption.isEmpty {
                                 Text(caption).font(.subheadline).foregroundStyle(Theme.mutedForeground)
@@ -80,7 +120,8 @@ struct FitCheckDetailView: View {
                                 totalVotes: votes.count,
                                 myVote: myVote,
                                 voterId: appState.userId,
-                                expiresAt: detail.expiresAt
+                                expiresAt: detail.expiresAt,
+                                prompt: detail.votePrompt
                             )
 
                             if detail.status == "archived" {
@@ -127,6 +168,39 @@ struct FitCheckDetailView: View {
         .background(Theme.background)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Report Fit-Check", systemImage: "flag") {
+                        showingReportReasons = true
+                    }
+                    if detail?.creatorId != appState.userId {
+                        Button("Block creator", systemImage: "person.slash", role: .destructive) {
+                            showingBlockConfirmation = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .confirmationDialog("Why are you reporting this?", isPresented: $showingReportReasons, titleVisibility: .visible) {
+            ForEach(reportReasons) { reason in
+                Button(reason.title) { Task { await report(reason: reason.value) } }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Block this creator?", isPresented: $showingBlockConfirmation, titleVisibility: .visible) {
+            Button("Block creator", role: .destructive) { Task { await blockCreator() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You won't see their content or receive new friend requests from them.")
+        }
+        .alert("Safety action", isPresented: Binding(get: { safetyMessage != nil }, set: { if !$0 { safetyMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(safetyMessage ?? "")
+        }
         .task(id: appState.contentRevision) { await load() }
         .refreshable { await load() }
     }
@@ -151,6 +225,14 @@ struct FitCheckDetailView: View {
         .background(Theme.ink)
     }
 
+    private var shareSummary: String {
+        let total = votes.count
+        guard total > 0 else { return "Help me choose my outfit on CLO·V." }
+        let leading = voteCounts.values.max() ?? 0
+        let percentage = Int((Double(leading) / Double(total) * 100).rounded())
+        return "My Fit-Check is at \(percentage)% for the leading look (\(total) vote\(total == 1 ? "" : "s"))."
+    }
+
     private func load() async {
         isLoading = true
         error = nil
@@ -169,6 +251,25 @@ struct FitCheckDetailView: View {
             return
         } catch {
             self.error = "Couldn’t load this content. Please try again."
+        }
+    }
+
+    private func report(reason: String) async {
+        do {
+            try await API.reportFitCheck(id: fitCheckId, reason: reason)
+            safetyMessage = "Thanks. Your report was submitted for review."
+        } catch {
+            safetyMessage = "We couldn't submit the report. Please try again."
+        }
+    }
+
+    private func blockCreator() async {
+        guard let creatorId = detail?.creatorId else { return }
+        do {
+            try await API.blockUser(id: creatorId)
+            safetyMessage = "Creator blocked. Their content will be removed from your feed after refresh."
+        } catch {
+            safetyMessage = "We couldn't block this creator. Please try again."
         }
     }
 }

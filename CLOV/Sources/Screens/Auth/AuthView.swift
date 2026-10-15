@@ -18,22 +18,36 @@ struct AuthView: View {
         }
     }
 
+    private enum Field: Hashable {
+        case email
+        case password
+    }
+
     @State private var mode: Mode = .signIn
     @State private var email = ""
     @State private var password = ""
     @State private var error: String?
     @State private var isSubmitting = false
     @State private var checkEmailNotice = false
+    @State private var showingPasswordReset = false
+    @State private var resetEmail = ""
+    @State private var resetNotice: String?
+    @FocusState private var focusedField: Field?
+
+    private var canSubmit: Bool {
+        let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        return address.contains("@") && password.count >= 6
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Text("CLO·V")
-                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .font(.system(size: 22, weight: .heavy, design: .default))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(mode.title)
-                        .font(.system(.largeTitle, design: .rounded).weight(.heavy))
+                        .font(Theme.editorialFont(size: 38))
                     Text(mode.subtitle)
                         .font(.subheadline)
                         .foregroundStyle(Theme.mutedForeground)
@@ -54,10 +68,19 @@ struct AuthView: View {
                             .textContentType(.emailAddress)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .focused($focusedField, equals: .email)
+                            .submitLabel(.next)
+                            .onSubmit { focusedField = .password }
                     }
                     LabeledField(label: "PASSWORD") {
                         SecureField("", text: $password)
                             .textContentType(mode == .signIn ? .password : .newPassword)
+                            .focused($focusedField, equals: .password)
+                            .submitLabel(.go)
+                            .onSubmit {
+                                guard canSubmit else { return }
+                                Task { await submit() }
+                            }
                     }
                 }
 
@@ -66,12 +89,13 @@ struct AuthView: View {
                 }
 
                 Button {
+                    focusedField = nil
                     Task { await submit() }
                 } label: {
                     Text(isSubmitting ? "Please wait…" : mode.title)
                 }
-                .buttonStyle(PrimaryButtonStyle(isDisabled: isSubmitting))
-                .disabled(isSubmitting)
+                .buttonStyle(PrimaryButtonStyle(isDisabled: isSubmitting || !canSubmit))
+                .disabled(isSubmitting || !canSubmit)
 
                 Button {
                     mode = mode == .signIn ? .signUp : .signIn
@@ -84,11 +108,61 @@ struct AuthView: View {
                 }
                 .frame(maxWidth: .infinity)
 
+                if mode == .signIn {
+                    Button("Forgot password?") {
+                        resetEmail = email.trimmingCharacters(in: .whitespaces)
+                        resetNotice = nil
+                        showingPasswordReset = true
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.mutedForeground)
+                    .frame(maxWidth: .infinity)
+                }
+
 
             }
             .padding(24)
         }
         .background(Theme.background)
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focusedField = nil }
+            }
+        }
+        .sheet(isPresented: $showingPasswordReset) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Reset your password")
+                        .font(Theme.editorialFont(size: 29, relativeTo: .title2))
+                    Text("We'll send a secure password reset link to your email.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.mutedForeground)
+                    TextField("Email", text: $resetEmail)
+                        .keyboardType(.emailAddress)
+                        .textContentType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(14)
+                        .background(Theme.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    if let resetNotice {
+                        Text(resetNotice)
+                            .font(.footnote)
+                            .foregroundStyle(resetNotice.hasPrefix("We couldn't") ? .red : Theme.mutedForeground)
+                    }
+                    Button("Send reset link") { Task { await sendPasswordReset() } }
+                        .buttonStyle(PrimaryButtonStyle(isDisabled: resetEmail.trimmingCharacters(in: .whitespaces).isEmpty))
+                        .disabled(resetEmail.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Spacer()
+                }
+                .padding(24)
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+            .presentationDetents([.medium])
+        }
     }
 
     private func submit() async {
@@ -97,10 +171,14 @@ struct AuthView: View {
 
         let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
 
+        #if DEBUG
+        // Keep the old synthetic credentials testable in Debug builds without
+        // shipping a special-case login path in the production binary.
         if trimmedEmail == "1", password == "1" {
             error = "Use your real account to log in. The old 1 / 1 shortcut cannot save your profile."
             return
         }
+        #endif
 
 
         guard !trimmedEmail.isEmpty, password.count >= 6 else {
@@ -128,6 +206,17 @@ struct AuthView: View {
             }
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    private func sendPasswordReset() async {
+        let address = resetEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !address.isEmpty else { return }
+        do {
+            try await SupabaseManager.client.auth.resetPasswordForEmail(address)
+            resetNotice = "Check your email for a password reset link."
+        } catch {
+            resetNotice = "We couldn't send the reset link. Please check the email and try again."
         }
     }
 }

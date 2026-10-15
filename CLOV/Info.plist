@@ -31,6 +31,10 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>CLOVShareBaseURL</key>
+	<string></string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>CLO-V uses your location only when you choose to tailor today's outfit prompt to the local weather.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>CLO-V needs access to your photos so you can post a Fit-Check.</string>
 	<key>UIApplicationSceneManifest</key>
