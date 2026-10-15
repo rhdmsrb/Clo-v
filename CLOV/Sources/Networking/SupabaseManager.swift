@@ -9,6 +9,18 @@ enum AppConfig {
 }
 
 enum SupabaseManager {
+    #if DEBUG && targetEnvironment(simulator)
+    // Simulator builds are often installed unsigned (CODE_SIGNING_ALLOWED=NO),
+    // where Keychain writes can fail without the app's signing entitlements.
+    // Keep test sessions in UserDefaults for Debug only; Release continues to
+    // use Supabase's Keychain-backed default storage.
+    private struct DebugAuthStorage: AuthLocalStorage {
+        func store(key: String, value: Data) throws { UserDefaults.standard.set(value, forKey: key) }
+        func retrieve(key: String) throws -> Data? { UserDefaults.standard.data(forKey: key) }
+        func remove(key: String) throws { UserDefaults.standard.removeObject(forKey: key) }
+    }
+    #endif
+
     static let client: SupabaseClient = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -31,6 +43,12 @@ enum SupabaseManager {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
 
+        #if DEBUG && targetEnvironment(simulator)
+        let authOptions = SupabaseClientOptions.AuthOptions(storage: DebugAuthStorage())
+        #else
+        let authOptions = SupabaseClientOptions.AuthOptions()
+        #endif
+
         return SupabaseClient(
             supabaseURL: AppConfig.supabaseURL,
             supabaseKey: AppConfig.supabaseAnonKey,
@@ -38,7 +56,8 @@ enum SupabaseManager {
                 db: SupabaseClientOptions.DatabaseOptions(
                     encoder: encoder,
                     decoder: decoder
-                )
+                ),
+                auth: authOptions
             )
         )
     }()

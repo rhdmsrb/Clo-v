@@ -32,7 +32,7 @@ extension AppState {
 
         await refreshProfile()
         if profile?.isOnboarded != true {
-            try? await API.saveOnboarding(id: uid, nickname: "uitester", styles: ["Streetwear"])
+            try? await API.saveOnboarding(nickname: "uitester", styles: ["Streetwear"])
             await refreshProfile()
             // Some test backends require email confirmation before profile
             // writes even though an existing auth session can launch the app.
@@ -46,6 +46,10 @@ extension AppState {
                     avatarUrl: nil,
                     createdAt: nil
                 )
+                // The fallback profile is intentional for local UI testing
+                // when the test backend requires confirmed email/RLS access.
+                // Do not leave RootView blocked by the transient fetch error.
+                clearProfileLoadErrorForUITesting()
             }
         }
     }

@@ -17,6 +17,9 @@ struct FeedItemDTO: Codable, Identifiable {
     let id: UUID
     let creatorId: UUID
     var caption: String?
+    var occasion: String?
+    var audience: String?
+    var votePrompt: String?
     var createdAt: Date
     var expiresAt: Date?
     var fitCheckPhotos: [FitCheckPhoto]
@@ -28,6 +31,9 @@ struct FeedItemDTO: Codable, Identifiable {
 struct FitCheckDetailDTO: Codable {
     let id: UUID
     var caption: String?
+    var occasion: String?
+    var audience: String?
+    var votePrompt: String?
     var status: String
     let creatorId: UUID
     var expiresAt: Date?
@@ -47,7 +53,14 @@ struct MembershipGroupDTO: Codable {
 }
 
 struct MemberDTO: Codable {
+    let profileId: UUID
     var profiles: AuthorInfo?
+}
+
+struct GroupMemberDisplay: Identifiable {
+    let id: UUID
+    let nickname: String?
+    let avatarUrl: String?
 }
 
 struct FriendRequestDTO: Codable, Identifiable {

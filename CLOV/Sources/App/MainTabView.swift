@@ -1,7 +1,7 @@
 import SwiftUI
 
 private enum Tab {
-    case feed, groups, account
+    case feed, search, activity, account
 }
 
 struct MainTabView: View {
@@ -9,7 +9,7 @@ struct MainTabView: View {
     @State private var tab: Tab = .feed
     @State private var showCreate = false
     @State private var feedPath = NavigationPath()
-    @State private var groupsPath = NavigationPath()
+    @State private var accountPath = NavigationPath()
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -18,11 +18,25 @@ struct MainTabView: View {
                     .opacity(tab == .feed ? 1 : 0)
                     .allowsHitTesting(tab == .feed)
                     .accessibilityHidden(tab != .feed)
-                NavigationStack(path: $groupsPath) { GroupsView() }
-                    .opacity(tab == .groups ? 1 : 0)
-                    .allowsHitTesting(tab == .groups)
-                    .accessibilityHidden(tab != .groups)
-                NavigationStack { AccountView() }
+                NavigationStack {
+                    SearchExploreView()
+                        .navigationDestination(for: FitCheckRoute.self) { route in
+                            FitCheckDetailView(fitCheckId: route.id)
+                        }
+                }
+                    .opacity(tab == .search ? 1 : 0)
+                    .allowsHitTesting(tab == .search)
+                    .accessibilityHidden(tab != .search)
+                NavigationStack {
+                    NotificationsView(onRead: { appState.contentDidChange() })
+                        .navigationDestination(for: FitCheckRoute.self) { route in
+                            FitCheckDetailView(fitCheckId: route.id)
+                        }
+                }
+                    .opacity(tab == .activity ? 1 : 0)
+                    .allowsHitTesting(tab == .activity)
+                    .accessibilityHidden(tab != .activity)
+                NavigationStack(path: $accountPath) { AccountView() }
                     .opacity(tab == .account ? 1 : 0)
                     .allowsHitTesting(tab == .account)
                     .accessibilityHidden(tab != .account)
@@ -62,33 +76,35 @@ struct MainTabView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: showCreate) { _, new in new }
     }
 
-    // Four real, equally sized actions keep the bar visually balanced and
-    // give every item the same predictable hit area. Posting is an action,
-    // so it gets the accent treatment without pretending to be a selected tab.
+    // Keep the core loops visible in one thumb-reachable navigation bar.
     private var tabBar: some View {
         HStack(spacing: 0) {
-            tabButton(.feed, systemImage: "house.fill", label: "Feed")
+            tabButton(.feed, systemImage: "house", activeSystemImage: "house.fill", label: "For You")
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("feedTab")
-            tabButton(.groups, systemImage: "person.2.fill", label: "Groups")
+            tabButton(.search, systemImage: "magnifyingglass", activeSystemImage: "magnifyingglass", label: "Search")
                 .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("groupsTab")
+                .accessibilityIdentifier("searchTab")
 
             createButton
                 .frame(maxWidth: .infinity)
 
-            tabButton(.account, systemImage: "person.fill", label: "Me")
+            tabButton(.activity, systemImage: "heart", activeSystemImage: "heart.fill", label: "Activity")
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("activityTab")
+
+            tabButton(.account, systemImage: "person.crop.circle", activeSystemImage: "person.crop.circle.fill", label: "Profile")
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("accountTab")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .background(Theme.ink)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.94), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Theme.line.opacity(0.5), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         }
+        .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
     }
 
     private var createButton: some View {
@@ -97,16 +113,17 @@ struct MainTabView: View {
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Theme.accentForeground)
-                    .frame(width: 36, height: 30)
-                    .background(Theme.accentGradient)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .font(.system(size: 20, weight: .semibold, design: .default))
+                    .foregroundStyle(Theme.iconCoral)
+                    .frame(width: 46, height: 40)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .shadow(color: .white.opacity(0.18), radius: 8, y: 4)
                 Text("Post")
                     .font(.system(size: 10, weight: .bold, design: .default))
-                    .foregroundStyle(Theme.inverseText)
+                    .foregroundStyle(.white)
             }
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 56)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -115,7 +132,7 @@ struct MainTabView: View {
     }
 
     @ViewBuilder
-    private func tabButton(_ target: Tab, systemImage: String, label: String) -> some View {
+    private func tabButton(_ target: Tab, systemImage: String, activeSystemImage: String, label: String) -> some View {
         Button {
             if tab == target {
                 resetNavigation(for: target)
@@ -124,12 +141,16 @@ struct MainTabView: View {
             }
         } label: {
             VStack(spacing: 3) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18))
-                Text(label).font(.system(size: 10, weight: .bold, design: .default))
+                Image(systemName: tab == target ? activeSystemImage : systemImage)
+                    .font(.system(size: 20, weight: tab == target ? .semibold : .regular))
+                    .symbolRenderingMode(.hierarchical)
+                    .frame(width: 36, height: 34)
+                    .foregroundStyle(tab == target ? tabTint(target) : .white.opacity(0.62))
+                    .background(tab == target ? tabTint(target).opacity(0.18) : .clear, in: Circle())
+                Text(label).font(.system(size: 10, weight: tab == target ? .bold : .medium, design: .default))
             }
-            .foregroundStyle(tab == target ? Theme.accent : Theme.inverseText.opacity(0.65))
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(.white.opacity(tab == target ? 1 : 0.62))
+            .frame(maxWidth: .infinity, minHeight: 56)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -143,14 +164,21 @@ struct MainTabView: View {
         .accessibilityAddTraits(tab == target ? .isSelected : [])
     }
 
+    private func tabTint(_ target: Tab) -> Color {
+        switch target {
+        case .feed: Theme.iconApricot
+        case .search: Theme.iconSage
+        case .activity: Theme.iconCoral
+        case .account: Theme.iconPlum
+        }
+    }
+
     private func resetNavigation(for target: Tab) {
         switch target {
         case .feed:
             feedPath = NavigationPath()
-        case .groups:
-            groupsPath = NavigationPath()
-        case .account:
-            break
+        case .search, .activity, .account:
+            if target == .account { accountPath = NavigationPath() }
         }
     }
 }

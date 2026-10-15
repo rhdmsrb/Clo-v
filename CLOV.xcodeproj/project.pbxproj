@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		06C26C940D95DB811D359A28 /* FriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18F2A0EA717C09413980E4F /* FriendsView.swift */; };
 		06CB6BD290AD4EC6551B6D3A /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76AFFFECC8F625E8DE559E1 /* AuthView.swift */; };
 		095F2CF2DCA45BA776D23019 /* VotingPhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFFEDE6F073525B208761314 /* VotingPhotoGridView.swift */; };
 		0970A373F493CB6B4CD169BC /* DeepLinkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04707C280DC50ED7B0059E86 /* DeepLinkUITests.swift */; };
@@ -18,15 +19,23 @@
 		3D9DCAB29A00D71CE16AE798 /* VotingEndedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA6728CE76690AA838208CB /* VotingEndedView.swift */; };
 		3F628B2F5A2B993B4230CBBB /* NotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7F0E6CD76006F2DACAB21F /* NotificationsView.swift */; };
 		417994268B412F637833543A /* AsyncStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3878CA2EE8FA123731E3A56 /* AsyncStateView.swift */; };
+		4337AA08C93B7391EB7877C0 /* WardrobeFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0888EA64C0BD0AD631D601B /* WardrobeFlowUITests.swift */; };
 		467A992627B99EE77B99C1D4 /* CLOVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6DB76DA8C1250DACE0AAD2 /* CLOVApp.swift */; };
+		5139830D74B8A7D0AA6DE2F2 /* DailyChallenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8676FF5E34501CAE2E8CA8E2 /* DailyChallenge.swift */; };
+		54AECC3E22BAD53B79A5680E /* LocalWeatherPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7A177FD958A0AAE176308D /* LocalWeatherPrompt.swift */; };
 		559E6D0685C5AEB1E51854D2 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122BB9565C9C461EFFEA5EA /* Haptics.swift */; };
 		66DC8DAB374ACF2DB7985363 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B1ADAFAD28CC8BD517460 /* Models.swift */; };
+		72D87D69F53D0F5B7E756A49 /* WardrobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269D9BE2C75A9D3F4498D1D2 /* WardrobeView.swift */; };
+		7625CAC06851A0EB0D2DE273 /* SearchExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F22A751A398D55902B01488 /* SearchExploreView.swift */; };
+		7FF5CC98818F9EDDAC150C21 /* PushNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */; };
 		899C22C54D0475054F9784DE /* AspectFitTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA4CE9F954577415FCFE861 /* AspectFitTile.swift */; };
 		8CA1D836514AAF98E9EEFAD9 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D772D3767E38350DDE20527B /* MainTabView.swift */; };
+		92813FBCDA784C9CED1C8294 /* OutfitPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BEF6EF3AFAAFC3E3ECA0374 /* OutfitPlannerView.swift */; };
 		93F153B31B81D111BC4B8F99 /* CreateFitCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9204CB72B4895178303DE6AE /* CreateFitCheckView.swift */; };
 		A4E9A9D63BBFA3C3B95161C6 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5889C4659072A3B9EB4B56F9 /* OnboardingView.swift */; };
 		ABAC583B61A8AB2A702668FF /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D4347DD67119C8228CD512 /* Theme.swift */; };
 		AEC0531A483D71300737BA8C /* DevLoginUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0586DAC57FDBFCA1D08DAF5A /* DevLoginUITests.swift */; };
+		B232B4740ED1781E230752D7 /* ProfileFollowListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD9009398BD3B201A42C081 /* ProfileFollowListView.swift */; };
 		B3AD396D886754FF4342C01A /* DebugVerify.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BE7B0D063BE06987D597C8 /* DebugVerify.swift */; };
 		B49ED6D51D7FDDFA3EE948EA /* FitCheckCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D26D3AB38B235D5C03EC219B /* FitCheckCardView.swift */; };
 		BE8B6EF93360C3FEB5C044CC /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4E725A874DE9D3F0C9B4430 /* FeedView.swift */; };
@@ -35,13 +44,14 @@
 		D9443E42DE822D512933D55A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 399050D49876290CD9288A2A /* AppState.swift */; };
 		DCB202932B3E17F4F5FDB65D /* PlusButtonUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756A5407D4877C806BEEE7DE /* PlusButtonUITests.swift */; };
 		DCEFCE157E19BEC6F260A84A /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A179DB5BF042952B11B0E146 /* AccountView.swift */; };
-		F1A2B3C4D5E6F708192A3B4C /* FriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F708192A3B4B /* FriendsView.swift */; };
+		E634AB83DCB429DF3296AB7A /* ClothingCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6D0487022AFC6F52EF8CA6 /* ClothingCatalogView.swift */; };
 		EDBDB747CE4BABB0CFF197FC /* DTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53EC759F0522F47E3F4CA8D6 /* DTOs.swift */; };
 		F0EA010FEEECD0F9571EAEA0 /* FitCheckDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2B133978A5DF4FAD300BAC0 /* FitCheckDetailView.swift */; };
 		F24DA4F3C05FFC0CADDD7B44 /* GroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CA064B94BCA72FC442207FA /* GroupsView.swift */; };
 		F3452636B3D81FE981377993 /* DesignReviewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06784B8B6DFAE2CA57F529C0 /* DesignReviewUITests.swift */; };
 		FBAFD9AB994A42FDF1A70AD3 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64ED974D6309F6D0B3D901A3 /* SupabaseManager.swift */; };
 		FBF966980820C01E97D0E1BA /* GroupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E55A52F004841DF4492C0A6F /* GroupDetailView.swift */; };
+		FD43B9203C37FDE76F7C097F /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498AA8ADCF0DED34AED4A919 /* PrivacyView.swift */; };
 		FDFDE5CE54962C8C811D9FED /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C634564AD096C712C1379C1B /* FlowLayout.swift */; };
 /* End PBXBuildFile section */
 
@@ -61,10 +71,16 @@
 		06784B8B6DFAE2CA57F529C0 /* DesignReviewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignReviewUITests.swift; sourceTree = "<group>"; };
 		0834B66B01F08808C1C2E207 /* CLOVUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CLOVUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0C7F0E6CD76006F2DACAB21F /* NotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsView.swift; sourceTree = "<group>"; };
+		0FD9009398BD3B201A42C081 /* ProfileFollowListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFollowListView.swift; sourceTree = "<group>"; };
+		269D9BE2C75A9D3F4498D1D2 /* WardrobeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeView.swift; sourceTree = "<group>"; };
+		2BEF6EF3AFAAFC3E3ECA0374 /* OutfitPlannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutfitPlannerView.swift; sourceTree = "<group>"; };
 		2CA064B94BCA72FC442207FA /* GroupsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupsView.swift; sourceTree = "<group>"; };
+		2E7A177FD958A0AAE176308D /* LocalWeatherPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalWeatherPrompt.swift; sourceTree = "<group>"; };
+		2F22A751A398D55902B01488 /* SearchExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchExploreView.swift; sourceTree = "<group>"; };
 		31F860B4DDFF2854B7F726FA /* ShareLinkButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareLinkButton.swift; sourceTree = "<group>"; };
 		35A2AABE91BB697AA71C6B66 /* AppState+UITesting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+UITesting.swift"; sourceTree = "<group>"; };
 		399050D49876290CD9288A2A /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		498AA8ADCF0DED34AED4A919 /* PrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
 		53EC759F0522F47E3F4CA8D6 /* DTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOs.swift; sourceTree = "<group>"; };
 		5889C4659072A3B9EB4B56F9 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		5C81E751494D3DA615A360CB /* UIImage+CLOV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+CLOV.swift"; sourceTree = "<group>"; };
@@ -72,12 +88,16 @@
 		756A5407D4877C806BEEE7DE /* PlusButtonUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusButtonUITests.swift; sourceTree = "<group>"; };
 		799B1273D027695A0C6F0677 /* LabeledField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabeledField.swift; sourceTree = "<group>"; };
 		7E6DB76DA8C1250DACE0AAD2 /* CLOVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLOVApp.swift; sourceTree = "<group>"; };
+		8676FF5E34501CAE2E8CA8E2 /* DailyChallenge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallenge.swift; sourceTree = "<group>"; };
 		8BA4CE9F954577415FCFE861 /* AspectFitTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AspectFitTile.swift; sourceTree = "<group>"; };
+		8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotifications.swift; sourceTree = "<group>"; };
 		9204CB72B4895178303DE6AE /* CreateFitCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFitCheckView.swift; sourceTree = "<group>"; };
 		92D4347DD67119C8228CD512 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A0888EA64C0BD0AD631D601B /* WardrobeFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeFlowUITests.swift; sourceTree = "<group>"; };
 		A179DB5BF042952B11B0E146 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		A76AFFFECC8F625E8DE559E1 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		ABF921D8B27E2D224D34582C /* CLOV.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CLOV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE6D0487022AFC6F52EF8CA6 /* ClothingCatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClothingCatalogView.swift; sourceTree = "<group>"; };
 		AFFEDE6F073525B208761314 /* VotingPhotoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VotingPhotoGridView.swift; sourceTree = "<group>"; };
 		B0BE7B0D063BE06987D597C8 /* DebugVerify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugVerify.swift; sourceTree = "<group>"; };
 		B3878CA2EE8FA123731E3A56 /* AsyncStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncStateView.swift; sourceTree = "<group>"; };
@@ -90,9 +110,9 @@
 		D772D3767E38350DDE20527B /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		DFA6728CE76690AA838208CB /* VotingEndedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VotingEndedView.swift; sourceTree = "<group>"; };
 		E122BB9565C9C461EFFEA5EA /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		E18F2A0EA717C09413980E4F /* FriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsView.swift; sourceTree = "<group>"; };
 		E55A52F004841DF4492C0A6F /* GroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupDetailView.swift; sourceTree = "<group>"; };
 		F4E725A874DE9D3F0C9B4430 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
-		F1A2B3C4D5E6F708192A3B4B /* FriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -131,16 +151,13 @@
 			isa = PBXGroup;
 			children = (
 				A179DB5BF042952B11B0E146 /* AccountView.swift */,
+				AE6D0487022AFC6F52EF8CA6 /* ClothingCatalogView.swift */,
+				2BEF6EF3AFAAFC3E3ECA0374 /* OutfitPlannerView.swift */,
+				498AA8ADCF0DED34AED4A919 /* PrivacyView.swift */,
+				0FD9009398BD3B201A42C081 /* ProfileFollowListView.swift */,
+				269D9BE2C75A9D3F4498D1D2 /* WardrobeView.swift */,
 			);
 			path = Account;
-			sourceTree = "<group>";
-		};
-		F1A2B3C4D5E6F708192A3B4A /* Friends */ = {
-			isa = PBXGroup;
-			children = (
-				F1A2B3C4D5E6F708192A3B4B /* FriendsView.swift */,
-			);
-			path = Friends;
 			sourceTree = "<group>";
 		};
 		44A53968CF8392257653A318 /* Create */ = {
@@ -158,7 +175,7 @@
 				BC8BDFBDB8F982BB8227467C /* Auth */,
 				44A53968CF8392257653A318 /* Create */,
 				E9146B085D4A5ACCA8701ACF /* Feed */,
-				F1A2B3C4D5E6F708192A3B4A /* Friends */,
+				D3A97E95BD43E836B806D894 /* Friends */,
 				86EF59241C0AA1DEEE33370A /* Groups */,
 				081DD72D8FEE47F85C2F61E9 /* Notifications */,
 				D644268D3C72BF191F3D5BF7 /* Onboarding */,
@@ -216,6 +233,8 @@
 		BE7C74DD006ECF471931D77A /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				8676FF5E34501CAE2E8CA8E2 /* DailyChallenge.swift */,
+				2E7A177FD958A0AAE176308D /* LocalWeatherPrompt.swift */,
 				B47B1ADAFAD28CC8BD517460 /* Models.swift */,
 			);
 			path = Models;
@@ -236,6 +255,14 @@
 				AFFEDE6F073525B208761314 /* VotingPhotoGridView.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		D3A97E95BD43E836B806D894 /* Friends */ = {
+			isa = PBXGroup;
+			children = (
+				E18F2A0EA717C09413980E4F /* FriendsView.swift */,
+			);
+			path = Friends;
 			sourceTree = "<group>";
 		};
 		D644268D3C72BF191F3D5BF7 /* Onboarding */ = {
@@ -267,6 +294,7 @@
 			isa = PBXGroup;
 			children = (
 				F4E725A874DE9D3F0C9B4430 /* FeedView.swift */,
+				2F22A751A398D55902B01488 /* SearchExploreView.swift */,
 			);
 			path = Feed;
 			sourceTree = "<group>";
@@ -279,6 +307,7 @@
 				7E6DB76DA8C1250DACE0AAD2 /* CLOVApp.swift */,
 				B0BE7B0D063BE06987D597C8 /* DebugVerify.swift */,
 				D772D3767E38350DDE20527B /* MainTabView.swift */,
+				8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -290,6 +319,7 @@
 				06784B8B6DFAE2CA57F529C0 /* DesignReviewUITests.swift */,
 				0586DAC57FDBFCA1D08DAF5A /* DevLoginUITests.swift */,
 				756A5407D4877C806BEEE7DE /* PlusButtonUITests.swift */,
+				A0888EA64C0BD0AD631D601B /* WardrobeFlowUITests.swift */,
 			);
 			path = CLOVUITests;
 			sourceTree = "<group>";
@@ -390,29 +420,38 @@
 				417994268B412F637833543A /* AsyncStateView.swift in Sources */,
 				06CB6BD290AD4EC6551B6D3A /* AuthView.swift in Sources */,
 				467A992627B99EE77B99C1D4 /* CLOVApp.swift in Sources */,
+				E634AB83DCB429DF3296AB7A /* ClothingCatalogView.swift in Sources */,
 				93F153B31B81D111BC4B8F99 /* CreateFitCheckView.swift in Sources */,
 				EDBDB747CE4BABB0CFF197FC /* DTOs.swift in Sources */,
+				5139830D74B8A7D0AA6DE2F2 /* DailyChallenge.swift in Sources */,
 				B3AD396D886754FF4342C01A /* DebugVerify.swift in Sources */,
 				BE8B6EF93360C3FEB5C044CC /* FeedView.swift in Sources */,
 				B49ED6D51D7FDDFA3EE948EA /* FitCheckCardView.swift in Sources */,
 				F0EA010FEEECD0F9571EAEA0 /* FitCheckDetailView.swift in Sources */,
 				FDFDE5CE54962C8C811D9FED /* FlowLayout.swift in Sources */,
+				06C26C940D95DB811D359A28 /* FriendsView.swift in Sources */,
 				FBF966980820C01E97D0E1BA /* GroupDetailView.swift in Sources */,
 				F24DA4F3C05FFC0CADDD7B44 /* GroupsView.swift in Sources */,
-				F1A2B3C4D5E6F708192A3B4C /* FriendsView.swift in Sources */,
 				559E6D0685C5AEB1E51854D2 /* Haptics.swift in Sources */,
 				21AF2833233DE6F6386F6FA3 /* InviteCode.swift in Sources */,
 				C4F2BBBF470651B12FEE641F /* LabeledField.swift in Sources */,
+				54AECC3E22BAD53B79A5680E /* LocalWeatherPrompt.swift in Sources */,
 				8CA1D836514AAF98E9EEFAD9 /* MainTabView.swift in Sources */,
 				66DC8DAB374ACF2DB7985363 /* Models.swift in Sources */,
 				3F628B2F5A2B993B4230CBBB /* NotificationsView.swift in Sources */,
 				A4E9A9D63BBFA3C3B95161C6 /* OnboardingView.swift in Sources */,
+				92813FBCDA784C9CED1C8294 /* OutfitPlannerView.swift in Sources */,
+				FD43B9203C37FDE76F7C097F /* PrivacyView.swift in Sources */,
+				B232B4740ED1781E230752D7 /* ProfileFollowListView.swift in Sources */,
+				7FF5CC98818F9EDDAC150C21 /* PushNotifications.swift in Sources */,
+				7625CAC06851A0EB0D2DE273 /* SearchExploreView.swift in Sources */,
 				0DA8D13158D5CE3C53915494 /* ShareLinkButton.swift in Sources */,
 				FBAFD9AB994A42FDF1A70AD3 /* SupabaseManager.swift in Sources */,
 				ABAC583B61A8AB2A702668FF /* Theme.swift in Sources */,
 				3C7AF0405A0AB005D9C2781D /* UIImage+CLOV.swift in Sources */,
 				3D9DCAB29A00D71CE16AE798 /* VotingEndedView.swift in Sources */,
 				095F2CF2DCA45BA776D23019 /* VotingPhotoGridView.swift in Sources */,
+				72D87D69F53D0F5B7E756A49 /* WardrobeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -424,6 +463,7 @@
 				F3452636B3D81FE981377993 /* DesignReviewUITests.swift in Sources */,
 				AEC0531A483D71300737BA8C /* DevLoginUITests.swift in Sources */,
 				DCB202932B3E17F4F5FDB65D /* PlusButtonUITests.swift in Sources */,
+				4337AA08C93B7391EB7877C0 /* WardrobeFlowUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

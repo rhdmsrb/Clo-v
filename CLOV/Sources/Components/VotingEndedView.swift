@@ -13,7 +13,7 @@ struct VotingEndedView: View {
                 .font(.system(size: 28))
                 .foregroundStyle(Theme.mutedForeground)
             Text("Voting has ended")
-                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .font(.system(.subheadline, design: .default).weight(.bold))
             Text("The photos and results for this Fit-Check are no longer visible.")
                 .font(.caption)
                 .foregroundStyle(Theme.mutedForeground)

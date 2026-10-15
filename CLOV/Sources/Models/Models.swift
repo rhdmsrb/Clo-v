@@ -13,6 +13,32 @@ struct Profile: Codable, Identifiable, Equatable {
     var createdAt: Date?
 
     var isOnboarded: Bool { !(nickname ?? "").isEmpty }
+
+    init(id: UUID, nickname: String?, stylePreferences: [String], avatarUrl: String?, createdAt: Date?) {
+        self.id = id
+        self.nickname = nickname
+        self.stylePreferences = stylePreferences
+        self.avatarUrl = avatarUrl
+        self.createdAt = createdAt
+    }
+
+    // Profile rows can predate optional profile columns in the deployed
+    // database. Keep loading the account when those columns are absent or
+    // null; otherwise a harmless schema rollout mismatch blocks the whole app.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
+        stylePreferences = try container.decodeIfPresent([String].self, forKey: .stylePreferences) ?? []
+        avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+    }
+}
+
+struct ProfileFollow: Codable, Hashable {
+    let followerId: UUID
+    let followingId: UUID
+    var createdAt: Date?
 }
 
 struct FitCheck: Codable, Identifiable {
@@ -73,6 +99,70 @@ struct GroupMember: Codable {
     let groupId: UUID
     let profileId: UUID
     var joinedAt: Date?
+}
+
+struct WardrobeItem: Codable, Identifiable, Equatable {
+    let id: UUID
+    let ownerId: UUID
+    var imageUrl: String
+    var name: String?
+    var category: String
+    var subcategory: String?
+    var color: String?
+    var season: String?
+    var brand: String?
+    var wearFrequency: String?
+    var tags: [String]?
+    var createdAt: Date?
+    var updatedAt: Date?
+}
+
+/// Lightweight activity summary shown in the account tab. The counts are
+/// intentionally derived from the same rows the app already writes, so the
+/// report stays useful without introducing a second analytics pipeline.
+struct WeeklyStyleReport: Equatable {
+    let votesCast: Int
+    let fitChecksPosted: Int
+    let commentsWritten: Int
+    let wardrobePiecesAdded: Int
+    let currentStreak: Int
+    let topOccasion: String?
+}
+
+enum WardrobeCategory: String, CaseIterable, Identifiable {
+    case top, bottom, dress, outerwear, shoes, accessory, set, other
+    var id: Self { self }
+    var label: String {
+        switch self {
+        case .top: "Tops"
+        case .bottom: "Bottoms"
+        case .dress: "Dresses"
+        case .outerwear: "Outerwear"
+        case .shoes: "Shoes"
+        case .accessory: "Accessories"
+        case .set: "Sets"
+        case .other: "Other"
+        }
+    }
+}
+
+enum WardrobeSeason: String, CaseIterable, Identifiable {
+    case spring, summer, fall, winter, all
+    var id: Self { self }
+    var label: String { rawValue == "all" ? "All year" : rawValue.capitalized }
+}
+
+enum WardrobeFrequency: String, CaseIterable, Identifiable {
+    case rarely, sometimes, often, favorite
+    var id: Self { self }
+    var label: String {
+        switch self {
+        case .rarely: "Rarely"
+        case .sometimes: "Sometimes"
+        case .often: "Often"
+        case .favorite: "Favorite"
+        }
+    }
 }
 
 // Lightweight profile info for embedding in feed/comment rows.

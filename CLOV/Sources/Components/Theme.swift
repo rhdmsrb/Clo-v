@@ -1,30 +1,39 @@
 import SwiftUI
 import UIKit
 
-// Visual direction: editorial fashion publication.
-// Strong ink-on-paper contrast, square-ish surfaces, one muted lavender
-// accent, and photographs that carry more visual weight than app chrome.
+// Visual direction: clean white surfaces, ink, and a restrained champagne accent.
 enum Theme {
-    static let accent = Color(red: 0.48, green: 0.45, blue: 0.65) // #7A73A6
+    static let accent = adaptive((0.40, 0.28, 0.17), (0.86, 0.74, 0.56))
+    static let accentSecondary = adaptive((0.61, 0.43, 0.28), (0.75, 0.61, 0.42))
+    // Small, expressive icon colors add personality without changing the
+    // neutral typography or the black-and-white surfaces.
+    static let iconCoral = Color(red: 0.82, green: 0.31, blue: 0.29)
+    static let iconApricot = Color(red: 0.91, green: 0.55, blue: 0.25)
+    static let iconPlum = Color(red: 0.49, green: 0.34, blue: 0.57)
+    static let iconSage = Color(red: 0.34, green: 0.51, blue: 0.40)
     static let accentForeground = Color.white
-    static let background = adaptive((0.95, 0.94, 0.90), (0.07, 0.07, 0.07))
-    static let card = adaptive((0.985, 0.98, 0.95), (0.12, 0.12, 0.12))
-    static let muted = adaptive((0.88, 0.86, 0.81), (0.19, 0.19, 0.19))
-    static let mutedForeground = adaptive((0.31, 0.30, 0.28), (0.74, 0.73, 0.70))
-    static let line = adaptive((0.08, 0.08, 0.08), (0.92, 0.91, 0.87))
-    static let ink = adaptive((0.06, 0.06, 0.06), (0.94, 0.93, 0.89))
-    static let inverseText = adaptive((0.98, 0.97, 0.94), (0.06, 0.06, 0.06))
+    static let background = adaptive((1.0, 1.0, 1.0), (0.06, 0.06, 0.06))
+    static let card = adaptive((1.0, 1.0, 1.0), (0.12, 0.12, 0.12))
+    static let muted = adaptive((0.96, 0.96, 0.96), (0.18, 0.18, 0.18))
+    static let mutedForeground = adaptive((0.38, 0.38, 0.38), (0.74, 0.74, 0.74))
+    static let line = adaptive((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
+    static let ink = adaptive((0.02, 0.02, 0.02), (0.98, 0.98, 0.98))
+    static let inverseText = adaptive((1.0, 1.0, 1.0), (0.02, 0.02, 0.02))
 
-    static let cardRadius: CGFloat = 12
-    static let tileRadius: CGFloat = 10
+    static let cardRadius: CGFloat = 16
+    static let tileRadius: CGFloat = 16
 
-    static var displayFont: Font { .system(.title2, design: .default).weight(.black) }
+    static var displayFont: Font { editorialFont(size: 30, relativeTo: .title2) }
 
-    static let cardShadow = Color.black.opacity(0.08)
+    static func editorialFont(size: CGFloat, relativeTo textStyle: Font.TextStyle = .largeTitle) -> Font {
+        .custom("BodoniSvtyTwoITCTT-Book", size: size, relativeTo: textStyle)
+    }
+
+    static let cardShadow = Color.black.opacity(0.045)
     static let press = Animation.spring(response: 0.24, dampingFraction: 0.82)
 
-    // Kept for existing views, but intentionally flat: this direction does
-    // not use gloss or candy-like gradients.
+    // Kept for existing views. The accent is intentionally flat so photos and
+    // typography remain the visual focus.
     static var accentGradient: LinearGradient {
         LinearGradient(
             colors: [accent, accent],
@@ -71,17 +80,18 @@ extension View {
     }
 }
 
-/// The shared paper card: compact corners, visible rule, minimal elevation.
+/// Shared card surface with modest corners and a quiet border.
 struct SoftCard: ViewModifier {
     var radius: CGFloat = Theme.cardRadius
-    var padding: CGFloat = 16
+    var padding: CGFloat = 14
     func body(content: Content) -> some View {
         content
             .padding(padding)
             .background(Theme.card)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(Theme.line.opacity(0.22), lineWidth: 1))
+                .stroke(Theme.line.opacity(0.12), lineWidth: 1))
+            .shadow(color: Theme.cardShadow, radius: 5, y: 2)
     }
 }
 
@@ -100,7 +110,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, 15)
             .background(isDisabled ? Theme.muted : Theme.ink)
             .foregroundStyle(Theme.inverseText)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(Theme.press, value: configuration.isPressed)
     }
@@ -114,8 +124,8 @@ struct OutlineButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .background(configuration.isPressed ? Theme.muted : Theme.card)
             .foregroundStyle(Color.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Theme.line.opacity(0.35), lineWidth: 1))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(Theme.press, value: configuration.isPressed)
@@ -175,8 +185,8 @@ struct ChipToggle: View {
                 .padding(.vertical, 10)
                 .background(selected ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.card))
                 .foregroundStyle(selected ? Theme.inverseText : Color.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .clipShape(Capsule())
+                .overlay(Capsule()
                     .stroke(Theme.line.opacity(selected ? 0 : 0.22), lineWidth: 1))
         }
         .buttonStyle(.plain)
