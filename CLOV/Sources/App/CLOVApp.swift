@@ -21,7 +21,7 @@ struct CLOVApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: .clovAPNsToken)) { notification in
                     guard let token = notification.object as? String, appState.isSignedIn else { return }
                     Task {
-                        do { try await API.registerDeviceToken(token, userId: appState.userId) }
+                        do { try await API.registerDeviceToken(token) }
                         catch { Log.push.error("Device token registration failed: \(error.localizedDescription)") }
                     }
                 }

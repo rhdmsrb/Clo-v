@@ -518,15 +518,11 @@ enum API {
         }
     }
 
-    static func registerDeviceToken(_ token: String, userId: UUID) async throws {
+    /// Server-side RPC so a token still owned by a previous account on this
+    /// device is reassigned to the signed-in user (see 20261020000200 migration).
+    static func registerDeviceToken(_ token: String) async throws {
+        try await client.rpc("register_device_token", params: ["p_token": token, "p_platform": "ios"]).execute()
         currentDeviceToken = token
-        struct Payload: Encodable {
-            let userId: UUID
-            let token: String
-            let platform = "ios"
-            let updatedAt = Date()
-        }
-        try await client.from("device_tokens").upsert(Payload(userId: userId, token: token), onConflict: "token").execute()
     }
 
     static func addComment(fitCheckId: UUID, photoId: UUID, commenterId: UUID, body: String) async throws {

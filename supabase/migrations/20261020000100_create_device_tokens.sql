@@ -11,8 +11,9 @@ create index if not exists device_tokens_user_id_idx on public.device_tokens (us
 
 alter table public.device_tokens enable row level security;
 
--- Upsert on `token` can re-home a token to the new signed-in user (same device,
--- different account), so insert/update only check the new owner.
+-- Re-homing a token to a different account goes through the
+-- register_device_token RPC (20261020000200); these policies only let a user
+-- write rows they own.
 drop policy if exists "device_tokens_insert_own" on public.device_tokens;
 create policy "device_tokens_insert_own" on public.device_tokens
   for insert to authenticated with check (user_id = auth.uid());
