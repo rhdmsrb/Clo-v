@@ -30,6 +30,7 @@
 		5139830D74B8A7D0AA6DE2F2 /* DailyChallenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8676FF5E34501CAE2E8CA8E2 /* DailyChallenge.swift */; };
 		54AECC3E22BAD53B79A5680E /* LocalWeatherPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7A177FD958A0AAE176308D /* LocalWeatherPrompt.swift */; };
 		559E6D0685C5AEB1E51854D2 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122BB9565C9C461EFFEA5EA /* Haptics.swift */; };
+		5AB6C29E62057AC7DCCED133 /* ShareURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA76D53F64B3A4EFF8BF6945 /* ShareURL.swift */; };
 		5C6F7459F79DB3E9F806E80A /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54177AC62EB6C84A6A098C9 /* Log.swift */; };
 		66DC8DAB374ACF2DB7985363 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B1ADAFAD28CC8BD517460 /* Models.swift */; };
 		72D87D69F53D0F5B7E756A49 /* WardrobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269D9BE2C75A9D3F4498D1D2 /* WardrobeView.swift */; };
@@ -55,6 +56,7 @@
 		C5FAF65A548ACE2E8DEF19EC /* API+Groups.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22DBF0EE6CAA178EFCE60306 /* API+Groups.swift */; };
 		C8F78F6F2AA4E22F87BBCE3C /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 624ADB10CAED2A7EADEF4C6E /* AppStateTests.swift */; };
 		CA9ADBD6CFA2E4D2C5ECA4E3 /* API+Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 414B1C3068A16BA023185C54 /* API+Notifications.swift */; };
+		D1AD45144C3287BBD1E49DC2 /* ShareURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE0A2A7F2DF0052DD0FCED47 /* ShareURLTests.swift */; };
 		D9443E42DE822D512933D55A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 399050D49876290CD9288A2A /* AppState.swift */; };
 		DCB202932B3E17F4F5FDB65D /* PlusButtonUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756A5407D4877C806BEEE7DE /* PlusButtonUITests.swift */; };
 		DCEFCE157E19BEC6F260A84A /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A179DB5BF042952B11B0E146 /* AccountView.swift */; };
@@ -134,12 +136,14 @@
 		A0D624DD9A9555D406F9A5F9 /* API+Wardrobe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "API+Wardrobe.swift"; sourceTree = "<group>"; };
 		A179DB5BF042952B11B0E146 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		A76AFFFECC8F625E8DE559E1 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		AA76D53F64B3A4EFF8BF6945 /* ShareURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURL.swift; sourceTree = "<group>"; };
 		ABF921D8B27E2D224D34582C /* CLOV.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CLOV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE6D0487022AFC6F52EF8CA6 /* ClothingCatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClothingCatalogView.swift; sourceTree = "<group>"; };
 		AFFEDE6F073525B208761314 /* VotingPhotoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VotingPhotoGridView.swift; sourceTree = "<group>"; };
 		B0BE7B0D063BE06987D597C8 /* DebugVerify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugVerify.swift; sourceTree = "<group>"; };
 		B3878CA2EE8FA123731E3A56 /* AsyncStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncStateView.swift; sourceTree = "<group>"; };
 		B47B1ADAFAD28CC8BD517460 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		BE0A2A7F2DF0052DD0FCED47 /* ShareURLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLTests.swift; sourceTree = "<group>"; };
 		C2B133978A5DF4FAD300BAC0 /* FitCheckDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheckDetailView.swift; sourceTree = "<group>"; };
 		C634564AD096C712C1379C1B /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		C687350ECCEB5117B6280F6C /* InviteCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteCode.swift; sourceTree = "<group>"; };
@@ -191,6 +195,7 @@
 				1D23D63A1AA1DBB95BB79DA8 /* PushPayloadTests.swift */,
 				3AA18B18C24444C2A9399DA0 /* ReleaseConfigTests.swift */,
 				6D2B143DA18FD8906D99F477 /* SearchTermTests.swift */,
+				BE0A2A7F2DF0052DD0FCED47 /* ShareURLTests.swift */,
 			);
 			path = CLOVTests;
 			sourceTree = "<group>";
@@ -315,6 +320,7 @@
 				E122BB9565C9C461EFFEA5EA /* Haptics.swift */,
 				799B1273D027695A0C6F0677 /* LabeledField.swift */,
 				31F860B4DDFF2854B7F726FA /* ShareLinkButton.swift */,
+				AA76D53F64B3A4EFF8BF6945 /* ShareURL.swift */,
 				92D4347DD67119C8228CD512 /* Theme.swift */,
 				DFA6728CE76690AA838208CB /* VotingEndedView.swift */,
 				AFFEDE6F073525B208761314 /* VotingPhotoGridView.swift */,
@@ -523,6 +529,7 @@
 				F367E06AE299EF2182443E6C /* PushPayloadTests.swift in Sources */,
 				FAE7A5CE63FE67231F86F67B /* ReleaseConfigTests.swift in Sources */,
 				86F816638D487CF8CBAD0E61 /* SearchTermTests.swift in Sources */,
+				D1AD45144C3287BBD1E49DC2 /* ShareURLTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -572,6 +579,7 @@
 				7625CAC06851A0EB0D2DE273 /* SearchExploreView.swift in Sources */,
 				8F64255164B081F976F6637A /* SearchTerm.swift in Sources */,
 				0DA8D13158D5CE3C53915494 /* ShareLinkButton.swift in Sources */,
+				5AB6C29E62057AC7DCCED133 /* ShareURL.swift in Sources */,
 				FBAFD9AB994A42FDF1A70AD3 /* SupabaseManager.swift in Sources */,
 				ABAC583B61A8AB2A702668FF /* Theme.swift in Sources */,
 				3C7AF0405A0AB005D9C2781D /* UIImage+CLOV.swift in Sources */,

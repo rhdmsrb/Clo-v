@@ -62,9 +62,7 @@ struct CLOVApp: App {
             }
             return
         }
-        guard url.scheme == "clov", url.host == "vote",
-              let id = UUID(uuidString: url.lastPathComponent)
-        else { return }
+        guard let id = ShareURL.fitCheckId(from: url) else { return }
         appState.deepLinkFitCheckId = id
     }
 }

@@ -241,8 +241,8 @@ private enum OpenverseCatalog {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         let decoded = try JSONDecoder().decode(Response.self, from: data)
         return decoded.results.compactMap { result in
-            guard let imageURL = URL(string: result.thumbnail), ["https", "http"].contains(imageURL.scheme?.lowercased() ?? ""),
-                  let directURL = URL(string: result.imageURL), ["https", "http"].contains(directURL.scheme?.lowercased() ?? "") else { return nil }
+            guard let imageURL = URL(string: result.thumbnail), imageURL.scheme?.lowercased() == "https",
+                  let directURL = URL(string: result.imageURL), directURL.scheme?.lowercased() == "https" else { return nil }
             let searchableText = ([result.titleText] + (result.tags ?? []).map(\.name)).joined(separator: " ").lowercased()
             let blockedTerms = ["halloween", "sexy", "lingerie", "underwear", "costume", "uniform"]
             guard !blockedTerms.contains(where: { searchableText.contains($0) }) else { return nil }
