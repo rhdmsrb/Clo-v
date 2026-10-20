@@ -23,6 +23,9 @@ struct CLOVApp: App {
                 .onChange(of: appState.contentRevision) { _, _ in
                     // First vote, comment or post: now notifications have a reason to exist.
                     guard appState.isSignedIn, !hasAskedForPush else { return }
+                    #if DEBUG
+                    if SampleData.isActive { return }
+                    #endif
                     hasAskedForPush = true
                     appDelegate.requestPushPermission()
                 }

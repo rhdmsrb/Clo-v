@@ -6,6 +6,9 @@ extension API {
     // MARK: - Wardrobe
 
     static func fetchWardrobeItems(ownerId: UUID) async throws -> [WardrobeItem] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.wardrobeItems }
+#endif
         let rows: [WardrobeItem] = try await client
             .from("wardrobe_items")
             .select()
@@ -24,6 +27,9 @@ extension API {
     static func createWardrobeItem(ownerId: UUID, image: UIImage, name: String?, category: String,
                                    subcategory: String?, color: String?, season: String?, brand: String?,
                                    wearFrequency: String?, tags: [String] = []) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         let session = try await client.auth.session
         guard session.user.id == ownerId else { throw APIError.message("Please sign in again.") }
         let itemId = UUID()
@@ -51,6 +57,9 @@ extension API {
     static func updateWardrobeItem(id: UUID, ownerId: UUID, image: UIImage?, name: String?, category: String,
                                    subcategory: String?, color: String?, season: String?, brand: String?,
                                    wearFrequency: String?, tags: [String]) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         let session = try await client.auth.session
         guard session.user.id == ownerId else { throw APIError.message("Please sign in again.") }
         struct ImageRow: Decodable { let imageUrl: String }
@@ -85,6 +94,9 @@ extension API {
     }
 
     static func deleteWardrobeItem(id: UUID, ownerId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         let session = try await client.auth.session
         guard session.user.id == ownerId else { throw APIError.message("Please sign in again.") }
         struct ImageRow: Decodable { let imageUrl: String }

@@ -87,6 +87,9 @@ enum API {
     // MARK: - Profile / Onboarding
 
     static func fetchProfile(id: UUID) async throws -> Profile? {
+#if DEBUG
+        if SampleData.isActive { return SampleData.profile }
+#endif
         // PostgREST's request adapter falls back to the public anon key when
         // its access-token provider cannot resolve a valid session. For this
         // authenticated query, fail with the auth error instead of issuing an
@@ -106,6 +109,9 @@ enum API {
     }
 
     static func saveOnboarding(nickname: String, styles: [String]) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         struct Payload: Encodable {
             let nickname: String
             let stylePreferences: [String]
@@ -126,6 +132,9 @@ enum API {
     /// deletion of storage.objects only removes metadata, leaving files behind.
     /// A failed file removal leaves the account available for a safe retry.
     static func deleteAccount() async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         _ = try await client.auth.session
         await unregisterDeviceToken()
         // The Edge Function clears the user's files and then deletes the
@@ -150,6 +159,9 @@ enum API {
     }
 
     static func updateAvatar(id: UUID, image: UIImage) async throws -> String {
+#if DEBUG
+        if SampleData.isActive { return SampleData.me.avatarUrl ?? "" }
+#endif
         let publicURL = try await uploadImage(image, bucket: "avatars", pathPrefix: id.storagePathComponent, aspectRatio: 1.0)
         try await client
             .from("profiles")
@@ -170,6 +182,9 @@ enum API {
     }
 
     static func fetchFeed() async throws -> [FeedItemDTO] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.publicFeed }
+#endif
         async let blockedTask = fetchBlockedUserIDs()
         let userId = try await client.auth.session.user.id
         async let friendTask = fetchFriendIDs(userId: userId)
@@ -185,6 +200,9 @@ enum API {
     }
 
     static func fetchFeedPage(offset: Int, limit: Int, search: String, occasion: String?, followingIDs: Set<UUID>?, friendIDs: Set<UUID> = []) async throws -> FeedPageResult {
+#if DEBUG
+        if SampleData.isActive { return SampleData.feedPage(offset: offset, limit: limit, search: search, occasion: occasion, followingIDs: followingIDs) }
+#endif
         let followedOrFriends = (followingIDs ?? []).union(friendIDs)
         if followingIDs != nil, followedOrFriends.isEmpty { return FeedPageResult(items: [], fetchedCount: 0) }
         let trimmedSearch = search.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -231,6 +249,9 @@ enum API {
     }
 
     static func fetchFollowingIDs(userId: UUID) async throws -> Set<UUID> {
+#if DEBUG
+        if SampleData.isActive { return SampleData.followingIDs }
+#endif
         let rows: [ProfileFollow] = try await client.from("profile_follows")
             .select("follower_id, following_id, created_at")
             .eq("follower_id", value: userId)
@@ -239,6 +260,9 @@ enum API {
     }
 
     static func fetchFollowerIDs(userId: UUID) async throws -> Set<UUID> {
+#if DEBUG
+        if SampleData.isActive { return SampleData.followerIDs }
+#endif
         let rows: [ProfileFollow] = try await client.from("profile_follows")
             .select("follower_id, following_id, created_at")
             .eq("following_id", value: userId)
@@ -247,6 +271,9 @@ enum API {
     }
 
     static func fetchFriendIDs(userId: UUID) async throws -> Set<UUID> {
+#if DEBUG
+        if SampleData.isActive { return SampleData.friendIDs }
+#endif
         let rows: [FriendshipDTO] = try await client.from("friendships").select("user_low, user_high")
             .or("user_low.eq.\(userId.uuidString),user_high.eq.\(userId.uuidString)")
             .execute().value
@@ -254,6 +281,9 @@ enum API {
     }
 
     static func setFollowing(_ following: Bool, followerId: UUID, followingId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         guard followerId != followingId else { return }
         if following {
             struct Payload: Encodable { let followerId: UUID; let followingId: UUID }
@@ -275,43 +305,26 @@ enum API {
     }
 
     static func logFeedEvent(userId: UUID, fitCheckId: UUID, event: String, value: Double? = nil) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.from("feed_events").insert(FeedEventPayload(userId: userId, fitCheckId: fitCheckId, event: event, value: value)).execute()
     }
 
     /// One request for many events, so scrolling the feed doesn't send a request per card.
     static func logFeedEvents(userId: UUID, fitCheckIds: [UUID], event: String) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         guard !fitCheckIds.isEmpty else { return }
         let rows = fitCheckIds.map { FeedEventPayload(userId: userId, fitCheckId: $0, event: event, value: nil) }
         try await client.from("feed_events").insert(rows).execute()
     }
 
-    static func fetchFeedSignalScores(userId: UUID) async throws -> [UUID: Int] {
-        struct Row: Decodable {
-            let fitCheckId: UUID
-            let event: String
-        }
-        let rows: [Row] = try await client.from("feed_events")
-            .select("fit_check_id, event")
-            .eq("user_id", value: userId)
-            .order("created_at", ascending: false)
-            .limit(500)
-            .execute().value
-        let weights = [
-            "impression": -1,
-            "open_detail": 3,
-            "vote": 6,
-            "save": 4,
-            "share": 5,
-            "follow": 2,
-            "unfollow": -2,
-            "not_interested": -8
-        ]
-        return rows.reduce(into: [:]) { scores, row in
-            scores[row.fitCheckId, default: 0] += weights[row.event, default: 0]
-        }
-    }
-
     static func fetchGroupFeed(groupId: UUID) async throws -> [FeedItemDTO] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.groupFeed(groupId: groupId) }
+#endif
         async let blockedTask = fetchBlockedUserIDs()
         let rows: [FeedItemDTO] = try await client.from("fit_checks")
             .select(feedColumns).eq("status", value: "live")
@@ -323,6 +336,9 @@ enum API {
     }
 
     static func fetchBlockedUserIDs() async throws -> Set<UUID> {
+#if DEBUG
+        if SampleData.isActive { return [] }
+#endif
         struct Row: Decodable { let blockedId: UUID }
         let rows: [Row] = try await client
             .from("blocked_users")
@@ -333,6 +349,9 @@ enum API {
     }
 
     static func fetchMyFitChecksWithStatus(creatorId: UUID) async throws -> [MyFitCheck] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.myFitChecks() }
+#endif
         struct Row: Decodable {
             let id: UUID
             var caption: String?
@@ -358,83 +377,12 @@ enum API {
         }
     }
 
-    // MARK: - Style insights
-
-    static func fetchWeeklyStyleReport(userId: UUID) async throws -> WeeklyStyleReport {
-        struct ActivityRow: Decodable {
-            let createdAt: Date
-            let occasion: String?
-        }
-
-        let calendar = Calendar.current
-        let now = Date()
-        let weekStart = calendar.date(byAdding: .day, value: -6, to: now) ?? now
-        let historyStart = calendar.date(byAdding: .day, value: -60, to: now) ?? now
-        let since = ISO8601DateFormatter().string(from: historyStart)
-
-        async let votesTask: [ActivityRow] = client
-            .from("fit_check_votes")
-            .select("created_at")
-            .eq("voter_id", value: userId)
-            .gte("created_at", value: since)
-            .execute().value
-        async let postsTask: [ActivityRow] = client
-            .from("fit_checks")
-            .select("created_at, occasion")
-            .eq("creator_id", value: userId)
-            .neq("status", value: "draft")
-            .gte("created_at", value: since)
-            .execute().value
-        async let commentsTask: [ActivityRow] = client
-            .from("fit_check_comments")
-            .select("created_at")
-            .eq("commenter_id", value: userId)
-            .gte("created_at", value: since)
-            .execute().value
-        async let wardrobeTask: [ActivityRow] = client
-            .from("wardrobe_items")
-            .select("created_at")
-            .eq("owner_id", value: userId)
-            .gte("created_at", value: since)
-            .execute().value
-
-        let (votes, posts, comments, wardrobe) = try await (votesTask, postsTask, commentsTask, wardrobeTask)
-        let weekStartDay = calendar.startOfDay(for: weekStart)
-        let inWeek: (ActivityRow) -> Bool = { row in row.createdAt >= weekStartDay }
-        let activeDates = (votes + posts + comments + wardrobe).map { calendar.startOfDay(for: $0.createdAt) }
-        let activeDateSet = Set(activeDates)
-
-        var streak = 0
-        var cursor = calendar.startOfDay(for: now)
-        if !activeDateSet.contains(cursor) {
-            cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor
-        }
-        while activeDateSet.contains(cursor) {
-            streak += 1
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
-            cursor = previous
-        }
-
-        let occasionCounts = posts.filter(inWeek).compactMap(\.occasion).reduce(into: [:]) { counts, occasion in
-            counts[occasion, default: 0] += 1
-        }
-        let topOccasion = occasionCounts.max { lhs, rhs in
-            lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
-        }?.key
-
-        return WeeklyStyleReport(
-            votesCast: votes.filter(inWeek).count,
-            fitChecksPosted: posts.filter(inWeek).count,
-            commentsWritten: comments.filter(inWeek).count,
-            wardrobePiecesAdded: wardrobe.filter(inWeek).count,
-            currentStreak: streak,
-            topOccasion: topOccasion
-        )
-    }
-
     // MARK: - Fit-Check detail / voting / comments
 
     static func fetchFitCheckDetail(id: UUID) async throws -> FitCheckDetailDTO? {
+#if DEBUG
+        if SampleData.isActive { return SampleData.fixture(id: id)?.detail }
+#endif
         let rows: [FitCheckDetailDTO] = try await client
             .from("fit_checks")
             .select("id, caption, occasion, status, creator_id, expires_at, fit_check_photos(id, fit_check_id, image_url, position), profiles(nickname, avatar_url)")
@@ -448,7 +396,10 @@ enum API {
     }
 
     static func fetchVotes(fitCheckId: UUID) async throws -> [VoteRef] {
-        try await client
+#if DEBUG
+        if SampleData.isActive { return SampleData.votes(fitCheckId: fitCheckId) }
+#endif
+        return try await client
             .from("fit_check_votes")
             .select("photo_id, voter_id")
             .eq("fit_check_id", value: fitCheckId)
@@ -457,7 +408,10 @@ enum API {
     }
 
     static func fetchComments(fitCheckId: UUID) async throws -> [CommentDTO] {
-        try await client
+#if DEBUG
+        if SampleData.isActive { return SampleData.comments(fitCheckId: fitCheckId) }
+#endif
+        return try await client
             .from("fit_check_comments")
             .select("id, body, created_at, profiles(nickname, avatar_url)")
             .eq("fit_check_id", value: fitCheckId)
@@ -467,6 +421,9 @@ enum API {
     }
 
     static func castVote(fitCheckId: UUID, photoId: UUID, voterId: UUID, creatorId: UUID, status: String, expiresAt: Date? = nil) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         if creatorId == voterId {
             throw APIError.message("You can't vote on your own Fit-Check.")
         }
@@ -496,6 +453,9 @@ enum API {
     }
 
     static func saveVoteReason(fitCheckId: UUID, photoId: UUID, tags: [String], comment: String) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         struct Params: Encodable {
             let pFitCheckId: UUID
             let pPhotoId: UUID
@@ -517,6 +477,9 @@ enum API {
     static var currentDeviceToken: String?
 
     static func unregisterDeviceToken() async {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         guard let token = currentDeviceToken else { return }
         do {
             try await client.from("device_tokens").delete().eq("token", value: token).execute()
@@ -529,11 +492,17 @@ enum API {
     /// Server-side RPC so a token still owned by a previous account on this
     /// device is reassigned to the signed-in user (see 20261020000200 migration).
     static func registerDeviceToken(_ token: String) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.rpc("register_device_token", params: ["p_token": token, "p_platform": "ios"]).execute()
         currentDeviceToken = token
     }
 
     static func addComment(fitCheckId: UUID, photoId: UUID, commenterId: UUID, body: String) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw APIError.message("Comment can't be empty.") }
         guard trimmed.count <= 280 else { throw APIError.message("Keep the comment under 280 characters.") }
@@ -563,6 +532,9 @@ enum API {
     }
 
     static func reportFitCheck(id: UUID, reason: String) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         struct Params: Encodable {
             let pFitCheckId: UUID
             let pReason: String
@@ -575,6 +547,9 @@ enum API {
     }
 
     static func blockUser(id: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.rpc("block_user", params: ["p_blocked_id": id]).execute()
     }
 
@@ -582,6 +557,9 @@ enum API {
     // MARK: - Create Fit-Check
 
     static func createFitCheck(creatorId: UUID, caption: String?, occasion: String? = nil, groupId: UUID?, audience: String = "public", votePrompt: String? = nil, votingDuration: TimeInterval, photos: [UIImage]) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         guard photos.count == 2 || photos.count == 4 else { throw APIError.message("Upload exactly 2 or 4 photos.") }
         guard (caption ?? "").count <= 280 else { throw APIError.message("Keep the caption under 280 characters.") }
         let session = try await client.auth.session

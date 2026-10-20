@@ -6,6 +6,9 @@ extension API {
     // MARK: - Groups
 
     static func fetchMyGroups(profileId: UUID) async throws -> [FashionGroup] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.groups }
+#endif
         let rows: [MembershipGroupDTO] = try await client
             .from("group_members")
             .select("groups(id, name, creator_id, invite_code, created_at)")
@@ -16,6 +19,9 @@ extension API {
     }
 
     static func fetchGroupMembers(groupId: UUID) async throws -> [GroupMemberDisplay] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.members(groupId: groupId) }
+#endif
         let rows: [MemberDTO] = try await client
             .from("group_members")
             .select("profile_id, profiles(nickname, avatar_url)")
@@ -28,6 +34,9 @@ extension API {
     }
 
     static func isMember(groupId: UUID, profileId: UUID) async throws -> Bool {
+#if DEBUG
+        if SampleData.isActive { return SampleData.group(id: groupId) != nil }
+#endif
         let rows: [GroupMember] = try await client
             .from("group_members")
             .select()
@@ -39,6 +48,9 @@ extension API {
     }
 
     static func createGroup(name: String, creatorId: UUID) async throws -> FashionGroup {
+#if DEBUG
+        if SampleData.isActive { return SampleData.createdGroup(name: name) }
+#endif
         var lastError: Error?
         for _ in 0..<3 {
             do {
@@ -60,6 +72,9 @@ extension API {
     }
 
     static func joinGroup(code: String) async throws -> FashionGroup {
+#if DEBUG
+        if SampleData.isActive { return SampleData.groups[0] }
+#endif
         let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard !normalized.isEmpty else { throw APIError.message("Enter an invite code.") }
 
@@ -79,21 +94,33 @@ extension API {
     }
 
     static func renameGroup(id: UUID, name: String) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw APIError.message("Enter a board name.") }
         try await client.from("groups").update(["name": trimmed]).eq("id", value: id).execute()
     }
 
     static func leaveGroup(id: UUID, profileId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.from("group_members").delete()
             .eq("group_id", value: id).eq("profile_id", value: profileId).execute()
     }
 
     static func deleteGroup(id: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.from("groups").delete().eq("id", value: id).execute()
     }
 
     static func removeGroupMember(groupId: UUID, profileId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.from("group_members").delete()
             .eq("group_id", value: groupId).eq("profile_id", value: profileId).execute()
     }

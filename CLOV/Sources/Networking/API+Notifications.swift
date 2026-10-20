@@ -6,7 +6,10 @@ extension API {
     // MARK: - Notifications
 
     static func fetchNotifications(recipientId: UUID) async throws -> [NotificationDTO] {
-        try await client
+#if DEBUG
+        if SampleData.isActive { return SampleData.notifications }
+#endif
+        return try await client
             .from("notifications")
             .select("id, type, is_read, created_at, fit_check_id, actor:profiles!notifications_actor_id_fkey(nickname, avatar_url)")
             .eq("recipient_id", value: recipientId)
@@ -16,6 +19,9 @@ extension API {
     }
 
     static func fetchUnreadNotificationCount(recipientId: UUID) async throws -> Int {
+#if DEBUG
+        if SampleData.isActive { return SampleData.unreadNotificationCount }
+#endif
         let response = try await client
             .from("notifications")
             .select("id", head: true, count: .exact)
@@ -26,6 +32,9 @@ extension API {
     }
 
     static func markAllNotificationsRead(recipientId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client
             .from("notifications")
             .update(["is_read": true])
@@ -35,6 +44,9 @@ extension API {
     }
 
     static func markNotificationRead(id: UUID, recipientId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client
             .from("notifications")
             .update(["is_read": true])
@@ -45,6 +57,9 @@ extension API {
     }
 
     static func terminateFitCheck(id: UUID, creatorId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.from("fit_checks")
             .update(["status": "archived", "ended_at": ISO8601DateFormatter().string(from: Date())])
             .eq("id", value: id).eq("creator_id", value: creatorId).execute()
@@ -55,6 +70,9 @@ extension API {
     /// `on delete cascade` from `fit_checks`, see 0003/0005/0007 migrations).
     /// The owner-only delete policy in 0009 authorizes this operation.
     static func deleteFitCheck(id: UUID, creatorId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         let session = try await client.auth.session
         guard creatorId == session.user.id else { throw APIError.message("Please sign in again.") }
 

@@ -46,6 +46,9 @@ final class AppState: ObservableObject {
     }
 
     init() {
+        #if DEBUG
+        if enterSampleModeIfRequested() { return }
+        #endif
         Task { await listenForAuthChanges() }
     }
 
@@ -120,6 +123,9 @@ final class AppState: ObservableObject {
     /// the SDK's own auto-refresh and invalidate a just-issued token.
     func restoreSessionIfNeeded() async {
         guard let current = session else { return }
+        #if DEBUG
+        if SampleData.isActive { return }
+        #endif
         if let lastSessionCheck, Date().timeIntervalSince(lastSessionCheck) < 60 {
             return
         }

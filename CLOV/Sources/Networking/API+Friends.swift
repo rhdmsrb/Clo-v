@@ -6,6 +6,9 @@ extension API {
     // MARK: - Friends
 
     static func fetchFriendRequests(userId: UUID, incoming: Bool) async throws -> [FriendRequestDTO] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.friendRequests(incoming: incoming) }
+#endif
         let column = incoming ? "addressee_id" : "requester_id"
         return try await client.from("friend_requests").select()
             .eq(column, value: userId).eq("status", value: "pending")
@@ -13,12 +16,18 @@ extension API {
     }
 
     static func fetchFriendships(userId: UUID) async throws -> [FriendshipDTO] {
-        try await client.from("friendships").select()
+#if DEBUG
+        if SampleData.isActive { return SampleData.friendships }
+#endif
+        return try await client.from("friendships").select()
             .or("user_low.eq.\(userId.uuidString),user_high.eq.\(userId.uuidString)")
             .order("created_at", ascending: false).execute().value
     }
 
     static func searchProfiles(query: String, excluding userId: UUID) async throws -> [AuthorInfoWithId] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.searchProfiles(query: query, excluding: userId) }
+#endif
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let digits = trimmed.filter(\.isNumber)
         if trimmed.contains("@") || digits.count >= 7 {
@@ -32,26 +41,41 @@ extension API {
     }
 
     static func fetchProfiles(ids: [UUID]) async throws -> [AuthorInfoWithId] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.profiles(ids: ids) }
+#endif
         guard !ids.isEmpty else { return [] }
         return try await client.from("profiles").select("id, nickname, account_code, avatar_url")
             .in("id", values: ids).execute().value
     }
 
     static func fetchMutualFriendCounts(userIds: [UUID]) async throws -> [MutualFriendCountDTO] {
+#if DEBUG
+        if SampleData.isActive { return SampleData.mutualFriendCounts(userIds: userIds) }
+#endif
         guard !userIds.isEmpty else { return [] }
         return try await client.rpc("get_mutual_friend_counts", params: ["p_user_ids": userIds]).execute().value
     }
 
     static func sendFriendRequest(to userId: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.rpc("send_friend_request", params: ["p_addressee_id": userId]).execute()
     }
 
     static func respondFriendRequest(id: UUID, accept: Bool) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         struct Params: Encodable { let pRequestId: UUID; let pAccept: Bool }
         try await client.rpc("respond_friend_request", params: Params(pRequestId: id, pAccept: accept)).execute()
     }
 
     static func cancelFriendRequest(id: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
         try await client.rpc("cancel_friend_request", params: ["p_request_id": id]).execute()
     }
 }

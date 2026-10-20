@@ -2,6 +2,21 @@ import Foundation
 
 #if DEBUG
 extension AppState {
+    /// Enters offline sample mode when launched with `--uiTestSampleData`:
+    /// installs a fake session and onboarded profile and registers the local
+    /// image loader. Returns true when active so `init` can skip the live
+    /// auth listener (which would reset the fake session to nil). Nothing
+    /// here touches the network; API reads/writes short-circuit to
+    /// `SampleData`.
+    func enterSampleModeIfRequested() -> Bool {
+        guard SampleData.isActive else { return false }
+        SampleImageURLProtocol.register()
+        session = SampleData.session
+        profile = SampleData.profile
+        isBootstrapping = false
+        return true
+    }
+
     /// Signs in (creating the account on first run) as a fixed test user
     /// when launched with `--uiTestAutoLogin` + `UITEST_EMAIL`/
     /// `UITEST_PASSWORD` env vars, and auto-completes onboarding if
