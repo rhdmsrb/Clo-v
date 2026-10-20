@@ -91,7 +91,7 @@ final class AppState: ObservableObject {
             #if DEBUG
             profileLoadDebugError = String(describing: error)
             #endif
-            print("refreshProfile failed: \(error)")
+            Log.app.error("refreshProfile failed: \(error.localizedDescription)")
         }
     }
 

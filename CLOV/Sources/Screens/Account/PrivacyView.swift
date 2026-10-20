@@ -17,6 +17,7 @@ struct PrivacyView: View {
                 privacyRow("Account", "Email address and a user ID so you can sign in and keep your account secure.")
                 privacyRow("Profile", "Nickname, avatar, and style preferences that you choose to show to other users.")
                 privacyRow("Photos", "Fit-Check and wardrobe photos that you upload. Photos are stored privately and shown through temporary secure links.")
+                privacyRow("Virtual try-on", "Optional. When you tap Try on, the full-body photo you pick and your selected wardrobe photos are sent to WEARFITS to make a preview image. We don't save the full-body photo.")
                 privacyRow("Activity", "Votes, short comments, friendships, and wardrobe categories needed for the app to work.")
             }
 

@@ -24,6 +24,7 @@
 		5139830D74B8A7D0AA6DE2F2 /* DailyChallenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8676FF5E34501CAE2E8CA8E2 /* DailyChallenge.swift */; };
 		54AECC3E22BAD53B79A5680E /* LocalWeatherPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7A177FD958A0AAE176308D /* LocalWeatherPrompt.swift */; };
 		559E6D0685C5AEB1E51854D2 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122BB9565C9C461EFFEA5EA /* Haptics.swift */; };
+		5C6F7459F79DB3E9F806E80A /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54177AC62EB6C84A6A098C9 /* Log.swift */; };
 		66DC8DAB374ACF2DB7985363 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B1ADAFAD28CC8BD517460 /* Models.swift */; };
 		72D87D69F53D0F5B7E756A49 /* WardrobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269D9BE2C75A9D3F4498D1D2 /* WardrobeView.swift */; };
 		7625CAC06851A0EB0D2DE273 /* SearchExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F22A751A398D55902B01488 /* SearchExploreView.swift */; };
@@ -125,6 +126,7 @@
 		E18F2A0EA717C09413980E4F /* FriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsView.swift; sourceTree = "<group>"; };
 		E55A52F004841DF4492C0A6F /* GroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupDetailView.swift; sourceTree = "<group>"; };
 		F4E725A874DE9D3F0C9B4430 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		F54177AC62EB6C84A6A098C9 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -329,6 +331,7 @@
 				35A2AABE91BB697AA71C6B66 /* AppState+UITesting.swift */,
 				7E6DB76DA8C1250DACE0AAD2 /* CLOVApp.swift */,
 				B0BE7B0D063BE06987D597C8 /* DebugVerify.swift */,
+				F54177AC62EB6C84A6A098C9 /* Log.swift */,
 				D772D3767E38350DDE20527B /* MainTabView.swift */,
 				8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */,
 			);
@@ -490,6 +493,7 @@
 				21AF2833233DE6F6386F6FA3 /* InviteCode.swift in Sources */,
 				C4F2BBBF470651B12FEE641F /* LabeledField.swift in Sources */,
 				54AECC3E22BAD53B79A5680E /* LocalWeatherPrompt.swift in Sources */,
+				5C6F7459F79DB3E9F806E80A /* Log.swift in Sources */,
 				8CA1D836514AAF98E9EEFAD9 /* MainTabView.swift in Sources */,
 				66DC8DAB374ACF2DB7985363 /* Models.swift in Sources */,
 				3F628B2F5A2B993B4230CBBB /* NotificationsView.swift in Sources */,

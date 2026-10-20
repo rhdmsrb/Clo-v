@@ -85,6 +85,7 @@ Deno.serve(async (request) => {
     const providerResponse = await fetch("https://api.wearfits.com/api/v1/tryon/clothing", {
       method: "POST",
       headers: { "X-API-Key": wearfitsKey, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(45_000),
       body: JSON.stringify({
         personImages: [bodyPhoto],
         ...slots,
@@ -93,8 +94,8 @@ Deno.serve(async (request) => {
     });
     const providerBody = await providerResponse.json().catch(() => ({}));
     if (!providerResponse.ok || providerBody.success === false) {
-      const detail = providerBody?.error?.message;
-      return json({ message: typeof detail === "string" ? detail : "The try-on provider couldn't process this photo or outfit." }, 502);
+      console.error("WEARFITS submit failed", providerResponse.status, providerBody?.error?.message);
+      return json({ message: "The try-on couldn't process this photo or outfit. Try a different photo." }, 502);
     }
 
     const jobID = providerBody.jobId;
@@ -115,6 +116,7 @@ Deno.serve(async (request) => {
 
     const providerResponse = await fetch(`https://api.wearfits.com/api/v1/jobs/${jobID}`, {
       headers: { "X-API-Key": wearfitsKey },
+      signal: AbortSignal.timeout(20_000),
     });
     const providerBody = await providerResponse.json().catch(() => ({}));
     if (!providerResponse.ok) return json({ message: "Couldn't check the try-on yet. Please try again." }, 502);
@@ -123,9 +125,8 @@ Deno.serve(async (request) => {
     const imageURL = Array.isArray(providerBody.results) ? providerBody.results[0]?.url : undefined;
     const failed = status === "failed" || status === "error";
     if (failed) {
-      const { error } = providerBody;
-      const message = typeof error?.message === "string" ? error.message : "The try-on couldn't be generated.";
-      return json({ jobId: jobID, status: "failed", message });
+      console.error("WEARFITS job failed", jobID, providerBody?.error?.message);
+      return json({ jobId: jobID, status: "failed", message: "The try-on couldn't be generated. Try a different photo." });
     }
     return json({ jobId: jobID, status, imageUrl: imageURL ?? null });
   }

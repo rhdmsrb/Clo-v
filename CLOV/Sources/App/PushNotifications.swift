@@ -26,6 +26,6 @@ final class CLOVAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        print("APNs registration failed: \(error.localizedDescription)")
+        Log.push.error("APNs registration failed: \(error.localizedDescription)")
     }
 }

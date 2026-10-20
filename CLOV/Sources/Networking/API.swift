@@ -648,7 +648,7 @@ enum API {
         // deployed, deleting the database row can leave orphaned objects.
         let paths = photos.compactMap { photoPath($0.imageUrl) }
         if !paths.isEmpty {
-            _ = try? await client.storage.from("fit-check-photos").remove(paths: paths)
+            await removeStorageFiles(bucket: "fit-check-photos", paths: paths)
         }
     }
 
@@ -834,7 +834,7 @@ enum API {
                 brand: brand, wearFrequency: wearFrequency, tags: tags
             )).execute()
         } catch {
-            _ = try? await client.storage.from("wardrobe-items").remove(paths: [path])
+            await removeStorageFiles(bucket: "wardrobe-items", paths: [path])
             throw error
         }
     }
@@ -867,11 +867,11 @@ enum API {
                 brand: brand, wearFrequency: wearFrequency, tags: tags
             )).eq("id", value: id).eq("owner_id", value: ownerId).execute()
         } catch {
-            if let newImage { _ = try? await client.storage.from("wardrobe-items").remove(paths: [newImage]) }
+            if let newImage { await removeStorageFiles(bucket: "wardrobe-items", paths: [newImage]) }
             throw error
         }
         if newImage != nil, let oldPath = storagePath(oldImage, bucket: "wardrobe-items") {
-            _ = try? await client.storage.from("wardrobe-items").remove(paths: [oldPath])
+            await removeStorageFiles(bucket: "wardrobe-items", paths: [oldPath])
         }
     }
 
@@ -884,7 +884,7 @@ enum API {
         try await client.from("wardrobe_items").delete()
             .eq("id", value: id).eq("owner_id", value: ownerId).execute()
         let paths = images.compactMap { storagePath($0.imageUrl, bucket: "wardrobe-items") }
-        if !paths.isEmpty { _ = try? await client.storage.from("wardrobe-items").remove(paths: paths) }
+        await removeStorageFiles(bucket: "wardrobe-items", paths: paths)
     }
 
     // MARK: - Friends
@@ -943,6 +943,17 @@ enum API {
 
     // Accept stored paths and legacy public URLs from this project's bucket.
     // Never persist a signed URL: it expires and is specific to a read request.
+    /// Best-effort cleanup: a failure never blocks the caller, but it is logged
+    /// because orphaned files also block self-service account deletion.
+    private static func removeStorageFiles(bucket: String, paths: [String]) async {
+        guard !paths.isEmpty else { return }
+        do {
+            _ = try await client.storage.from(bucket).remove(paths: paths)
+        } catch {
+            Log.storage.error("Cleanup of \(paths.count) file(s) in \(bucket) failed: \(error.localizedDescription)")
+        }
+    }
+
     private static func storagePath(_ value: String, bucket: String) -> String? {
         if !value.contains("://") { return value.isEmpty ? nil : value }
         guard let url = URL(string: value), url.host == AppConfig.supabaseURL.host else { return nil }
