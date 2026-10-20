@@ -28,8 +28,10 @@
 		72D87D69F53D0F5B7E756A49 /* WardrobeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269D9BE2C75A9D3F4498D1D2 /* WardrobeView.swift */; };
 		7625CAC06851A0EB0D2DE273 /* SearchExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F22A751A398D55902B01488 /* SearchExploreView.swift */; };
 		7FF5CC98818F9EDDAC150C21 /* PushNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */; };
+		86F816638D487CF8CBAD0E61 /* SearchTermTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D2B143DA18FD8906D99F477 /* SearchTermTests.swift */; };
 		899C22C54D0475054F9784DE /* AspectFitTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA4CE9F954577415FCFE861 /* AspectFitTile.swift */; };
 		8CA1D836514AAF98E9EEFAD9 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D772D3767E38350DDE20527B /* MainTabView.swift */; };
+		8F64255164B081F976F6637A /* SearchTerm.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8FFAFBF345FE9C4E26D1B21 /* SearchTerm.swift */; };
 		92813FBCDA784C9CED1C8294 /* OutfitPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BEF6EF3AFAAFC3E3ECA0374 /* OutfitPlannerView.swift */; };
 		93F153B31B81D111BC4B8F99 /* CreateFitCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9204CB72B4895178303DE6AE /* CreateFitCheckView.swift */; };
 		A4E9A9D63BBFA3C3B95161C6 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5889C4659072A3B9EB4B56F9 /* OnboardingView.swift */; };
@@ -63,6 +65,13 @@
 			remoteGlobalIDString = D702CA410856F4E8B00F1C96;
 			remoteInfo = CLOV;
 		};
+		BFFBF7E2C47B6394533E13F7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 460837DABD6D460183F77BAE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D702CA410856F4E8B00F1C96;
+			remoteInfo = CLOV;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -85,6 +94,7 @@
 		5889C4659072A3B9EB4B56F9 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		5C81E751494D3DA615A360CB /* UIImage+CLOV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+CLOV.swift"; sourceTree = "<group>"; };
 		64ED974D6309F6D0B3D901A3 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		6D2B143DA18FD8906D99F477 /* SearchTermTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTermTests.swift; sourceTree = "<group>"; };
 		756A5407D4877C806BEEE7DE /* PlusButtonUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlusButtonUITests.swift; sourceTree = "<group>"; };
 		799B1273D027695A0C6F0677 /* LabeledField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabeledField.swift; sourceTree = "<group>"; };
 		7E6DB76DA8C1250DACE0AAD2 /* CLOVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLOVApp.swift; sourceTree = "<group>"; };
@@ -93,6 +103,7 @@
 		8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotifications.swift; sourceTree = "<group>"; };
 		9204CB72B4895178303DE6AE /* CreateFitCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFitCheckView.swift; sourceTree = "<group>"; };
 		92D4347DD67119C8228CD512 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		96CF5D3AFD1F5033DB6CF0A7 /* CLOVTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CLOVTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0888EA64C0BD0AD631D601B /* WardrobeFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeFlowUITests.swift; sourceTree = "<group>"; };
 		A179DB5BF042952B11B0E146 /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
 		A76AFFFECC8F625E8DE559E1 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
@@ -105,6 +116,7 @@
 		C2B133978A5DF4FAD300BAC0 /* FitCheckDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheckDetailView.swift; sourceTree = "<group>"; };
 		C634564AD096C712C1379C1B /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		C687350ECCEB5117B6280F6C /* InviteCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteCode.swift; sourceTree = "<group>"; };
+		C8FFAFBF345FE9C4E26D1B21 /* SearchTerm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTerm.swift; sourceTree = "<group>"; };
 		CF00F4FB8D2CDE6BF26B7960 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		D26D3AB38B235D5C03EC219B /* FitCheckCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheckCardView.swift; sourceTree = "<group>"; };
 		D772D3767E38350DDE20527B /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -137,6 +149,14 @@
 				4BA95553D046A4D761C51AD0 /* Screens */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		0446DA10ADFFD194C6D5D0A5 /* CLOVTests */ = {
+			isa = PBXGroup;
+			children = (
+				6D2B143DA18FD8906D99F477 /* SearchTermTests.swift */,
+			);
+			path = CLOVTests;
 			sourceTree = "<group>";
 		};
 		081DD72D8FEE47F85C2F61E9 /* Notifications */ = {
@@ -205,6 +225,7 @@
 			isa = PBXGroup;
 			children = (
 				5366729E05C40B14BB852E9F /* CLOV */,
+				0446DA10ADFFD194C6D5D0A5 /* CLOVTests */,
 				FDB373A658AB00F56122F285 /* CLOVUITests */,
 				D85A9F1EAD3783793DE474CD /* Products */,
 			);
@@ -216,6 +237,7 @@
 				CF00F4FB8D2CDE6BF26B7960 /* API.swift */,
 				53EC759F0522F47E3F4CA8D6 /* DTOs.swift */,
 				C687350ECCEB5117B6280F6C /* InviteCode.swift */,
+				C8FFAFBF345FE9C4E26D1B21 /* SearchTerm.swift */,
 				64ED974D6309F6D0B3D901A3 /* SupabaseManager.swift */,
 				5C81E751494D3DA615A360CB /* UIImage+CLOV.swift */,
 			);
@@ -277,6 +299,7 @@
 			isa = PBXGroup;
 			children = (
 				ABF921D8B27E2D224D34582C /* CLOV.app */,
+				96CF5D3AFD1F5033DB6CF0A7 /* CLOVTests.xctest */,
 				0834B66B01F08808C1C2E207 /* CLOVUITests.xctest */,
 			);
 			name = Products;
@@ -345,6 +368,24 @@
 			productReference = 0834B66B01F08808C1C2E207 /* CLOVUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		C75D7E87A2C30DEEBEE8F2FA /* CLOVTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 233A691081900A9FD1EA406D /* Build configuration list for PBXNativeTarget "CLOVTests" */;
+			buildPhases = (
+				0B02032B768C75D07063FCDC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0D8ADA7BC55D81E18CE3F17F /* PBXTargetDependency */,
+			);
+			name = CLOVTests;
+			packageProductDependencies = (
+			);
+			productName = CLOVTests;
+			productReference = 96CF5D3AFD1F5033DB6CF0A7 /* CLOVTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		D702CA410856F4E8B00F1C96 /* CLOV */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 77262ABBDFB1CD26CFC58066 /* Build configuration list for PBXNativeTarget "CLOV" */;
@@ -378,6 +419,10 @@
 						ProvisioningStyle = Automatic;
 						TestTargetID = D702CA410856F4E8B00F1C96;
 					};
+					C75D7E87A2C30DEEBEE8F2FA = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
 					D702CA410856F4E8B00F1C96 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -403,11 +448,20 @@
 			targets = (
 				D702CA410856F4E8B00F1C96 /* CLOV */,
 				892BDC1E1F3A5BD5A1DC8CFB /* CLOVUITests */,
+				C75D7E87A2C30DEEBEE8F2FA /* CLOVTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0B02032B768C75D07063FCDC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				86F816638D487CF8CBAD0E61 /* SearchTermTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		24C5D100D12484B8311A9902 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -445,6 +499,7 @@
 				B232B4740ED1781E230752D7 /* ProfileFollowListView.swift in Sources */,
 				7FF5CC98818F9EDDAC150C21 /* PushNotifications.swift in Sources */,
 				7625CAC06851A0EB0D2DE273 /* SearchExploreView.swift in Sources */,
+				8F64255164B081F976F6637A /* SearchTerm.swift in Sources */,
 				0DA8D13158D5CE3C53915494 /* ShareLinkButton.swift in Sources */,
 				FBAFD9AB994A42FDF1A70AD3 /* SupabaseManager.swift in Sources */,
 				ABAC583B61A8AB2A702668FF /* Theme.swift in Sources */,
@@ -470,6 +525,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		0D8ADA7BC55D81E18CE3F17F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D702CA410856F4E8B00F1C96 /* CLOV */;
+			targetProxy = BFFBF7E2C47B6394533E13F7 /* PBXContainerItemProxy */;
+		};
 		8785D1F2859854BA18E32C7C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = D702CA410856F4E8B00F1C96 /* CLOV */;
@@ -659,6 +719,27 @@
 			};
 			name = Release;
 		};
+		BC39A7FE82DF04B4EBAD9D4C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.clov.CLOVTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CLOV.app/CLOV";
+			};
+			name = Release;
+		};
 		DEB1189D94C41CAEB3018AE6 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -679,9 +760,39 @@
 			};
 			name = Release;
 		};
+		DFE850DD64774EAB31FBEC23 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.clov.CLOVTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CLOV.app/CLOV";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		233A691081900A9FD1EA406D /* Build configuration list for PBXNativeTarget "CLOVTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DFE850DD64774EAB31FBEC23 /* Debug */,
+				BC39A7FE82DF04B4EBAD9D4C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		3E00DC4627EF4F6E1BE7C159 /* Build configuration list for PBXProject "CLOV" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

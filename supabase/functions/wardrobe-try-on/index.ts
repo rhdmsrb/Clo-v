@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+const MAX_TRYONS_PER_HOUR = 10;
+const TRYON_WINDOW_MS = 60 * 60 * 1000;
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -41,6 +43,16 @@ Deno.serve(async (request) => {
     if (bodyPhoto.length > 1_850_000) return json({ message: "That photo is too large. Choose a smaller image." }, 413);
     if (!Array.isArray(itemIDs) || itemIDs.length < 1 || itemIDs.length > 4 || itemIDs.some((id) => typeof id !== "string")) {
       return json({ message: "Choose one to four clothing pieces." }, 400);
+    }
+
+    const windowStart = new Date(Date.now() - TRYON_WINDOW_MS).toISOString();
+    const { count: recentJobs, error: countError } = await admin.from("wardrobe_tryon_jobs")
+      .select("job_id", { count: "exact", head: true })
+      .eq("owner_id", userID)
+      .gte("created_at", windowStart);
+    if (countError) return json({ message: "Couldn't start the try-on. Please try again." }, 500);
+    if ((recentJobs ?? 0) >= MAX_TRYONS_PER_HOUR) {
+      return json({ message: "You've reached the hourly try-on limit. Please try again later." }, 429);
     }
 
     const { data: items, error: itemError } = await admin.from("wardrobe_items")

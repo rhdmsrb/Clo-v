@@ -58,12 +58,28 @@ targets:
         DEVELOPMENT_TEAM: ""
     dependencies:
       - target: CLOV
+  CLOVTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CLOVTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    dependencies:
+      - target: CLOV
 schemes:
   CLOV:
     build:
       targets:
         CLOV: all
         CLOVUITests: [test]
+        CLOVTests: [test]
     test:
       targets:
+        - CLOVTests
         - CLOVUITests

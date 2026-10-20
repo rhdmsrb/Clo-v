@@ -908,8 +908,10 @@ enum API {
         if trimmed.contains("@") || digits.count >= 7 {
             return try await client.rpc("find_profiles_by_contact", params: ["p_contact": trimmed]).execute().value
         }
+        let term = SearchTerm.sanitized(trimmed)
+        guard !term.isEmpty else { return [] }
         return try await client.from("profiles").select("id, nickname, account_code, avatar_url")
-            .or("nickname.ilike.%\(trimmed)%,account_code.ilike.%\(trimmed)%")
+            .or("nickname.ilike.%\(term)%,account_code.ilike.%\(term)%")
             .neq("id", value: userId).limit(20).execute().value
     }
 
