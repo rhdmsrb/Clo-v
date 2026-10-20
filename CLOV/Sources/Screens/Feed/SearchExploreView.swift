@@ -26,6 +26,7 @@ struct SearchExploreView: View {
                 }
                 HStack(spacing: 11) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
+                        .accessibilityHidden(true)
                     TextField("Try ‘wedding guest’ or a creator", text: $query)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -34,11 +35,12 @@ struct SearchExploreView: View {
                     if !query.isEmpty {
                         Button { query = "" } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.mutedForeground)
+                                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                         }.accessibilityLabel("Clear search")
                     }
                 }
                 .font(.system(size: 15))
-                .padding(.horizontal, 15).frame(height: 52)
+                .padding(.horizontal, 15).frame(minHeight: 52)
                 .background(Theme.card, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(Theme.line.opacity(0.12), lineWidth: 1))
 
@@ -104,6 +106,7 @@ struct SearchExploreView: View {
                 .overlay(Capsule().stroke(selected ? .clear : Theme.line.opacity(0.15), lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     @MainActor

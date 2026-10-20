@@ -72,6 +72,7 @@ struct ProfileFollowListView: View {
                                     .font(.caption)
                                     .foregroundStyle(Theme.mutedForeground)
                             }
+                            .accessibilityElement(children: .combine)
                             Spacer(minLength: 8)
                             followButton(for: person)
                         }
@@ -111,10 +112,13 @@ struct ProfileFollowListView: View {
             .padding(.horizontal, 13)
             .frame(minHeight: 32)
             .background(isFollowing ? Theme.muted : Theme.ink, in: Capsule())
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(updatingIDs.contains(person.id))
-        .accessibilityLabel(isFollowing ? "Unfollow \(person.nickname ?? "user")" : "Follow \(person.nickname ?? "user")")
+        .accessibilityLabel(isFollowing ? "Following \(person.nickname ?? "user")" : "Follow \(person.nickname ?? "user")")
+        .accessibilityHint(isFollowing ? "Double tap to unfollow" : "Double tap to follow")
     }
 
     private func load() async {

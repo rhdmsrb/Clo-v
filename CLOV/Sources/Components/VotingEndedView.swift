@@ -12,6 +12,7 @@ struct VotingEndedView: View {
             Image(systemName: "hourglass")
                 .font(.system(size: 28))
                 .foregroundStyle(Theme.mutedForeground)
+                .accessibilityHidden(true)
             Text("Voting has ended")
                 .font(.system(.subheadline, design: .default).weight(.bold))
             Text("The photos and results for this Fit-Check are no longer visible.")
@@ -19,6 +20,7 @@ struct VotingEndedView: View {
                 .foregroundStyle(Theme.mutedForeground)
                 .multilineTextAlignment(.center)
         }
+        .accessibilityElement(children: .combine)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
         .padding(.horizontal, 20)

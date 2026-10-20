@@ -14,7 +14,7 @@ struct NewPasswordView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Text("CLO·V")
-                    .font(.system(size: 22, weight: .heavy, design: .default))
+                    .font(.system(.title3, weight: .heavy))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("New password")
@@ -34,8 +34,14 @@ struct NewPasswordView: View {
                         }
                 }
 
+                if !password.isEmpty && !canSave {
+                    Text("Use at least 6 characters.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.mutedForeground)
+                }
+
                 if let error {
-                    Text(error).font(.footnote).foregroundStyle(.red)
+                    Text(error).font(.footnote).foregroundStyle(Theme.danger)
                 }
 
                 Button {
@@ -51,7 +57,7 @@ struct NewPasswordView: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
             }
             .padding(24)
         }

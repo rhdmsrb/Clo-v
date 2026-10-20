@@ -29,6 +29,7 @@ struct GroupsView: View {
                         .font(.system(.caption2, design: .default).weight(.bold))
                         .foregroundStyle(.secondary)
                     TextField("ABC123", text: $joinCode)
+                        .accessibilityLabel("Invite code")
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .padding(12)
@@ -62,6 +63,7 @@ struct GroupsView: View {
                                                 .font(.system(size: 16, weight: .regular))
                                                 .foregroundStyle(Theme.accent)
                                                 .frame(width: 34)
+                                                .accessibilityHidden(true)
                                             VStack(alignment: .leading, spacing: 3) {
                                                 Text(group.name)
                                                     .font(.system(size: 16, weight: .medium))
@@ -74,9 +76,11 @@ struct GroupsView: View {
                                             Image(systemName: "chevron.right")
                                                 .font(.system(size: 11, weight: .semibold))
                                                 .foregroundStyle(Theme.mutedForeground)
+                                                .accessibilityHidden(true)
                                         }
                                         .padding(.vertical, 13)
                                         .contentShape(Rectangle())
+                                        .accessibilityElement(children: .combine)
                                     }
                                     .buttonStyle(.plain)
                                     .overlay(alignment: .bottom) {
@@ -92,6 +96,7 @@ struct GroupsView: View {
                                 .font(.system(size: 17))
                                 .foregroundStyle(Theme.accentSecondary)
                                 .frame(width: 34)
+                                .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Discover public style circles")
                                     .font(.system(size: 15, weight: .medium))
@@ -103,6 +108,7 @@ struct GroupsView: View {
                         }
                         .padding(16)
                         .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .accessibilityElement(children: .combine)
                     }
                 }
             }
@@ -115,7 +121,7 @@ struct GroupsView: View {
         .sheet(isPresented: $showCreateSheet) {
             NewGroupSheet { await load() }
         }
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
     }
 
@@ -124,6 +130,7 @@ struct GroupsView: View {
             Text(title)
                 .font(Theme.editorialFont(size: 26, relativeTo: .title2))
                 .foregroundStyle(Theme.ink)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             Text(detail)
                 .font(.system(size: 8, weight: .semibold))

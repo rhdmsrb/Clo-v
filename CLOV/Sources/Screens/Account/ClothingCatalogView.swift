@@ -3,6 +3,7 @@ import SwiftUI
 /// Searches Openverse for clothing imagery shared under permissive Creative Commons
 /// licenses. Every result keeps its creator, license, and source URL attached when saved.
 struct ClothingCatalogView: View {
+    @Environment(\.openURL) private var openURL
     @State private var query = "women's blouse shirt clothing"
     @State private var results: [OpenverseImage] = []
     @State private var isLoading = false
@@ -29,12 +30,14 @@ struct ClothingCatalogView: View {
 
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
+                        .accessibilityHidden(true)
                     TextField("Try linen, blazer, sneakers…", text: $query)
                         .submitLabel(.search).onSubmit { selectedCategory = .other; Task { await search() } }
                     Button { Task { await search() } } label: {
                         Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))
                             .foregroundStyle(Theme.inverseText).frame(width: 36, height: 36).background(Theme.ink)
                             .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                     }.accessibilityLabel("Search clothing catalog")
                 }
                 .padding(.leading, 13).padding(.trailing, 6).padding(.vertical, 6)
@@ -71,6 +74,9 @@ struct ClothingCatalogView: View {
                             Button { Task { await prepare(result) } } label: {
                                 CatalogImageCard(result: result, isPreparing: isPreparingImage && selected?.id == result.id)
                             }.buttonStyle(.plain).disabled(isPreparingImage)
+                            .accessibilityAction(named: "License details") {
+                                if let url = result.licenseURL.flatMap(URL.init(string:)) { openURL(url) }
+                            }
                         }
                     }
                     if isLoading { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 10) }
@@ -142,6 +148,7 @@ private struct CatalogImageCard: View {
                             Image(systemName: "plus")
                                 .font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.inverseText)
                                 .frame(width: 32, height: 32).background(Theme.ink.opacity(0.9)).clipShape(Circle())
+                                .accessibilityHidden(true)
                         }.padding(9)
                     }
                 }

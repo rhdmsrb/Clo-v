@@ -24,9 +24,10 @@ struct ShareLinkButton: View {
         if let shareURL {
             ShareLink(item: shareText(for: shareURL), subject: Text(title)) {
                 Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(.subheadline, weight: .semibold))
                     .foregroundStyle(Theme.mutedForeground)
-                    .frame(width: 32, height: 32)
+                    .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel(title)
         }

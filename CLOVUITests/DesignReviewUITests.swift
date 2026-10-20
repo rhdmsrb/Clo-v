@@ -1,15 +1,24 @@
 import XCTest
 
-/// Not a real regression test — logs in via the "1"/"1" dev shortcut,
-/// completes onboarding if needed, then walks each main tab, attaching
-/// a screenshot at every stop (kept regardless of pass/fail) so the
-/// redesign can be reviewed from the resulting .xcresult bundle.
+/// Not a real regression test — logs in with a throwaway account supplied
+/// through TEST_RUNNER_CLOV_TEST_EMAIL / TEST_RUNNER_CLOV_TEST_PASSWORD
+/// (the old "1"/"1" shortcut is blocked), completes onboarding if needed,
+/// then walks each main tab, attaching a screenshot at every stop (kept
+/// regardless of pass/fail) so the redesign can be reviewed from the
+/// resulting .xcresult bundle.
 final class DesignReviewUITests: XCTestCase {
+    private static let emailKey = "CLOV_TEST_EMAIL"
+    private static let passwordKey = "CLOV_TEST_PASSWORD"
+
     override func setUpWithError() throws {
         continueAfterFailure = true
     }
 
     func testCaptureMainScreens() throws {
+        let environment = ProcessInfo.processInfo.environment
+        let email = try XCTUnwrap(environment[Self.emailKey], "Set TEST_RUNNER_\(Self.emailKey) to a throwaway account's email.")
+        let password = try XCTUnwrap(environment[Self.passwordKey], "Set TEST_RUNNER_\(Self.passwordKey) to that account's password.")
+
         let app = XCUIApplication()
         app.launch()
         attach(app, name: "01-auth")
@@ -17,9 +26,9 @@ final class DesignReviewUITests: XCTestCase {
         let emailField = app.textFields.firstMatch
         if emailField.waitForExistence(timeout: 10) {
             emailField.tap()
-            emailField.typeText("1")
+            emailField.typeText(email)
             app.secureTextFields.firstMatch.tap()
-            app.secureTextFields.firstMatch.typeText("1")
+            app.secureTextFields.firstMatch.typeText(password)
             app.buttons["Log in"].tap()
         }
 
@@ -33,7 +42,7 @@ final class DesignReviewUITests: XCTestCase {
             app.buttons["Let's go"].tap()
         }
 
-        let feedTitle = app.staticTexts["Feed"]
+        let feedTitle = app.staticTexts["Discover"]
         XCTAssertTrue(feedTitle.firstMatch.waitForExistence(timeout: 10))
         Thread.sleep(forTimeInterval: 1)
         attach(app, name: "03-feed")

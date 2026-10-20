@@ -12,7 +12,6 @@ struct CLOVApp: App {
             RootView()
                 .environmentObject(appState)
                 .tint(Theme.accent)
-                .preferredColorScheme(.light)
                 .onOpenURL { url in handle(url) }
                 .task(id: appState.session?.user.id) {
                     // No prompt on sign-in: only refresh the token if the user

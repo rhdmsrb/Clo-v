@@ -56,6 +56,7 @@ struct WardrobeView: View {
                         Image(systemName: "hanger")
                             .font(.system(size: 17, weight: .medium))
                             .foregroundStyle(Theme.accent)
+                            .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Plan a look").font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Theme.ink)
@@ -65,7 +66,9 @@ struct WardrobeView: View {
                         Spacer()
                         Image(systemName: "arrow.right")
                             .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.ink)
+                            .accessibilityHidden(true)
                     }
+                    .accessibilityElement(children: .combine)
                     .padding(.vertical, 14).padding(.horizontal, 15)
                     .background(Theme.muted.opacity(0.55))
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -84,12 +87,13 @@ struct WardrobeView: View {
 
                 AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
                                emptyText: "Your wardrobe is empty. Add your first piece.", topPadding: 36,
-                               hasLoaded: hasLoaded, retry: { await load() }) {
+                               hasLoaded: hasLoaded, retry: { await load() }, skeleton: .grid) {
                     VStack(alignment: .leading, spacing: 24) {
                         ForEach(sections, id: \.0) { category, categoryItems in
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
                                     Text(category.label.uppercased()).font(.system(.caption2, design: .default).weight(.black)).tracking(1.2)
+                                        .accessibilityAddTraits(.isHeader)
                                     Spacer(); Text("\(categoryItems.count)").font(.caption2.weight(.bold)).foregroundStyle(Theme.mutedForeground)
                                 }
                                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 12) {
@@ -120,7 +124,7 @@ struct WardrobeView: View {
                 .accessibilityIdentifier("wardrobe.profile")
             }
         }
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $showAdd) { AddWardrobeItemView { await load() } }
         .sheet(item: $editTarget) { item in AddWardrobeItemView(item: item) { await load() } }
@@ -160,6 +164,9 @@ private struct WardrobeItemCard: View {
             ZStack(alignment: .topTrailing) {
                 AspectFitTile(cornerRadius: 8, shadow: false) {
                     WardrobePhoto(url: item.imageUrl)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Photo of \(item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category)")
+                        .accessibilityAddTraits(.isImage)
                 }
                 Menu {
                     Button("Edit", action: onEdit)
@@ -167,7 +174,8 @@ private struct WardrobeItemCard: View {
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 14, weight: .black)).foregroundStyle(Theme.inverseText)
                         .frame(width: 30, height: 30).background(Theme.ink.opacity(0.9)).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }.padding(8).accessibilityLabel("More actions for \(item.name ?? "item")")
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }.padding(1).accessibilityLabel("More actions for \(item.name ?? "item")")
             }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.line.opacity(0.25), lineWidth: 1))
@@ -343,6 +351,7 @@ struct AddWardrobeItemView: View {
                                         .clipShape(Capsule())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityAddTraits(tags.contains(tag) ? .isSelected : [])
                             }
                         }
                     }

@@ -43,7 +43,7 @@ struct AuthView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Text("CLO·V")
-                    .font(.system(size: 22, weight: .heavy, design: .default))
+                    .font(.system(.title3, weight: .heavy))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(mode.title)
@@ -82,10 +82,15 @@ struct AuthView: View {
                                 Task { await submit() }
                             }
                     }
+                    if !password.isEmpty && password.count < 6 {
+                        Text("Use at least 6 characters.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.mutedForeground)
+                    }
                 }
 
                 if let error {
-                    Text(error).font(.footnote).foregroundStyle(.red)
+                    Text(error).font(.footnote).foregroundStyle(Theme.danger)
                 }
 
                 Button {
@@ -106,7 +111,7 @@ struct AuthView: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.accent)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
 
                 if mode == .signIn {
                     Button("Forgot password?") {
@@ -116,10 +121,8 @@ struct AuthView: View {
                     }
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Theme.mutedForeground)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
                 }
-
-
             }
             .padding(24)
         }
@@ -150,7 +153,7 @@ struct AuthView: View {
                     if let resetNotice {
                         Text(resetNotice)
                             .font(.footnote)
-                            .foregroundStyle(resetNotice.hasPrefix("We couldn't") ? .red : Theme.mutedForeground)
+                            .foregroundStyle(resetNotice.hasPrefix("We couldn't") ? Theme.danger : Theme.mutedForeground)
                     }
                     Button("Send reset link") { Task { await sendPasswordReset() } }
                         .buttonStyle(PrimaryButtonStyle(isDisabled: resetEmail.trimmingCharacters(in: .whitespaces).isEmpty))
