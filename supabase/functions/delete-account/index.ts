@@ -50,18 +50,12 @@ Deno.serve(async (request) => {
   if (authError || !userData.user) return json({ message: "Please sign in again before deleting your account." }, 401);
   const userID = userData.user.id.toLowerCase();
 
-  // 1. Delete the account first, as the user, with the existing RPC. If this
-  //    fails nothing has been removed, so the user keeps their data.
-  const { error: rpcError } = await userClient.rpc("delete_my_account");
-  if (rpcError) {
-    console.error("delete_my_account failed", rpcError.message);
-    return json({ message: "Couldn't delete your account. Please try again." }, 500);
-  }
-
-  // 2. Remove the user's files with the service role. The account is already
-  //    gone, so a failure here is reported but must not fail the deletion.
+  // delete_my_account refuses to run while the user still has files in
+  // storage ("Account photos must be removed first"), so the files go first.
+  // Doing it here with the service role is more reliable than from the app:
+  // it no longer depends on the phone's connection staying up. If any bucket
+  // fails to clear, stop before touching the account so the user can retry.
   const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
-  let storageCleaned = true;
   for (const bucket of BUCKETS) {
     try {
       const paths = await listAll(admin, bucket, userID);
@@ -70,10 +64,16 @@ Deno.serve(async (request) => {
         if (error) throw error;
       }
     } catch (error) {
-      storageCleaned = false;
       console.error("storage cleanup failed", bucket, userID, (error as Error).message);
+      return json({ message: "Couldn't remove your photos. Please try again." }, 500);
     }
   }
 
-  return json({ deleted: true, storageCleaned });
+  const { error: rpcError } = await userClient.rpc("delete_my_account");
+  if (rpcError) {
+    console.error("delete_my_account failed", rpcError.message);
+    return json({ message: "Couldn't delete your account. Please try again." }, 500);
+  }
+
+  return json({ deleted: true });
 });

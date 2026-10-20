@@ -128,8 +128,8 @@ enum API {
     static func deleteAccount() async throws {
         _ = try await client.auth.session
         await unregisterDeviceToken()
-        // The Edge Function deletes the account first and the user's files
-        // afterwards, so a failed deletion never costs the user their photos.
+        // The Edge Function clears the user's files and then deletes the
+        // account (the RPC refuses to run while files remain).
         struct Empty: Encodable {}
         do {
             try await client.functions.invoke(
