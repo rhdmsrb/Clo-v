@@ -25,11 +25,26 @@ struct CLOVApp: App {
                         catch { Log.push.error("Device token registration failed: \(error.localizedDescription)") }
                     }
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .clovOpenFitCheck)) { notification in
+                    openPushedFitCheck(notification.object as? UUID)
+                }
+                .onChange(of: appState.isSignedIn) { _, signedIn in
+                    // A push tapped on cold launch is held until the user is signed in.
+                    if signedIn { openPushedFitCheck(appDelegate.takePendingFitCheckId()) }
+                }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     Task { await appState.restoreSessionIfNeeded() }
                 }
         }
+    }
+
+    /// Presents a Fit-Check from a tapped push. While signed out the id stays
+    /// pending in the app delegate and opens after sign-in.
+    private func openPushedFitCheck(_ id: UUID?) {
+        guard let id, appState.isSignedIn else { return }
+        _ = appDelegate.takePendingFitCheckId()
+        appState.deepLinkFitCheckId = id
     }
 
     /// Parses `clov://vote/<uuid>` from a shared link (see

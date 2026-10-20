@@ -22,6 +22,7 @@ struct VotingPhotoGridView: View {
     @State private var commentPhotoId: UUID?
     @State private var commentBody = ""
     @State private var commentPosted = false
+    @State private var savedReasonKey: String?
     @State private var isCommenting = false
     @State private var commentError: String?
     @State private var reasonTags: Set<String> = []
@@ -244,6 +245,12 @@ struct VotingPhotoGridView: View {
                 isVoting = false
                 appState.contentDidChange()
                 commentPhotoId = photoId
+            } catch APIError.alreadyVoted {
+                // The vote exists on the server (another device, or a retry
+                // after a lost response); refetch instead of rolling back.
+                self.error = APIError.alreadyVoted.localizedDescription
+                isVoting = false
+                appState.contentDidChange()
             } catch {
                 self.error = error.localizedDescription
                 myVote = nil
@@ -267,6 +274,7 @@ struct VotingPhotoGridView: View {
         reasonTags = []
         commentPosted = false
         commentError = nil
+        savedReasonKey = nil
     }
 
     private var commentSheet: some View {
@@ -338,7 +346,12 @@ struct VotingPhotoGridView: View {
         isCommenting = true
         Task {
             do {
-                try await API.saveVoteReason(fitCheckId: fitCheckId, photoId: commentPhotoId, tags: Array(reasonTags), comment: commentBody)
+                // Skip the reason write on retry; only the comment failed before.
+                let reasonKey = (reasonTags.sorted() + [commentBody]).joined(separator: "\u{1F}")
+                if savedReasonKey != reasonKey {
+                    try await API.saveVoteReason(fitCheckId: fitCheckId, photoId: commentPhotoId, tags: Array(reasonTags), comment: commentBody)
+                    savedReasonKey = reasonKey
+                }
                 if commentBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     commentPosted = true
                     try? await Task.sleep(for: .milliseconds(700))

@@ -4,9 +4,11 @@ import Supabase
 
 enum APIError: LocalizedError {
     case message(String)
+    case alreadyVoted
     var errorDescription: String? {
         switch self {
         case .message(let m): return m
+        case .alreadyVoted: return "You already voted on this Fit-Check."
         }
     }
 }
@@ -494,7 +496,7 @@ enum API {
                 .execute()
         } catch {
             if error.isUniqueViolation {
-                throw APIError.message("You already voted on this Fit-Check.")
+                throw APIError.alreadyVoted
             }
             throw error
         }
@@ -696,22 +698,37 @@ enum API {
             enum CodingKeys: String, CodingKey { case id = "p_id"; case caption = "p_caption"; case groupId = "p_group_id"; case occasion = "p_occasion"; case audience = "p_audience"; case votePrompt = "p_vote_prompt" }
         }
         let fitCheckId: UUID = try await client.rpc("create_fit_check_draft", params: DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion, audience: audience, votePrompt: votePrompt)).execute().value
-        for (index, photo) in photos.enumerated() {
-            do {
+        // The draft and each photo are separate writes. If any later step
+        // fails, remove what was already created so no orphan draft or
+        // unreferenced photo stays behind.
+        var uploadedPaths: [String] = []
+        do {
+            for (index, photo) in photos.enumerated() {
                 let path = try await uploadImage(photo, bucket: "fit-check-photos", pathPrefix: "\(creatorId.storagePathComponent)/\(fitCheckId.storagePathComponent)", aspectRatio: 3.0 / 4.0)
+                uploadedPaths.append(path)
                 struct PhotoInsert: Encodable { let fitCheckId: UUID; let imageUrl: String; let position: Int }
                 try await client.from("fit_check_photos")
                     .insert(PhotoInsert(fitCheckId: fitCheckId, imageUrl: path, position: index + 1)).execute()
-            } catch {
-                throw error
             }
+            struct PublishParams: Encodable {
+                let id: UUID
+                let durationSeconds: Int
+                enum CodingKeys: String, CodingKey { case id = "p_id"; case durationSeconds = "p_duration_seconds" }
+            }
+            try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
+        } catch {
+            await discardDraft(fitCheckId: fitCheckId, creatorId: creatorId, uploadedPaths: uploadedPaths)
+            throw error
         }
-        struct PublishParams: Encodable {
-            let id: UUID
-            let durationSeconds: Int
-            enum CodingKeys: String, CodingKey { case id = "p_id"; case durationSeconds = "p_duration_seconds" }
+    }
+
+    private static func discardDraft(fitCheckId: UUID, creatorId: UUID, uploadedPaths: [String]) async {
+        if !uploadedPaths.isEmpty {
+            do { _ = try await client.storage.from("fit-check-photos").remove(paths: uploadedPaths) }
+            catch { Log.storage.error("Draft photo cleanup failed: \(error.localizedDescription)") }
         }
-        try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
+        do { try await deleteFitCheck(id: fitCheckId, creatorId: creatorId) }
+        catch { Log.app.error("Draft cleanup failed: \(error.localizedDescription)") }
     }
 
     // MARK: - Groups
