@@ -9,6 +9,13 @@ enum SearchTerm {
 
     private static let allowedPunctuation: Set<Character> = [" ", "_", "-", "."]
 
+    /// Escapes `\`, `%` and `_` so user text matches literally inside a LIKE/ILIKE pattern.
+    static func likeEscaped(_ raw: String) -> String {
+        raw.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+    }
+
     static func sanitized(_ raw: String) -> String {
         let kept = raw
             .trimmingCharacters(in: .whitespacesAndNewlines)

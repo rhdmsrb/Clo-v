@@ -58,9 +58,6 @@ struct MainTabView: View {
                 Color.clear.preference(key: BarHeightKey.self, value: proxy.size.height)
             })
         }
-        .fullScreenCover(isPresented: $showCreate) {
-            CreateFitCheckView()
-        }
         // A `clov://vote/<id>` link (see ShareLinkButton / .onOpenURL in
         // CLOVApp) opens here regardless of which tab is active, and
         // regardless of the timer — FitCheckDetailView itself checks
@@ -68,11 +65,23 @@ struct MainTabView: View {
         // Identifiable, so this is isPresented-driven rather than
         // item-driven; the id is read inside the closure, which only
         // runs while non-nil.
-        .fullScreenCover(isPresented: Binding(
-            get: { appState.deepLinkFitCheckId != nil },
-            set: { if !$0 { appState.deepLinkFitCheckId = nil } }
-        )) {
-            if let id = appState.deepLinkFitCheckId {
+        //
+        // One cover for both: two fullScreenCovers on the same view can't
+        // reliably present at once. Create wins; the link opens after it closes.
+        .fullScreenCover(item: Binding<FullScreenCover?>(
+            get: {
+                if showCreate { return .create }
+                return appState.deepLinkFitCheckId.map(FullScreenCover.vote)
+            },
+            set: { newValue in
+                guard newValue == nil else { return }
+                if showCreate { showCreate = false } else { appState.deepLinkFitCheckId = nil }
+            }
+        )) { cover in
+            switch cover {
+            case .create:
+                CreateFitCheckView()
+            case .vote(let id):
                 NavigationStack {
                     FitCheckDetailView(fitCheckId: id)
                         .toolbar {
@@ -238,6 +247,18 @@ private struct FloatingTabBar: View {
         case .search: Theme.iconSage
         case .activity: Theme.iconCoral
         case .account: Theme.iconPlum
+        }
+    }
+}
+
+private enum FullScreenCover: Identifiable, Equatable {
+    case create
+    case vote(UUID)
+
+    var id: String {
+        switch self {
+        case .create: "create"
+        case .vote(let id): "vote-\(id)"
         }
     }
 }

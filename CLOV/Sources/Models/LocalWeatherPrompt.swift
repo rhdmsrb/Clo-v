@@ -167,7 +167,7 @@ final class LocalWeatherPromptModel: NSObject, ObservableObject, @preconcurrency
                 windKPH: decoded.windSpeed,
                 todayLowC: daily.temperature2mMin.first ?? decoded.apparentTemperature,
                 todayHighC: daily.temperature2mMax.first ?? decoded.temperature,
-                rainChancePercent: daily.precipitationProbabilityMax.first ?? 0,
+                rainChancePercent: (daily.precipitationProbabilityMax.first ?? nil) ?? 0,
                 todayMaxWindKPH: daily.windSpeed10mMax.first ?? decoded.windSpeed,
                 todayWeatherCode: daily.weatherCode.first ?? decoded.weatherCode
             )
@@ -204,7 +204,7 @@ private struct OpenMeteoResponse: Decodable {
     struct Daily: Decodable {
         let temperature2mMin: [Double]
         let temperature2mMax: [Double]
-        let precipitationProbabilityMax: [Int]
+        let precipitationProbabilityMax: [Int?]
         let windSpeed10mMax: [Double]
         let weatherCode: [Int]
 

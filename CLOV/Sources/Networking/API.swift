@@ -202,7 +202,7 @@ enum API {
             query = query.eq("occasion", value: occasion)
         }
         if !trimmedSearch.isEmpty {
-            query = query.ilike("caption", pattern: "%\(trimmedSearch)%")
+            query = query.ilike("caption", pattern: "%\(SearchTerm.likeEscaped(trimmedSearch))%")
         }
         let rows: [FeedItemDTO] = try await query
             .order("created_at", ascending: false)
@@ -267,14 +267,22 @@ enum API {
         }
     }
 
+    private struct FeedEventPayload: Encodable {
+        let userId: UUID
+        let fitCheckId: UUID
+        let event: String
+        let value: Double?
+    }
+
     static func logFeedEvent(userId: UUID, fitCheckId: UUID, event: String, value: Double? = nil) async throws {
-        struct Payload: Encodable {
-            let userId: UUID
-            let fitCheckId: UUID
-            let event: String
-            let value: Double?
-        }
-        try await client.from("feed_events").insert(Payload(userId: userId, fitCheckId: fitCheckId, event: event, value: value)).execute()
+        try await client.from("feed_events").insert(FeedEventPayload(userId: userId, fitCheckId: fitCheckId, event: event, value: value)).execute()
+    }
+
+    /// One request for many events, so scrolling the feed doesn't send a request per card.
+    static func logFeedEvents(userId: UUID, fitCheckIds: [UUID], event: String) async throws {
+        guard !fitCheckIds.isEmpty else { return }
+        let rows = fitCheckIds.map { FeedEventPayload(userId: userId, fitCheckId: $0, event: event, value: nil) }
+        try await client.from("feed_events").insert(rows).execute()
     }
 
     static func fetchFeedSignalScores(userId: UUID) async throws -> [UUID: Int] {
@@ -677,7 +685,7 @@ enum API {
                     if let url = result.signedURL { signed[result.path] = url.absoluteString }
                 }
             } catch {
-                continue
+                Log.storage.error("Signing \(batch.count) \(bucket) image(s) failed: \(error.localizedDescription)")
             }
         }
         return Dictionary(uniqueKeysWithValues: Set(values).compactMap { value in
@@ -700,7 +708,7 @@ enum API {
                     if let url = result.signedURL { signed[result.path] = url.absoluteString }
                 }
             } catch {
-                continue
+                Log.storage.error("Signing \(batch.count) Fit-Check photo(s) failed: \(error.localizedDescription)")
             }
         }
         return Dictionary(uniqueKeysWithValues: Set(values).compactMap { value in

@@ -25,3 +25,13 @@ final class SearchTermTests: XCTestCase {
         XCTAssertEqual(SearchTerm.sanitized(long).count, SearchTerm.maxLength)
     }
 }
+
+final class LikeEscapeTests: XCTestCase {
+    func testEscapesLikeWildcardsAndBackslash() {
+        XCTAssertEqual(SearchTerm.likeEscaped("100%_sure\\"), "100\\%\\_sure\\\\")
+    }
+
+    func testLeavesPlainTextAlone() {
+        XCTAssertEqual(SearchTerm.likeEscaped("summer fit"), "summer fit")
+    }
+}

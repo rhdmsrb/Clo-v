@@ -25,6 +25,8 @@ struct FeedView: View {
     @State private var friendIDs: Set<UUID> = []
     @State private var graphRevision: Int?
     @State private var loggedImpressions: Set<UUID> = []
+    @State private var pendingImpressions: [UUID] = []
+    private static let impressionBatchSize = 10
     @State private var signalScores: [UUID: Int] = [:]
     @State private var nextOffset = 0
     @State private var canLoadMore = true
@@ -137,6 +139,7 @@ struct FeedView: View {
         }
         .background(Theme.background)
         .refreshable { await load(refreshGraph: true) }
+        .onDisappear { flushImpressions() }
         .sheet(isPresented: $showChallenge) {
             CreateFitCheckView(initialOccasion: DailyChallenge.today.occasion)
         }
@@ -411,7 +414,20 @@ struct FeedView: View {
 
     private func logImpression(for item: FeedItemDTO) {
         guard loggedImpressions.insert(item.id).inserted else { return }
-        logEvent(item, event: "impression")
+        pendingImpressions.append(item.id)
+        if pendingImpressions.count >= Self.impressionBatchSize { flushImpressions() }
+    }
+
+    private func flushImpressions() {
+        guard !pendingImpressions.isEmpty else { return }
+        let ids = pendingImpressions
+        pendingImpressions = []
+        let userId = appState.userId
+        Task {
+            _ = await Log.attempt("Log feed impressions") {
+                try await API.logFeedEvents(userId: userId, fitCheckIds: ids, event: "impression")
+            }
+        }
     }
 
     private func logEvent(_ item: FeedItemDTO, event: String) {
