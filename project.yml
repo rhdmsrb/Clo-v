@@ -13,11 +13,12 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    # XcodeGen has no target-level `resources` key; resource files must be
+    # listed under `sources` or they are silently left out of the app bundle.
     sources:
       - path: CLOV/Sources
-    resources:
-      - path: CLOV/PrivacyInfo.xcprivacy
       - path: CLOV/Assets.xcassets
+      - path: CLOV/PrivacyInfo.xcprivacy
     entitlements:
       path: CLOV/CLOV.entitlements
       properties:
