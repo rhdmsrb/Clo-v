@@ -4,9 +4,11 @@ import Supabase
 
 enum APIError: LocalizedError {
     case message(String)
+    case alreadyVoted
     var errorDescription: String? {
         switch self {
         case .message(let m): return m
+        case .alreadyVoted: return "You already voted on this Fit-Check."
         }
     }
 }
@@ -23,7 +25,7 @@ private struct TryOnFunctionError: Decodable {
 }
 
 enum API {
-    private static var client: SupabaseClient { SupabaseManager.client }
+    static var client: SupabaseClient { SupabaseManager.client }
 
     static func createWardrobeTryOn(photo: UIImage, itemIDs: [UUID]) async throws -> WardrobeTryOnResponse {
         guard !itemIDs.isEmpty else { throw APIError.message("Choose at least one clothing piece first.") }
@@ -45,7 +47,7 @@ enum API {
         return try await invokeWardrobeTryOn(Request(action: "status", jobID: jobID), timeout: 30)
     }
 
-    private static func invokeWardrobeTryOn(_ body: some Encodable, timeout: TimeInterval) async throws -> WardrobeTryOnResponse {
+    static func invokeWardrobeTryOn(_ body: some Encodable, timeout: TimeInterval) async throws -> WardrobeTryOnResponse {
         do {
             return try await client.functions.invoke(
                 "wardrobe-try-on",
@@ -64,7 +66,7 @@ enum API {
     /// Reduce large camera and library photos progressively so users don't
     /// have to manually find a smaller image. Keep enough resolution for the
     /// provider to identify the person and clothing silhouette.
-    private static func compressedTryOnPhoto(_ photo: UIImage) throws -> Data {
+    static func compressedTryOnPhoto(_ photo: UIImage) throws -> Data {
         let oriented = photo.normalizedOrientation()
         for dimension: CGFloat in [1200, 1024, 900, 768, 640, 512] {
             let resized = oriented.resized(maxDimension: dimension)
@@ -124,45 +126,27 @@ enum API {
     /// deletion of storage.objects only removes metadata, leaving files behind.
     /// A failed file removal leaves the account available for a safe retry.
     static func deleteAccount() async throws {
-        let session = try await client.auth.session
-        let userId = session.user.id.storagePathComponent
-        for bucket in ["avatars", "fit-check-photos", "wardrobe-items"] {
-            try await deleteStorageFolder(bucket: bucket, path: userId)
+        _ = try await client.auth.session
+        await unregisterDeviceToken()
+        // The Edge Function clears the user's files and then deletes the
+        // account (the RPC refuses to run while files remain).
+        struct Empty: Encodable {}
+        do {
+            try await client.functions.invoke(
+                "delete-account",
+                options: FunctionInvokeOptions(body: Empty(), timeoutInterval: 60)
+            )
+        } catch let error as FunctionsError {
+            if case let .httpError(_, data) = error,
+               let response = try? JSONDecoder().decode(TryOnFunctionError.self, from: data),
+               let message = response.message {
+                throw APIError.message(message)
+            }
+            throw APIError.message("Couldn't delete your account. Please try again.")
         }
-        _ = try await client.rpc("delete_my_account").execute()
-        // Clear the local token when the server has deleted the account. This
-        // may throw if the auth session was already invalidated, which is safe
-        // to ignore because the account is already gone.
+        // The account is gone server-side; clearing the local session may
+        // throw because it is already invalid, which is safe to ignore.
         try? await client.auth.signOut()
-    }
-
-    private static func deleteStorageFolder(bucket: String, path: String) async throws {
-        let storage = client.storage.from(bucket)
-        var batches = 0
-        while true {
-            guard batches < 10_000 else {
-                throw APIError.message("Couldn't finish removing your photos. Please try again.")
-            }
-            batches += 1
-            // Always fetch the first page. Removing it makes the next page
-            // become the first, so no object is skipped as the list shrinks.
-            let entries = try await storage.list(path: path, options: SearchOptions(limit: 1000))
-            if entries.isEmpty { return }
-            let folders = entries.filter { $0.id == nil }
-            for folder in folders {
-                try await deleteStorageFolder(bucket: bucket, path: "\(path)/\(folder.name)")
-            }
-            let filePaths = entries.filter { $0.id != nil }.map { "\(path)/\($0.name)" }
-            if !filePaths.isEmpty {
-                let removed = try await storage.remove(paths: filePaths)
-                guard !removed.isEmpty else {
-                    throw APIError.message("Couldn't remove your photos. Please try again.")
-                }
-            }
-            if folders.isEmpty && filePaths.isEmpty {
-                throw APIError.message("Couldn't remove your photos. Please try again.")
-            }
-        }
     }
 
     static func updateAvatar(id: UUID, image: UIImage) async throws -> String {
@@ -179,9 +163,9 @@ enum API {
 
     // Optional vote prompts are loaded separately so older Supabase schemas
     // can still serve the core discovery feed during a gradual rollout.
-    private static let feedColumns = "id, creator_id, caption, occasion, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url)"
+    static let feedColumns = "id, creator_id, caption, occasion, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url)"
 
-    private static var notExpiredFilter: String {
+    static var notExpiredFilter: String {
         "expires_at.is.null,expires_at.gt.\(ISO8601DateFormatter().string(from: Date()))"
     }
 
@@ -218,7 +202,7 @@ enum API {
             query = query.eq("occasion", value: occasion)
         }
         if !trimmedSearch.isEmpty {
-            query = query.ilike("caption", pattern: "%\(trimmedSearch)%")
+            query = query.ilike("caption", pattern: "%\(SearchTerm.likeEscaped(trimmedSearch))%")
         }
         let rows: [FeedItemDTO] = try await query
             .order("created_at", ascending: false)
@@ -283,14 +267,22 @@ enum API {
         }
     }
 
+    private struct FeedEventPayload: Encodable {
+        let userId: UUID
+        let fitCheckId: UUID
+        let event: String
+        let value: Double?
+    }
+
     static func logFeedEvent(userId: UUID, fitCheckId: UUID, event: String, value: Double? = nil) async throws {
-        struct Payload: Encodable {
-            let userId: UUID
-            let fitCheckId: UUID
-            let event: String
-            let value: Double?
-        }
-        try await client.from("feed_events").insert(Payload(userId: userId, fitCheckId: fitCheckId, event: event, value: value)).execute()
+        try await client.from("feed_events").insert(FeedEventPayload(userId: userId, fitCheckId: fitCheckId, event: event, value: value)).execute()
+    }
+
+    /// One request for many events, so scrolling the feed doesn't send a request per card.
+    static func logFeedEvents(userId: UUID, fitCheckIds: [UUID], event: String) async throws {
+        guard !fitCheckIds.isEmpty else { return }
+        let rows = fitCheckIds.map { FeedEventPayload(userId: userId, fitCheckId: $0, event: event, value: nil) }
+        try await client.from("feed_events").insert(rows).execute()
     }
 
     static func fetchFeedSignalScores(userId: UUID) async throws -> [UUID: Int] {
@@ -330,7 +322,7 @@ enum API {
         return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
     }
 
-    private static func fetchBlockedUserIDs() async throws -> Set<UUID> {
+    static func fetchBlockedUserIDs() async throws -> Set<UUID> {
         struct Row: Decodable { let blockedId: UUID }
         let rows: [Row] = try await client
             .from("blocked_users")
@@ -450,7 +442,7 @@ enum API {
             .execute()
             .value
         guard var detail = rows.first else { return nil }
-        detail.votePrompt = try? await fetchVotePrompt(fitCheckId: id)
+        detail.votePrompt = await Log.attempt("Fetch vote prompt") { try await fetchVotePrompt(fitCheckId: id) } ?? nil
         detail.fitCheckPhotos = try await signedPhotos(detail.fitCheckPhotos)
         return detail
     }
@@ -493,11 +485,11 @@ enum API {
                 .execute()
         } catch {
             if error.isUniqueViolation {
-                throw APIError.message("You already voted on this Fit-Check.")
+                throw APIError.alreadyVoted
             }
             throw error
         }
-        try? await logFeedEvent(userId: voterId, fitCheckId: fitCheckId, event: "vote")
+        _ = await Log.attempt("Log vote event") { try await logFeedEvent(userId: voterId, fitCheckId: fitCheckId, event: "vote") }
         // The creator's "someone voted" notification is created by a DB
         // trigger on fit_check_votes (see 0010_db_invariants.sql) — no
         // second write from here.
@@ -519,14 +511,26 @@ enum API {
         try await client.rpc("save_vote_reason", params: Params(pFitCheckId: fitCheckId, pPhotoId: photoId, pReasonTags: tags, pReasonComment: comment)).execute()
     }
 
-    static func registerDeviceToken(_ token: String, userId: UUID) async throws {
-        struct Payload: Encodable {
-            let userId: UUID
-            let token: String
-            let platform = "ios"
-            let updatedAt = Date()
+    /// The APNs token registered for the signed-in user, kept so it can be
+    /// removed from the server on sign-out or account deletion. Otherwise the
+    /// next person to sign in on this device would receive the old user's pushes.
+    static var currentDeviceToken: String?
+
+    static func unregisterDeviceToken() async {
+        guard let token = currentDeviceToken else { return }
+        do {
+            try await client.from("device_tokens").delete().eq("token", value: token).execute()
+            currentDeviceToken = nil
+        } catch {
+            Log.push.error("Device token removal failed: \(error.localizedDescription)")
         }
-        try await client.from("device_tokens").upsert(Payload(userId: userId, token: token), onConflict: "token").execute()
+    }
+
+    /// Server-side RPC so a token still owned by a previous account on this
+    /// device is reassigned to the signed-in user (see 20261020000200 migration).
+    static func registerDeviceToken(_ token: String) async throws {
+        try await client.rpc("register_device_token", params: ["p_token": token, "p_platform": "ios"]).execute()
+        currentDeviceToken = token
     }
 
     static func addComment(fitCheckId: UUID, photoId: UUID, commenterId: UUID, body: String) async throws {
@@ -574,83 +578,6 @@ enum API {
         try await client.rpc("block_user", params: ["p_blocked_id": id]).execute()
     }
 
-    // MARK: - Notifications
-
-    static func fetchNotifications(recipientId: UUID) async throws -> [NotificationDTO] {
-        try await client
-            .from("notifications")
-            .select("id, type, is_read, created_at, fit_check_id, actor:profiles!notifications_actor_id_fkey(nickname, avatar_url)")
-            .eq("recipient_id", value: recipientId)
-            .order("created_at", ascending: false)
-            .execute()
-            .value
-    }
-
-    static func fetchUnreadNotificationCount(recipientId: UUID) async throws -> Int {
-        let response = try await client
-            .from("notifications")
-            .select("id", head: true, count: .exact)
-            .eq("recipient_id", value: recipientId)
-            .eq("is_read", value: false)
-            .execute()
-        return response.count ?? 0
-    }
-
-    static func markAllNotificationsRead(recipientId: UUID) async throws {
-        try await client
-            .from("notifications")
-            .update(["is_read": true])
-            .eq("recipient_id", value: recipientId)
-            .eq("is_read", value: false)
-            .execute()
-    }
-
-    static func markNotificationRead(id: UUID, recipientId: UUID) async throws {
-        try await client
-            .from("notifications")
-            .update(["is_read": true])
-            .eq("id", value: id)
-            .eq("recipient_id", value: recipientId)
-            .eq("is_read", value: false)
-            .execute()
-    }
-
-    static func terminateFitCheck(id: UUID, creatorId: UUID) async throws {
-        try await client.from("fit_checks")
-            .update(["status": "archived", "ended_at": ISO8601DateFormatter().string(from: Date())])
-            .eq("id", value: id).eq("creator_id", value: creatorId).execute()
-    }
-
-    /// Permanently removes a Fit-Check the caller owns — live or archived —
-    /// along with its photos, votes, comments, and notifications (all
-    /// `on delete cascade` from `fit_checks`, see 0003/0005/0007 migrations).
-    /// The owner-only delete policy in 0009 authorizes this operation.
-    static func deleteFitCheck(id: UUID, creatorId: UUID) async throws {
-        let session = try await client.auth.session
-        guard creatorId == session.user.id else { throw APIError.message("Please sign in again.") }
-
-        struct PhotoRow: Decodable { let imageUrl: String }
-        let photos: [PhotoRow] = try await client
-            .from("fit_check_photos")
-            .select("image_url")
-            .eq("fit_check_id", value: id)
-            .execute()
-            .value
-
-        try await client
-            .from("fit_checks")
-            .delete()
-            .eq("id", value: id)
-            .eq("creator_id", value: creatorId)
-            .execute()
-
-        // Cleanup is best-effort. Until a matching Storage delete policy is
-        // deployed, deleting the database row can leave orphaned objects.
-        let paths = photos.compactMap { photoPath($0.imageUrl) }
-        if !paths.isEmpty {
-            _ = try? await client.storage.from("fit-check-photos").remove(paths: paths)
-        }
-    }
 
     // MARK: - Create Fit-Check
 
@@ -679,269 +606,58 @@ enum API {
             enum CodingKeys: String, CodingKey { case id = "p_id"; case caption = "p_caption"; case groupId = "p_group_id"; case occasion = "p_occasion"; case audience = "p_audience"; case votePrompt = "p_vote_prompt" }
         }
         let fitCheckId: UUID = try await client.rpc("create_fit_check_draft", params: DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion, audience: audience, votePrompt: votePrompt)).execute().value
-        for (index, photo) in photos.enumerated() {
-            do {
+        // The draft and each photo are separate writes. If any later step
+        // fails, remove what was already created so no orphan draft or
+        // unreferenced photo stays behind.
+        var uploadedPaths: [String] = []
+        do {
+            for (index, photo) in photos.enumerated() {
                 let path = try await uploadImage(photo, bucket: "fit-check-photos", pathPrefix: "\(creatorId.storagePathComponent)/\(fitCheckId.storagePathComponent)", aspectRatio: 3.0 / 4.0)
+                uploadedPaths.append(path)
                 struct PhotoInsert: Encodable { let fitCheckId: UUID; let imageUrl: String; let position: Int }
                 try await client.from("fit_check_photos")
                     .insert(PhotoInsert(fitCheckId: fitCheckId, imageUrl: path, position: index + 1)).execute()
-            } catch {
-                throw error
             }
-        }
-        struct PublishParams: Encodable {
-            let id: UUID
-            let durationSeconds: Int
-            enum CodingKeys: String, CodingKey { case id = "p_id"; case durationSeconds = "p_duration_seconds" }
-        }
-        try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
-    }
-
-    // MARK: - Groups
-
-    static func fetchMyGroups(profileId: UUID) async throws -> [FashionGroup] {
-        let rows: [MembershipGroupDTO] = try await client
-            .from("group_members")
-            .select("groups(id, name, creator_id, invite_code, created_at)")
-            .eq("profile_id", value: profileId)
-            .execute()
-            .value
-        return rows.compactMap(\.groups)
-    }
-
-    static func fetchGroupMembers(groupId: UUID) async throws -> [GroupMemberDisplay] {
-        let rows: [MemberDTO] = try await client
-            .from("group_members")
-            .select("profile_id, profiles(nickname, avatar_url)")
-            .eq("group_id", value: groupId)
-            .execute()
-            .value
-        return rows.map { row in
-            GroupMemberDisplay(id: row.profileId, nickname: row.profiles?.nickname, avatarUrl: row.profiles?.avatarUrl)
-        }
-    }
-
-    static func isMember(groupId: UUID, profileId: UUID) async throws -> Bool {
-        let rows: [GroupMember] = try await client
-            .from("group_members")
-            .select()
-            .eq("group_id", value: groupId)
-            .eq("profile_id", value: profileId)
-            .execute()
-            .value
-        return !rows.isEmpty
-    }
-
-    static func createGroup(name: String, creatorId: UUID) async throws -> FashionGroup {
-        var lastError: Error?
-        for _ in 0..<3 {
-            do {
-                let group: FashionGroup = try await client
-                    .rpc("create_group_with_owner", params: ["p_name": name, "p_code": InviteCode.generate()])
-                    .single()
-                    .execute()
-                    .value
-                return group
-            } catch {
-                if error.isUniqueViolation {
-                    lastError = error
-                    continue // invite_code collision, retry with a new code
-                }
-                throw error
+            struct PublishParams: Encodable {
+                let id: UUID
+                let durationSeconds: Int
+                enum CodingKeys: String, CodingKey { case id = "p_id"; case durationSeconds = "p_duration_seconds" }
             }
-        }
-        throw lastError ?? APIError.message("Couldn't create the group — try again.")
-    }
-
-    static func joinGroup(code: String) async throws -> FashionGroup {
-        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !normalized.isEmpty else { throw APIError.message("Enter an invite code.") }
-
-        // `groups` is no longer readable to non-members (see
-        // 0011_group_privacy.sql), so the lookup + membership insert
-        // happen server-side in one SECURITY DEFINER call. The function
-        // is idempotent (on conflict do nothing) and returns an empty
-        // set for an unknown code.
-        let groups: [FashionGroup] = try await client
-            .rpc("join_group_by_code", params: ["p_code": normalized])
-            .execute()
-            .value
-        guard let group = groups.first else {
-            throw APIError.message("That code doesn't match any group.")
-        }
-        return group
-    }
-
-    static func renameGroup(id: UUID, name: String) async throws {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw APIError.message("Enter a board name.") }
-        try await client.from("groups").update(["name": trimmed]).eq("id", value: id).execute()
-    }
-
-    static func leaveGroup(id: UUID, profileId: UUID) async throws {
-        try await client.from("group_members").delete()
-            .eq("group_id", value: id).eq("profile_id", value: profileId).execute()
-    }
-
-    static func deleteGroup(id: UUID) async throws {
-        try await client.from("groups").delete().eq("id", value: id).execute()
-    }
-
-    static func removeGroupMember(groupId: UUID, profileId: UUID) async throws {
-        try await client.from("group_members").delete()
-            .eq("group_id", value: groupId).eq("profile_id", value: profileId).execute()
-    }
-
-    // MARK: - Friends
-
-    // MARK: - Wardrobe
-
-    static func fetchWardrobeItems(ownerId: UUID) async throws -> [WardrobeItem] {
-        let rows: [WardrobeItem] = try await client
-            .from("wardrobe_items")
-            .select()
-            .eq("owner_id", value: ownerId)
-            .order("created_at", ascending: false)
-            .execute()
-            .value
-        let urls = try await signedStorageURLs(rows.map(\.imageUrl), bucket: "wardrobe-items")
-        return rows.map { item in
-            var result = item
-            result.imageUrl = urls[item.imageUrl] ?? ""
-            return result
-        }
-    }
-
-    static func createWardrobeItem(ownerId: UUID, image: UIImage, name: String?, category: String,
-                                   subcategory: String?, color: String?, season: String?, brand: String?,
-                                   wearFrequency: String?, tags: [String] = []) async throws {
-        let session = try await client.auth.session
-        guard session.user.id == ownerId else { throw APIError.message("Please sign in again.") }
-        let itemId = UUID()
-        let path = try await uploadImage(image, bucket: "wardrobe-items",
-                                         pathPrefix: "\(ownerId.storagePathComponent)/\(itemId.storagePathComponent)",
-                                         aspectRatio: 3.0 / 4.0, persistPublicURL: false,
-                                         preserveAspectRatio: true)
-        struct Insert: Encodable {
-            let id: UUID; let ownerId: UUID; let imageUrl: String; let name: String?
-            let category: String; let subcategory: String?; let color: String?; let season: String?
-            let brand: String?; let wearFrequency: String?; let tags: [String]
-        }
-        do {
-            try await client.from("wardrobe_items").insert(Insert(
-                id: itemId, ownerId: ownerId, imageUrl: path, name: name,
-                category: category, subcategory: subcategory, color: color, season: season,
-                brand: brand, wearFrequency: wearFrequency, tags: tags
-            )).execute()
+            try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
         } catch {
-            _ = try? await client.storage.from("wardrobe-items").remove(paths: [path])
+            await discardDraft(fitCheckId: fitCheckId, creatorId: creatorId, uploadedPaths: uploadedPaths)
             throw error
         }
     }
 
-    static func updateWardrobeItem(id: UUID, ownerId: UUID, image: UIImage?, name: String?, category: String,
-                                   subcategory: String?, color: String?, season: String?, brand: String?,
-                                   wearFrequency: String?, tags: [String]) async throws {
-        let session = try await client.auth.session
-        guard session.user.id == ownerId else { throw APIError.message("Please sign in again.") }
-        struct ImageRow: Decodable { let imageUrl: String }
-        let existing: [ImageRow] = try await client.from("wardrobe_items")
-            .select("image_url").eq("id", value: id).eq("owner_id", value: ownerId).execute().value
-        guard let oldImage = existing.first?.imageUrl else { throw APIError.message("This wardrobe item no longer exists.") }
-        var newImage: String?
-        if let image {
-            newImage = try await uploadImage(image, bucket: "wardrobe-items",
-                                             pathPrefix: "\(ownerId.storagePathComponent)/\(id.storagePathComponent)",
-                                             aspectRatio: 3.0 / 4.0, persistPublicURL: false,
-                                             preserveAspectRatio: true)
+    static func discardDraft(fitCheckId: UUID, creatorId: UUID, uploadedPaths: [String]) async {
+        if !uploadedPaths.isEmpty {
+            do { _ = try await client.storage.from("fit-check-photos").remove(paths: uploadedPaths) }
+            catch { Log.storage.error("Draft photo cleanup failed: \(error.localizedDescription)") }
         }
-        struct Update: Encodable {
-            let imageUrl: String; let name: String?; let category: String
-            let subcategory: String?; let color: String?; let season: String?
-            let brand: String?; let wearFrequency: String?; let tags: [String]
-        }
-        do {
-            try await client.from("wardrobe_items").update(Update(
-                imageUrl: newImage ?? oldImage, name: name, category: category,
-                subcategory: subcategory, color: color, season: season,
-                brand: brand, wearFrequency: wearFrequency, tags: tags
-            )).eq("id", value: id).eq("owner_id", value: ownerId).execute()
-        } catch {
-            if let newImage { _ = try? await client.storage.from("wardrobe-items").remove(paths: [newImage]) }
-            throw error
-        }
-        if newImage != nil, let oldPath = storagePath(oldImage, bucket: "wardrobe-items") {
-            _ = try? await client.storage.from("wardrobe-items").remove(paths: [oldPath])
-        }
+        do { try await deleteFitCheck(id: fitCheckId, creatorId: creatorId) }
+        catch { Log.app.error("Draft cleanup failed: \(error.localizedDescription)") }
     }
 
-    static func deleteWardrobeItem(id: UUID, ownerId: UUID) async throws {
-        let session = try await client.auth.session
-        guard session.user.id == ownerId else { throw APIError.message("Please sign in again.") }
-        struct ImageRow: Decodable { let imageUrl: String }
-        let images: [ImageRow] = try await client.from("wardrobe_items")
-            .select("image_url").eq("id", value: id).eq("owner_id", value: ownerId).execute().value
-        try await client.from("wardrobe_items").delete()
-            .eq("id", value: id).eq("owner_id", value: ownerId).execute()
-        let paths = images.compactMap { storagePath($0.imageUrl, bucket: "wardrobe-items") }
-        if !paths.isEmpty { _ = try? await client.storage.from("wardrobe-items").remove(paths: paths) }
-    }
 
-    // MARK: - Friends
 
-    static func fetchFriendRequests(userId: UUID, incoming: Bool) async throws -> [FriendRequestDTO] {
-        let column = incoming ? "addressee_id" : "requester_id"
-        return try await client.from("friend_requests").select()
-            .eq(column, value: userId).eq("status", value: "pending")
-            .order("created_at", ascending: false).execute().value
-    }
-
-    static func fetchFriendships(userId: UUID) async throws -> [FriendshipDTO] {
-        try await client.from("friendships").select()
-            .or("user_low.eq.\(userId.uuidString),user_high.eq.\(userId.uuidString)")
-            .order("created_at", ascending: false).execute().value
-    }
-
-    static func searchProfiles(query: String, excluding userId: UUID) async throws -> [AuthorInfoWithId] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let digits = trimmed.filter(\.isNumber)
-        if trimmed.contains("@") || digits.count >= 7 {
-            return try await client.rpc("find_profiles_by_contact", params: ["p_contact": trimmed]).execute().value
-        }
-        return try await client.from("profiles").select("id, nickname, account_code, avatar_url")
-            .or("nickname.ilike.%\(trimmed)%,account_code.ilike.%\(trimmed)%")
-            .neq("id", value: userId).limit(20).execute().value
-    }
-
-    static func fetchProfiles(ids: [UUID]) async throws -> [AuthorInfoWithId] {
-        guard !ids.isEmpty else { return [] }
-        return try await client.from("profiles").select("id, nickname, account_code, avatar_url")
-            .in("id", values: ids).execute().value
-    }
-
-    static func fetchMutualFriendCounts(userIds: [UUID]) async throws -> [MutualFriendCountDTO] {
-        guard !userIds.isEmpty else { return [] }
-        return try await client.rpc("get_mutual_friend_counts", params: ["p_user_ids": userIds]).execute().value
-    }
-
-    static func sendFriendRequest(to userId: UUID) async throws {
-        try await client.rpc("send_friend_request", params: ["p_addressee_id": userId]).execute()
-    }
-
-    static func respondFriendRequest(id: UUID, accept: Bool) async throws {
-        struct Params: Encodable { let pRequestId: UUID; let pAccept: Bool }
-        try await client.rpc("respond_friend_request", params: Params(pRequestId: id, pAccept: accept)).execute()
-    }
-
-    static func cancelFriendRequest(id: UUID) async throws {
-        try await client.rpc("cancel_friend_request", params: ["p_request_id": id]).execute()
-    }
 
     // MARK: - Storage
 
     // Accept stored paths and legacy public URLs from this project's bucket.
     // Never persist a signed URL: it expires and is specific to a read request.
-    private static func storagePath(_ value: String, bucket: String) -> String? {
+    /// Best-effort cleanup: a failure never blocks the caller, but it is logged
+    /// because orphaned files also block self-service account deletion.
+    static func removeStorageFiles(bucket: String, paths: [String]) async {
+        guard !paths.isEmpty else { return }
+        do {
+            _ = try await client.storage.from(bucket).remove(paths: paths)
+        } catch {
+            Log.storage.error("Cleanup of \(paths.count) file(s) in \(bucket) failed: \(error.localizedDescription)")
+        }
+    }
+
+    static func storagePath(_ value: String, bucket: String) -> String? {
         if !value.contains("://") { return value.isEmpty ? nil : value }
         guard let url = URL(string: value), url.host == AppConfig.supabaseURL.host else { return nil }
         let prefix = "/storage/v1/object/public/\(bucket)/"
@@ -949,11 +665,11 @@ enum API {
         return String(url.path.dropFirst(prefix.count))
     }
 
-    private static func photoPath(_ value: String) -> String? {
+    static func photoPath(_ value: String) -> String? {
         storagePath(value, bucket: "fit-check-photos")
     }
 
-    private static func signedStorageURLs(_ values: [String], bucket: String) async throws -> [String: String] {
+    static func signedStorageURLs(_ values: [String], bucket: String) async throws -> [String: String] {
         let paths = Array(Set(values.compactMap { storagePath($0, bucket: bucket) }))
         guard !paths.isEmpty else { return [:] }
         var signed: [String: String] = [:]
@@ -969,7 +685,7 @@ enum API {
                     if let url = result.signedURL { signed[result.path] = url.absoluteString }
                 }
             } catch {
-                continue
+                Log.storage.error("Signing \(batch.count) \(bucket) image(s) failed: \(error.localizedDescription)")
             }
         }
         return Dictionary(uniqueKeysWithValues: Set(values).compactMap { value in
@@ -978,7 +694,7 @@ enum API {
         })
     }
 
-    private static func signedPhotoURLs(_ values: [String]) async throws -> [String: String] {
+    static func signedPhotoURLs(_ values: [String]) async throws -> [String: String] {
         let paths = Array(Set(values.compactMap(photoPath)))
         guard !paths.isEmpty else { return [:] }
         var signed: [String: String] = [:]
@@ -992,7 +708,7 @@ enum API {
                     if let url = result.signedURL { signed[result.path] = url.absoluteString }
                 }
             } catch {
-                continue
+                Log.storage.error("Signing \(batch.count) Fit-Check photo(s) failed: \(error.localizedDescription)")
             }
         }
         return Dictionary(uniqueKeysWithValues: Set(values).compactMap { value in
@@ -1001,7 +717,7 @@ enum API {
         })
     }
 
-    private static func attachVotePrompts(_ rows: [FeedItemDTO]) async -> [FeedItemDTO] {
+    static func attachVotePrompts(_ rows: [FeedItemDTO]) async -> [FeedItemDTO] {
         guard !rows.isEmpty else { return rows }
         do {
             struct PromptRow: Decodable { let id: UUID; let votePrompt: String? }
@@ -1022,14 +738,14 @@ enum API {
         }
     }
 
-    private static func fetchVotePrompt(fitCheckId: UUID) async throws -> String? {
+    static func fetchVotePrompt(fitCheckId: UUID) async throws -> String? {
         struct PromptRow: Decodable { let votePrompt: String? }
         let rows: [PromptRow] = try await client.from("fit_checks")
             .select("vote_prompt").eq("id", value: fitCheckId).limit(1).execute().value
         return rows.first?.votePrompt
     }
 
-    private static func signedPhotos(_ photos: [FitCheckPhoto]) async throws -> [FitCheckPhoto] {
+    static func signedPhotos(_ photos: [FitCheckPhoto]) async throws -> [FitCheckPhoto] {
         let urls = try await signedPhotoURLs(photos.map(\.imageUrl))
         return photos.map { photo in
             var result = photo
@@ -1038,7 +754,7 @@ enum API {
         }
     }
 
-    private static func signFeedPhotos(_ rows: [FeedItemDTO]) async throws -> [FeedItemDTO] {
+    static func signFeedPhotos(_ rows: [FeedItemDTO]) async throws -> [FeedItemDTO] {
         let urls = try await signedPhotoURLs(rows.flatMap(\.fitCheckPhotos).map(\.imageUrl))
         return rows.map { row in
             var result = row
@@ -1054,7 +770,7 @@ enum API {
     /// Normalizes orientation and downscales BEFORE upload. Feed photos and
     /// avatars are cropped to their presentation ratio; wardrobe pieces can
     /// preserve their full shape so the catalog never cuts off a garment.
-    private static func uploadImage(_ image: UIImage, bucket: String, pathPrefix: String,
+    static func uploadImage(_ image: UIImage, bucket: String, pathPrefix: String,
                                     aspectRatio: CGFloat, persistPublicURL: Bool = true,
                                     preserveAspectRatio: Bool = false) async throws -> String {
         let oriented = image.normalizedOrientation()
@@ -1070,7 +786,7 @@ enum API {
     }
 }
 
-private extension UUID {
+extension UUID {
     /// Lowercased UUID string for Supabase Storage object paths. Swift's
     /// `UUID` prints uppercase, but Storage RLS policies compare the
     /// folder segment against `auth.uid()::text`, which Postgres renders
@@ -1079,7 +795,7 @@ private extension UUID {
     var storagePathComponent: String { uuidString.lowercased() }
 }
 
-private extension Error {
+extension Error {
     /// Postgres unique_violation (23505) surfaced through PostgrestError.
     var isUniqueViolation: Bool {
         if let postgrestError = self as? PostgrestError {

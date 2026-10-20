@@ -13,11 +13,16 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    # XcodeGen has no target-level `resources` key; resource files must be
+    # listed under `sources` or they are silently left out of the app bundle.
     sources:
       - path: CLOV/Sources
-    resources:
-      - path: CLOV/PrivacyInfo.xcprivacy
       - path: CLOV/Assets.xcassets
+      - path: CLOV/PrivacyInfo.xcprivacy
+    entitlements:
+      path: CLOV/CLOV.entitlements
+      properties:
+        aps-environment: development
     info:
       path: CLOV/Info.plist
       properties:
@@ -58,12 +63,28 @@ targets:
         DEVELOPMENT_TEAM: ""
     dependencies:
       - target: CLOV
+  CLOVTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CLOVTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    dependencies:
+      - target: CLOV
 schemes:
   CLOV:
     build:
       targets:
         CLOV: all
         CLOVUITests: [test]
+        CLOVTests: [test]
     test:
       targets:
+        - CLOVTests
         - CLOVUITests

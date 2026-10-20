@@ -9,9 +9,11 @@ enum Theme {
     // neutral typography or the black-and-white surfaces.
     static let iconCoral = Color(red: 0.82, green: 0.31, blue: 0.29)
     static let iconApricot = Color(red: 0.91, green: 0.55, blue: 0.25)
-    static let iconPlum = Color(red: 0.49, green: 0.34, blue: 0.57)
+    // Lifted in dark mode so it keeps >= 3:1 on the dark tab bar surface.
+    static let iconPlum = adaptive((0.49, 0.34, 0.57), (0.68, 0.54, 0.76))
     static let iconSage = Color(red: 0.34, green: 0.51, blue: 0.40)
-    static let accentForeground = Color.white
+    /// Text/icons on top of `accent` fills (accent is dark in light mode, light in dark mode).
+    static let accentForeground = adaptive((1.0, 1.0, 1.0), (0.02, 0.02, 0.02))
     static let background = adaptive((1.0, 1.0, 1.0), (0.06, 0.06, 0.06))
     static let card = adaptive((1.0, 1.0, 1.0), (0.12, 0.12, 0.12))
     static let muted = adaptive((0.96, 0.96, 0.96), (0.18, 0.18, 0.18))
@@ -20,8 +22,25 @@ enum Theme {
     static let ink = adaptive((0.02, 0.02, 0.02), (0.98, 0.98, 0.98))
     static let inverseText = adaptive((1.0, 1.0, 1.0), (0.02, 0.02, 0.02))
 
+    /// Destructive / error text and icons; adapts for contrast in dark mode.
+    static let danger = adaptive((0.75, 0.15, 0.13), (1.0, 0.45, 0.42))
+    /// Floating tab bar surface (near-black in light mode, lifted in dark mode so it stays visible).
+    static let tabBarSurface = adaptiveAlpha((0.0, 0.0, 0.0), (0.16, 0.16, 0.16), alpha: 0.94)
+
+    // Corner-radius tokens.
     static let cardRadius: CGFloat = 16
     static let tileRadius: CGFloat = 16
+    static let smallRadius: CGFloat = 8
+    static let controlRadius: CGFloat = 14
+    static let fieldRadius: CGFloat = 13
+    static let barRadius: CGFloat = 28
+
+    // Dynamic Type text styles. Prefer these over fixed `.system(size:)`.
+    static let micro = Font.system(.caption2, design: .default, weight: .black)
+    static let microMedium = Font.system(.caption2, design: .default, weight: .bold)
+    static let caption = Font.system(.caption, design: .default, weight: .semibold)
+    static let label = Font.system(.footnote, design: .default, weight: .bold)
+    static let bodyEmphasis = Font.system(.subheadline, design: .default, weight: .semibold)
 
     static var displayFont: Font { editorialFont(size: 30, relativeTo: .title2) }
 
@@ -31,6 +50,16 @@ enum Theme {
 
     static let cardShadow = Color.black.opacity(0.045)
     static let press = Animation.spring(response: 0.24, dampingFraction: 0.82)
+
+    /// Minimum comfortable tap target.
+    static let minTapSize: CGFloat = 44
+    /// Border for unselected chips and text fields; >= 3:1 against light and dark surfaces.
+    static let controlBorder = line.opacity(0.45)
+
+    /// Returns `animation`, or nil when Reduce Motion is on. Use with `withAnimation`.
+    static func animation(_ animation: Animation, reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : animation
+    }
 
     // Kept for existing views. The accent is intentionally flat so photos and
     // typography remain the visual focus.
@@ -52,6 +81,13 @@ enum Theme {
         Color(UIColor { trait in
             let rgb = trait.userInterfaceStyle == .dark ? dark : light
             return UIColor(red: rgb.0, green: rgb.1, blue: rgb.2, alpha: 1)
+        })
+    }
+
+    private static func adaptiveAlpha(_ light: (Double, Double, Double), _ dark: (Double, Double, Double), alpha: Double) -> Color {
+        Color(UIColor { trait in
+            let rgb = trait.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: rgb.0, green: rgb.1, blue: rgb.2, alpha: alpha)
         })
     }
 
@@ -112,7 +148,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(Theme.inverseText)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(Theme.press, value: configuration.isPressed)
+            .motionSafeAnimation(value: configuration.isPressed)
     }
 }
 
@@ -125,10 +161,10 @@ struct OutlineButtonStyle: ButtonStyle {
             .background(configuration.isPressed ? Theme.muted : Theme.card)
             .foregroundStyle(Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Theme.line.opacity(0.35), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Theme.controlBorder, lineWidth: 1))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(Theme.press, value: configuration.isPressed)
+            .motionSafeAnimation(value: configuration.isPressed)
     }
 }
 
@@ -141,10 +177,12 @@ struct AvatarView: View {
     var body: some View {
         Group {
             if let url, let imageURL = URL(string: url) {
-                AsyncImage(url: imageURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    initialCircle
+                CachedImage(url: imageURL) { phase in
+                    if case .success(let image) = phase {
+                        image.resizable().scaledToFill()
+                    } else {
+                        initialCircle
+                    }
                 }
             } else {
                 initialCircle
@@ -159,6 +197,7 @@ struct AvatarView: View {
                     .shadow(color: Theme.accent.opacity(0.45), radius: 6)
             }
         }
+        .accessibilityHidden(true)
     }
 
     private var initialCircle: some View {
@@ -183,14 +222,59 @@ struct ChipToggle: View {
                 .font(.system(.footnote, design: .default).weight(.bold))
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
+                .frame(minHeight: Theme.minTapSize)
                 .background(selected ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.card))
                 .foregroundStyle(selected ? Theme.inverseText : Color.primary)
                 .clipShape(Capsule())
                 .overlay(Capsule()
-                    .stroke(Theme.line.opacity(selected ? 0 : 0.22), lineWidth: 1))
+                    .stroke(selected ? Color.clear : Theme.controlBorder, lineWidth: 1))
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(Theme.press, value: selected)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .motionSafeAnimation(value: selected)
         .sensoryFeedback(.selection, trigger: selected)
+    }
+}
+
+/// Applies `animation` only when Reduce Motion is off.
+private struct MotionSafeAnimation<Value: Equatable>: ViewModifier {
+    let animation: Animation
+    let value: Value
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.animation(Theme.animation(animation, reduceMotion: reduceMotion), value: value)
+    }
+}
+
+extension View {
+    func motionSafeAnimation<Value: Equatable>(_ animation: Animation = Theme.press, value: Value) -> some View {
+        modifier(MotionSafeAnimation(animation: animation, value: value))
+    }
+}
+
+/// Pill-shaped toggle chip whose padding, minimum height, background and hit
+/// shape all live inside the button label, so the whole chip is tappable.
+struct ChipButtonStyle: ButtonStyle {
+    var isSelected: Bool
+    var font: Font = Theme.caption
+    var expands = false
+    var unselectedFill: Color = Theme.muted
+    var unselectedForeground: Color = .primary
+    var horizontalPadding: CGFloat = 12
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(font)
+            .foregroundStyle(isSelected ? Theme.accentForeground : unselectedForeground)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, 8)
+            .frame(maxWidth: expands ? .infinity : nil, minHeight: Theme.minTapSize)
+            .background(isSelected ? Theme.accent : unselectedFill, in: Capsule())
+            .overlay(Capsule().stroke(isSelected ? Color.clear : Theme.controlBorder, lineWidth: 1))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }

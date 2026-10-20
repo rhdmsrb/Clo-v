@@ -5,6 +5,9 @@ enum AppConfig {
     // Same Supabase project the Next.js web prototype uses
     // (../prototype/.env.local) — one backend, two clients.
     static let supabaseURL = URL(string: "https://exbozksjwpyvstqhcyqy.supabase.co")!
+    /// Deep link the password-reset email returns to. Must also be listed under
+    /// Authentication > URL Configuration > Redirect URLs in the Supabase dashboard.
+    static let authCallbackURL = URL(string: "clov://auth-callback")!
     static let supabaseAnonKey = "sb_publishable_wlceXdLHdxHp5brmwrg12Q_glPGikbe"
 }
 

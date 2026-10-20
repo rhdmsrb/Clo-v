@@ -95,7 +95,7 @@ struct AccountView: View {
             Color.clear.frame(height: 82)
         }
         .background(Theme.background)
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView(profile: appState.profile)
@@ -148,6 +148,7 @@ struct AccountView: View {
             Text(title)
                 .font(Theme.editorialFont(size: 25, relativeTo: .title2))
                 .foregroundStyle(Theme.ink)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             if let detail {
                 Text(detail)
@@ -259,6 +260,7 @@ struct AccountView: View {
                     .foregroundStyle(tint)
                     .frame(width: 38, height: 38)
                     .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 16, weight: .medium, design: .default))
@@ -271,9 +273,11 @@ struct AccountView: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Theme.mutedForeground.opacity(0.7))
+                    .accessibilityHidden(true)
             }
             .padding(.vertical, 12)
             .contentShape(Rectangle())
+            .accessibilityElement(children: .combine)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(title == "Your week" ? "yourWeekButton" : "profileShortcut_\(title)")
@@ -317,10 +321,16 @@ struct AccountView: View {
                                 Button("Terminate") { terminateTarget = item.id }
                                     .font(.system(.caption2, design: .default).weight(.bold))
                                     .foregroundStyle(Theme.accent)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                                    .accessibilityLabel("Terminate \(item.caption ?? "Fit-Check")")
                             }
                             Button("Delete") { deleteTarget = item.id }
                                 .font(.system(.caption2, design: .default).weight(.bold))
                                 .foregroundStyle(.red)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                                .accessibilityLabel("Delete \(item.caption ?? "Fit-Check")")
                         }
                         .softCard(radius: 18, padding: 12)
                     }
@@ -339,8 +349,8 @@ struct AccountView: View {
             let all = try await API.fetchMyFitChecksWithStatus(creatorId: appState.userId)
             liveVotes = all.filter { $0.status == "live" && !isExpired($0.expiresAt) }
             archivedVotes = all.filter { $0.status == "archived" || isExpired($0.expiresAt) }
-            followerIDs = (try? await followersTask) ?? []
-            followingIDs = (try? await followingTask) ?? []
+            followerIDs = try await followersTask
+            followingIDs = try await followingTask
             hasLoaded = true
         } catch is CancellationError {
             return
@@ -384,10 +394,11 @@ struct AccountView: View {
     }
 
     private func uploadAvatar(_ item: PhotosPickerItem?) async {
-        guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
+        guard let item else { return }
         isUploadingAvatar = true
         defer { isUploadingAvatar = false }
         do {
+            let image = try await item.loadImage()
             _ = try await API.updateAvatar(id: appState.userId, image: image)
             Haptics.success()
             await appState.refreshProfile()
@@ -428,6 +439,7 @@ struct StyleInsightsView: View {
                                 Image(systemName: "flame.fill")
                                     .font(.system(size: 28, weight: .bold))
                                     .foregroundStyle(.orange)
+                                    .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("\(report.currentStreak)-day streak")
                                         .font(.system(.title3, design: .default).weight(.heavy))
@@ -437,6 +449,7 @@ struct StyleInsightsView: View {
                                 }
                                 Spacer()
                             }
+                            .accessibilityElement(children: .combine)
                             .softCard()
 
                             LazyVGrid(columns: columns, spacing: 12) {
@@ -450,6 +463,7 @@ struct StyleInsightsView: View {
                                 HStack {
                                     Image(systemName: "sparkles")
                                         .foregroundStyle(Theme.accent)
+                                        .accessibilityHidden(true)
                                     Text("Your top vibe: \(occasion)")
                                         .font(.system(.subheadline, design: .default).weight(.bold))
                                     Spacer()
@@ -465,7 +479,7 @@ struct StyleInsightsView: View {
         .background(Theme.background)
         .navigationTitle("Your week")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
     }
 
@@ -473,6 +487,7 @@ struct StyleInsightsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
                 .foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
             Text("\(value)")
                 .font(.system(size: 27, weight: .black, design: .default))
             Text(title)
@@ -480,6 +495,7 @@ struct StyleInsightsView: View {
                 .foregroundStyle(Theme.mutedForeground)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
         .softCard(radius: 16, padding: 14)
     }
 

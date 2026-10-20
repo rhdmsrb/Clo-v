@@ -49,6 +49,8 @@ struct GroupDetailView: View {
                                 }
                             } label: {
                                 Image(systemName: "ellipsis.circle").font(.title3)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
                             }
                             .accessibilityLabel("Board options")
                         }
@@ -70,6 +72,9 @@ struct GroupDetailView: View {
                                 if isOwner && member.id != appState.userId {
                                     Button("Remove") { memberToRemove = member }
                                         .font(.caption.weight(.semibold))
+                                        .frame(minHeight: 44)
+                                        .contentShape(Rectangle())
+                                        .accessibilityLabel("Remove \(member.nickname ?? "member")")
                                 }
                             }
                         }
@@ -114,7 +119,7 @@ struct GroupDetailView: View {
         .fullScreenCover(isPresented: $showCreate) {
             CreateFitCheckView(preselectedGroup: group)
         }
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
         .alert("Rename board", isPresented: $showRename) {
             TextField("Board name", text: $newName)

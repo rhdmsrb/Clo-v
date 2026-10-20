@@ -26,6 +26,8 @@ struct LabeledField<Content: View>: View {
                 .padding(padding)
                 .background(insetStyle ? Theme.background : Theme.card)
                 .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Theme.controlBorder, lineWidth: 1))
                 .layeredShadow(insetStyle ? .clear : Theme.cardShadow)
         }
     }

@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 
 struct CreateFitCheckView: View {
     var preselectedGroup: FashionGroup? = nil
@@ -14,17 +13,26 @@ struct CreateFitCheckView: View {
     @State private var occasion = ""
     @State private var myGroups: [FashionGroup] = []
     @State private var selectedGroupId: UUID?
-    @State private var selectedAudience: FitCheckAudience = .everyone
+    @State private var selectedAudience: FitCheckAudience
     @State private var votePrompt = ""
     @State private var votingDuration: VotingDuration = .oneDay
-    @State private var error: String?
+    @State private var loadError: String?
+    @State private var submitError: String?
+    @State private var wardrobeError: String?
     @State private var isPosting = false
+    @State private var isLoadingOptions = false
     @State private var wardrobeItems: [WardrobeItem] = []
-    @State private var wardrobeSlotIndex: Int?
+    @State private var wardrobeSlotId: UUID?
     @State private var isLoadingWardrobe = false
+    @State private var showDropPhotosConfirmation = false
+
+    private static let maxPromptLength = 120
+    private static let occasionOptions = ["Everyday", "Work", "Date", "Interview", "Party", "Travel", "Wedding"]
+
+    private var filledSlotCount: Int { slots.filter { $0.image != nil }.count }
 
     private var canPost: Bool {
-        !isPosting && slots.filter { $0.image != nil }.count == photoCount
+        !isPosting && filledSlotCount == photoCount
             && (selectedAudience != .group || selectedGroupId != nil)
     }
 
@@ -32,157 +40,46 @@ struct CreateFitCheckView: View {
         self.preselectedGroup = preselectedGroup
         self.initialOccasion = initialOccasion
         _occasion = State(initialValue: initialOccasion ?? "")
+        _selectedAudience = State(initialValue: preselectedGroup == nil ? .everyone : .group)
+        _selectedGroupId = State(initialValue: preselectedGroup?.id)
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Post a Fit-Check")
-                        .font(Theme.editorialFont(size: 38))
-                        .accessibilityIdentifier("createFitCheckTitle")
-                    Text("Upload 2 or 4 photos and ask people to pick their favorite.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.mutedForeground)
-
-                    HStack(spacing: 8) {
-                        Text("PHOTOS").font(.system(.caption2).weight(.bold)).foregroundStyle(.secondary)
-                        Spacer()
-                        ForEach([2, 4], id: \.self) { count in
-                            Button("\(count) photos") { photoCount = count }
-                                .font(.system(.caption2, design: .default).weight(.bold))
-                                .foregroundStyle(photoCount == count ? .white : Theme.mutedForeground)
-                                .padding(.horizontal, 12).padding(.vertical, 7)
-                                .background(photoCount == count ? Theme.accent : Theme.card)
-                                .clipShape(Capsule())
-                        }
-                    }
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        ForEach(slots.indices, id: \.self) { i in
-                            VStack(spacing: 7) {
-                                PhotoSlotView(state: $slots[i], label: "Photo \(i + 1)")
-                                Button {
-                                    wardrobeSlotIndex = i
-                                } label: {
-                                    Label("My Wardrobe", systemImage: "hanger")
-                                        .font(.system(.caption2, design: .default).weight(.bold))
-                                        .foregroundStyle(Theme.accent)
-                                }
-                                .disabled(wardrobeItems.isEmpty)
-                            }
-                        }
-                    }
-
-                    LabeledField(label: "ADD A NOTE (OPTIONAL)", padding: 8) {
-                        TextEditor(text: $caption)
-                            .frame(height: 80)
-                            .overlay(alignment: .topLeading) {
-                                if caption.isEmpty {
-                                    Text("Add context about where you're going or what matters to you.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(Theme.mutedForeground)
-                                        .padding(.top, 8)
-                                        .allowsHitTesting(false)
-                                }
-                            }
-                    }
-
-                    VStack(alignment: .leading, spacing: 9) {
-                        Text("WHAT SHOULD PEOPLE HELP YOU DECIDE?")
-                            .font(.system(.caption2).weight(.bold)).foregroundStyle(.secondary)
-                        TextField("e.g. Which shoes finish this look?", text: $votePrompt, axis: .vertical)
-                            .lineLimit(1...2)
-                            .font(.subheadline)
-                            .padding(12)
-                            .background(Theme.card, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                            .onChange(of: votePrompt) { _, value in
-                                if value.count > 120 { votePrompt = String(value.prefix(120)) }
-                            }
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 7) {
-                                ForEach(Self.promptSuggestions(occasion: occasion), id: \.self) { suggestion in
-                                    Button(suggestion) { votePrompt = suggestion }
-                                        .font(.system(.caption2, design: .default).weight(.semibold))
-                                        .foregroundStyle(Theme.ink)
-                                        .padding(.horizontal, 10).padding(.vertical, 7)
-                                        .background(Theme.iconPlum.opacity(0.11), in: Capsule())
-                                }
-                            }
-                        }
-                        Text("Optional. A specific question gets more useful feedback.")
-                            .font(.caption2).foregroundStyle(Theme.mutedForeground)
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("WHAT'S THE OCCASION?").font(.system(.caption2).weight(.bold)).foregroundStyle(.secondary)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(Self.occasionOptions, id: \.self) { option in
-                                    ChipToggle(label: option, selected: occasion == option) { occasion = occasion == option ? "" : option }
-                                }
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("VOTING WINDOW").font(.system(.caption2, design: .default).weight(.bold)).foregroundStyle(.secondary)
-                        HStack(spacing: 8) {
-                            ForEach(VotingDuration.allCases) { duration in
-                                ChipToggle(label: duration.label, selected: votingDuration == duration) {
-                                    votingDuration = duration
-                                }
-                            }
-                        }
-                        Text("Voting closes after this. Results remain available to you in Me; the post leaves everyone else's feed.")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.mutedForeground)
-                    }
-
-                    audiencePicker
-
-                    if let error {
-                        Text(error).font(.footnote).foregroundStyle(.red)
-                    }
-
-                    Button(isPosting ? "Posting…" : "Post it") { Task { await submit() } }
-                        .buttonStyle(PrimaryButtonStyle(isDisabled: !canPost))
-                        .disabled(!canPost)
+                    header
+                    PhotoCountSection(photoCount: photoCount, onSelect: selectPhotoCount)
+                    PhotoGridSection(slots: $slots, canUseWardrobe: !wardrobeItems.isEmpty) { wardrobeSlotId = $0 }
+                    NoteSection(caption: $caption)
+                    PromptSection(
+                        votePrompt: $votePrompt,
+                        suggestions: Self.promptSuggestions(occasion: occasion),
+                        maxLength: Self.maxPromptLength
+                    )
+                    OccasionSection(occasion: $occasion, options: Self.occasionOptions)
+                    VotingWindowSection(votingDuration: $votingDuration)
+                    AudienceSection(selectedAudience: $selectedAudience, selectedGroupId: $selectedGroupId, myGroups: myGroups)
+                    messages
+                    postButton
                 }
                 .padding(20)
             }
             .background(Theme.background)
-            .sheet(
-                isPresented: Binding(
-                    get: { wardrobeSlotIndex != nil },
-                    set: { if !$0 { wardrobeSlotIndex = nil } }
-                )
-            ) {
-                if let index = wardrobeSlotIndex {
-                    WardrobePickerView(items: wardrobeItems) { item in
-                        Task { await chooseWardrobeItem(item, for: index) }
-                    }
-                }
-            }
-            .onChange(of: photoCount) { _, newCount in
-                if slots.count < newCount {
-                    slots.append(contentsOf: Array(repeating: PhotoSlotState(), count: newCount - slots.count))
-                } else if slots.count > newCount {
-                    slots = Array(slots.prefix(newCount))
-                }
+            .sheet(isPresented: wardrobeSheetBinding) { wardrobeSheet }
+            .confirmationDialog("Remove photos 3 and 4?", isPresented: $showDropPhotosConfirmation, titleVisibility: .visible) {
+                Button("Use 2 photos", role: .destructive) { applyPhotoCount(2) }
+                Button("Keep 4 photos", role: .cancel) {}
+            } message: {
+                Text("Switching to 2 photos discards the photos you picked in slots 3 and 4.")
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { dismiss() }.disabled(isPosting)
                 }
             }
-            .task {
-                async let groups = API.fetchMyGroups(profileId: appState.userId)
-                async let wardrobe = API.fetchWardrobeItems(ownerId: appState.userId)
-                myGroups = (try? await groups) ?? []
-                wardrobeItems = (try? await wardrobe) ?? []
-                selectedAudience = preselectedGroup == nil ? .everyone : .group
-                selectedGroupId = preselectedGroup?.id ?? myGroups.first?.id
-            }
+            .interactiveDismissDisabled(isPosting)
+            .task { await loadOptions() }
             .onChange(of: selectedAudience) { _, audience in
                 if audience == .group, selectedGroupId == nil { selectedGroupId = myGroups.first?.id }
                 if audience != .group { selectedGroupId = nil }
@@ -190,23 +87,124 @@ struct CreateFitCheckView: View {
         }
     }
 
+    // MARK: - Sections
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Post a Fit-Check")
+                .font(Theme.editorialFont(size: 38))
+                .accessibilityIdentifier("createFitCheckTitle")
+                .accessibilityAddTraits(.isHeader)
+            Text("Upload 2 or 4 photos and ask people to pick their favorite.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.mutedForeground)
+        }
+    }
+
+    @ViewBuilder
+    private var messages: some View {
+        if isLoadingOptions {
+            ProgressView("Loading your groups and wardrobe…").font(.footnote)
+        }
+        if let loadError {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(loadError).font(.footnote).foregroundStyle(Theme.danger)
+                Button("Retry") { Task { await loadOptions() } }
+                    .frame(minHeight: 44)
+                    .disabled(isLoadingOptions)
+            }
+        }
+        if let submitError {
+            Text(submitError).font(.footnote).foregroundStyle(Theme.danger)
+        }
+    }
+
+    private var postButton: some View {
+        Button(isPosting ? "Posting…" : "Post it") { Task { await submit() } }
+            .buttonStyle(PrimaryButtonStyle(isDisabled: !canPost))
+            .disabled(!canPost)
+    }
+
+    private var wardrobeSheetBinding: Binding<Bool> {
+        Binding(
+            get: { wardrobeSlotId != nil },
+            set: { if !$0 { wardrobeSlotId = nil; wardrobeError = nil } }
+        )
+    }
+
+    @ViewBuilder
+    private var wardrobeSheet: some View {
+        if let slotId = wardrobeSlotId {
+            WardrobePickerView(items: wardrobeItems, isLoading: isLoadingWardrobe, errorMessage: wardrobeError) { item in
+                Task { await chooseWardrobeItem(item, forSlot: slotId) }
+            }
+        }
+    }
+
+    // MARK: - Photo count
+
+    private func selectPhotoCount(_ count: Int) {
+        guard count != photoCount else { return }
+        let dropsPickedPhotos = slots.dropFirst(count).contains { $0.image != nil }
+        if dropsPickedPhotos {
+            showDropPhotosConfirmation = true
+        } else {
+            applyPhotoCount(count)
+        }
+    }
+
+    private func applyPhotoCount(_ count: Int) {
+        photoCount = count
+        if slots.count < count {
+            slots = slots + (slots.count..<count).map { _ in PhotoSlotState() }
+        } else {
+            slots = Array(slots.prefix(count))
+        }
+    }
+
+    // MARK: - Loading and posting
+
+    private func loadOptions() async {
+        isLoadingOptions = true
+        loadError = nil
+        defer { isLoadingOptions = false }
+        async let groups = API.fetchMyGroups(profileId: appState.userId)
+        async let wardrobe = API.fetchWardrobeItems(ownerId: appState.userId)
+        var failures: [String] = []
+        do { myGroups = try await groups } catch {
+            Log.app.error("Load groups failed: \(error.localizedDescription)")
+            failures.append("groups")
+        }
+        do { wardrobeItems = try await wardrobe } catch {
+            Log.app.error("Load wardrobe failed: \(error.localizedDescription)")
+            failures.append("wardrobe")
+        }
+        if !failures.isEmpty {
+            loadError = "Couldn’t load your \(failures.joined(separator: " or ")). Check your connection and retry."
+        }
+        // Only fill in a default; never overwrite a choice made while loading.
+        if selectedAudience == .group, selectedGroupId == nil { selectedGroupId = myGroups.first?.id }
+    }
+
     private func submit() async {
-        error = nil
+        submitError = nil
         let images = slots.compactMap(\.image)
         guard images.count == photoCount else {
-            error = "Upload exactly \(photoCount) photos."
+            submitError = "Upload exactly \(photoCount) photos."
             return
         }
+        let trimmedCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPrompt = votePrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         isPosting = true
         defer { isPosting = false }
         do {
             try await API.createFitCheck(
                 creatorId: appState.userId,
-                caption: caption.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : caption,
+                caption: trimmedCaption.isEmpty ? nil : trimmedCaption,
                 occasion: occasion.isEmpty ? nil : occasion,
                 groupId: selectedGroupId,
                 audience: selectedAudience.rawValue,
-                votePrompt: votePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : votePrompt.trimmingCharacters(in: .whitespacesAndNewlines),
+                votePrompt: trimmedPrompt.isEmpty ? nil : trimmedPrompt,
                 votingDuration: votingDuration.seconds,
                 photos: images
             )
@@ -215,210 +213,34 @@ struct CreateFitCheckView: View {
             dismiss()
         } catch {
             Haptics.error()
-            self.error = error.localizedDescription
+            submitError = friendlyMessage(for: error, fallback: "Couldn’t post your Fit-Check. Please try again.")
         }
     }
 
-    private func chooseWardrobeItem(_ item: WardrobeItem, for index: Int) async {
+    // Note for backend owner: this downloads the wardrobe image with
+    // URLSession.shared directly rather than through an API method.
+    private func chooseWardrobeItem(_ item: WardrobeItem, forSlot slotId: UUID) async {
         guard let url = URL(string: item.imageUrl) else { return }
+        wardrobeError = nil
         isLoadingWardrobe = true
         defer { isLoadingWardrobe = false }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            guard let image = UIImage(data: data), slots.indices.contains(index) else { return }
+            guard let image = UIImage(data: data),
+                  let index = slots.firstIndex(where: { $0.id == slotId }) else {
+                wardrobeError = "Couldn't load that wardrobe photo. Please try again."
+                return
+            }
             slots[index].image = image
             slots[index].item = nil
-            wardrobeSlotIndex = nil
+            wardrobeSlotId = nil
         } catch {
-            self.error = "Couldn't load that wardrobe photo. Please try again."
-        }
-    }
-}
-
-private extension CreateFitCheckView {
-    var audiencePicker: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text("WHO CAN SEE THIS?")
-                .font(.system(.caption2).weight(.bold)).foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(FitCheckAudience.allCases) { option in
-                    Button {
-                        withAnimation(Theme.press) { selectedAudience = option }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: option.symbol).font(.system(size: 15, weight: .semibold))
-                            Text(option.title).font(.system(.subheadline, design: .default).weight(.semibold))
-                            Spacer(minLength: 0)
-                            if selectedAudience == option { Image(systemName: "checkmark.circle.fill") }
-                        }
-                        .foregroundStyle(selectedAudience == option ? Theme.ink : Theme.mutedForeground)
-                        .padding(11)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(selectedAudience == option ? Theme.accent.opacity(0.12) : Theme.card,
-                                    in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .stroke(selectedAudience == option ? Theme.accent.opacity(0.55) : Theme.line.opacity(0.14), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selectedAudience == option ? .isSelected : [])
-                }
-            }
-            if selectedAudience == .group {
-                if myGroups.isEmpty {
-                    Text("Create or join a group first to share privately with its members.")
-                        .font(.caption).foregroundStyle(Theme.mutedForeground)
-                } else {
-                    Picker("Choose group", selection: $selectedGroupId) {
-                        ForEach(myGroups) { group in Text(group.name).tag(Optional(group.id)) }
-                    }
-                    .pickerStyle(.menu)
-                    .padding(.horizontal, 12)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 12))
-                }
-            }
-            Text(selectedAudience.description)
-                .font(.caption).foregroundStyle(Theme.mutedForeground)
+            wardrobeError = "Couldn't load that wardrobe photo. Please try again."
         }
     }
 
-    static func promptSuggestions(occasion: String) -> [String] {
+    private static func promptSuggestions(occasion: String) -> [String] {
         let context = occasion.isEmpty ? "today" : "for \(occasion.lowercased())"
         return ["Which shoes finish this look?", "Which outfit feels right \(context)?", "Which layer works better?"]
-    }
-}
-
-private enum FitCheckAudience: String, CaseIterable, Identifiable {
-    case everyone = "public"
-    case friends
-    case group
-    case onlyMe = "private"
-
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .everyone: "Everyone"
-        case .friends: "Friends"
-        case .group: "A group"
-        case .onlyMe: "Only me"
-        }
-    }
-    var symbol: String {
-        switch self {
-        case .everyone: "globe"
-        case .friends: "person.2"
-        case .group: "person.3"
-        case .onlyMe: "lock"
-        }
-    }
-    var description: String {
-        switch self {
-        case .everyone: "Anyone on CLO·V can see and vote."
-        case .friends: "Only people you’ve accepted as friends can see and vote."
-        case .group: "Only members of the selected group can see and vote."
-        case .onlyMe: "Only you can see this Fit-Check. It won’t appear in feeds."
-        }
-    }
-}
-
-private extension CreateFitCheckView {
-    static let occasionOptions = ["Everyday", "Work", "Date", "Interview", "Party", "Travel", "Wedding"]
-}
-
-struct PhotoSlotState {
-    var item: PhotosPickerItem?
-    var image: UIImage?
-}
-
-/// Not in the original CLAUDE.md scope; added on request.
-enum VotingDuration: CaseIterable, Identifiable {
-    case oneHour, sixHours, oneDay
-
-    var id: Self { self }
-    var label: String {
-        switch self {
-        case .oneHour: "1 hour"
-        case .sixHours: "6 hours"
-        case .oneDay: "24 hours"
-        }
-    }
-    var seconds: TimeInterval {
-        switch self {
-        case .oneHour: 3600
-        case .sixHours: 6 * 3600
-        case .oneDay: 24 * 3600
-        }
-    }
-}
-
-private struct PhotoSlotView: View {
-    @Binding var state: PhotoSlotState
-    let label: String
-
-    var body: some View {
-        PhotosPicker(selection: $state.item, matching: .images) {
-            AspectFitTile(cornerRadius: 18, shadow: state.image != nil) {
-                if state.image == nil {
-                    RoundedRectangle(cornerRadius: 18)
-                        .strokeBorder(Theme.line, style: StrokeStyle(lineWidth: 2, dash: [6]))
-                        .background(Theme.card.clipShape(RoundedRectangle(cornerRadius: 18)))
-                }
-                if let image = state.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .clipped()
-                } else {
-                    Text("+ \(label)")
-                        .font(.system(.caption, design: .default).weight(.bold))
-                        .foregroundStyle(Theme.mutedForeground)
-                        .multilineTextAlignment(.center)
-                }
-            }
-        }
-        .buttonStyle(TileButtonStyle())
-        .onChange(of: state.item) { _, newItem in
-            Task {
-                if let data = try? await newItem?.loadTransferable(type: Data.self),
-                   let uiImage = UIImage(data: data) {
-                    state.image = uiImage
-                }
-            }
-        }
-    }
-}
-
-private struct WardrobePickerView: View {
-    @Environment(\.dismiss) private var dismiss
-    let items: [WardrobeItem]
-    let onSelect: (WardrobeItem) -> Void
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 14) {
-                    ForEach(items) { item in
-                        Button { onSelect(item) } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                RemoteImage(url: item.imageUrl)
-                                    .aspectRatio(3.0 / 4.0, contentMode: .fill)
-                                    .frame(maxWidth: .infinity)
-                                    .clipped()
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                Text((item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category).uppercased())
-                                    .font(.system(.caption2, design: .default).weight(.black))
-                                    .lineLimit(1)
-                            }
-                            .foregroundStyle(Color.primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(20)
-            }
-            .background(Theme.background)
-            .navigationTitle("Choose from Wardrobe")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-        }
     }
 }

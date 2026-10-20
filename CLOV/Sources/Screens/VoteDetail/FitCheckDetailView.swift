@@ -75,7 +75,8 @@ struct FitCheckDetailView: View {
                         HStack(spacing: 10) {
                             AvatarView(url: detail.profiles?.avatarUrl, nickname: detail.profiles?.nickname, size: 38)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text((detail.profiles?.nickname ?? "Someone").uppercased())
+                                Text(detail.profiles?.nickname ?? "Someone")
+                                    .textCase(.uppercase)
                                     .font(.system(.subheadline, design: .default).weight(.black))
                                 Text("FROM THE CIRCLE")
                                     .font(.system(.caption2, design: .default).weight(.bold))
@@ -83,6 +84,7 @@ struct FitCheckDetailView: View {
                                     .foregroundStyle(Theme.mutedForeground)
                             }
                         }
+                        .accessibilityElement(children: .combine)
 
                         statusStrip(for: detail, expired: expired)
 
@@ -156,6 +158,7 @@ struct FitCheckDetailView: View {
                                         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
                                             .stroke(Theme.line.opacity(0.2), lineWidth: 1))
                                         }
+                                        .accessibilityElement(children: .combine)
                                     }
                                 }
                             }
@@ -182,6 +185,7 @@ struct FitCheckDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("Report or block")
             }
         }
         .confirmationDialog("Why are you reporting this?", isPresented: $showingReportReasons, titleVisibility: .visible) {
@@ -223,6 +227,7 @@ struct FitCheckDetailView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Theme.ink)
+        .accessibilityElement(children: .combine)
     }
 
     private var shareSummary: String {

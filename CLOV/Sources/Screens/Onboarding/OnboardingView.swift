@@ -27,7 +27,7 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 Text("CLO·V")
-                    .font(.system(size: 22, weight: .heavy, design: .default))
+                    .font(.system(.title3, weight: .heavy))
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Pick your fit persona")
@@ -47,6 +47,11 @@ struct OnboardingView: View {
                             guard canContinue else { return }
                             Task { await submit() }
                         }
+                    if !nickname.isEmpty && !nicknameValid {
+                        Text("3-20 characters: letters, numbers, underscores.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.mutedForeground)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -67,7 +72,7 @@ struct OnboardingView: View {
                 }
 
                 if let error {
-                    Text(error).font(.footnote).foregroundStyle(.red)
+                    Text(error).font(.footnote).foregroundStyle(Theme.danger)
                 }
 
                 Button {
@@ -83,7 +88,7 @@ struct OnboardingView: View {
                     Task { await appState.signOut() }
                 }
                 .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
                 .disabled(isSaving)
             }
             .padding(24)
