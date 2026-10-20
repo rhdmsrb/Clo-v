@@ -339,8 +339,8 @@ struct AccountView: View {
             let all = try await API.fetchMyFitChecksWithStatus(creatorId: appState.userId)
             liveVotes = all.filter { $0.status == "live" && !isExpired($0.expiresAt) }
             archivedVotes = all.filter { $0.status == "archived" || isExpired($0.expiresAt) }
-            followerIDs = (try? await followersTask) ?? []
-            followingIDs = (try? await followingTask) ?? []
+            followerIDs = try await followersTask
+            followingIDs = try await followingTask
             hasLoaded = true
         } catch is CancellationError {
             return
@@ -384,10 +384,11 @@ struct AccountView: View {
     }
 
     private func uploadAvatar(_ item: PhotosPickerItem?) async {
-        guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
+        guard let item else { return }
         isUploadingAvatar = true
         defer { isUploadingAvatar = false }
         do {
+            let image = try await item.loadImage()
             _ = try await API.updateAvatar(id: appState.userId, image: image)
             Haptics.success()
             await appState.refreshProfile()

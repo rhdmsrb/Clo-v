@@ -118,7 +118,7 @@ struct SearchExploreView: View {
                 search: query.trimmingCharacters(in: .whitespacesAndNewlines),
                 occasion: occasion,
                 followingIDs: nil,
-                friendIDs: (try? await API.fetchFriendIDs(userId: appState.userId)) ?? []
+                friendIDs: await Log.attempt("Load friend IDs") { try await API.fetchFriendIDs(userId: appState.userId) } ?? []
             )
             results = page.items
             hasLoaded = true

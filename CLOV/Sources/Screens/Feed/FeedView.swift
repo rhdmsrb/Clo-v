@@ -128,7 +128,9 @@ struct FeedView: View {
                     NavigationLink {
                         NotificationsView(onRead: {
                             Task {
-                                unreadCount = (try? await API.fetchUnreadNotificationCount(recipientId: appState.userId)) ?? 0
+                                unreadCount = await Log.attempt("Refresh unread count") {
+                                    try await API.fetchUnreadNotificationCount(recipientId: appState.userId)
+                                } ?? 0
                             }
                         })
                     } label: {
@@ -334,7 +336,7 @@ struct FeedView: View {
 
     private func loadUnreadCount() async {
         // A badge failure must not hide an otherwise usable feed.
-        if let count = try? await API.fetchUnreadNotificationCount(recipientId: appState.userId) {
+        if let count = await Log.attempt("Load unread count", { try await API.fetchUnreadNotificationCount(recipientId: appState.userId) }) {
             unreadCount = count
         }
     }
@@ -353,7 +355,11 @@ struct FeedView: View {
             async let signalTask = API.fetchFeedSignalScores(userId: appState.userId)
             async let countTask: Void = loadUnreadCount()
             let following = try await followingTask
-            let friends = (try? await friendsTask) ?? []
+            let friends: Set<UUID>
+            do { friends = try await friendsTask } catch {
+                Log.app.error("Load friend IDs failed: \(error.localizedDescription)")
+                friends = []
+            }
             let page = try await API.fetchFeedPage(offset: 0, limit: pageSize,
                                                    search: searchText, occasion: selectedOccasion,
                                                    followingIDs: mode == .following ? following : nil,
@@ -364,7 +370,9 @@ struct FeedView: View {
             canLoadMore = page.fetchedCount == pageSize
             followingIDs = following
             friendIDs = friends
-            signalScores = (try? await signalTask) ?? signalScores
+            do { signalScores = try await signalTask } catch {
+                Log.app.error("Load feed signal scores failed: \(error.localizedDescription)")
+            }
             hasLoaded = true
             await countTask
         } catch is CancellationError {
@@ -422,7 +430,11 @@ struct FeedView: View {
     }
 
     private func logEvent(_ item: FeedItemDTO, event: String) {
-        Task { try? await API.logFeedEvent(userId: appState.userId, fitCheckId: item.id, event: event) }
+        Task {
+            _ = await Log.attempt("Log feed event") {
+                try await API.logFeedEvent(userId: appState.userId, fitCheckId: item.id, event: event)
+            }
+        }
     }
 
     private func logEventForCreator(_ creatorId: UUID, event: String) {

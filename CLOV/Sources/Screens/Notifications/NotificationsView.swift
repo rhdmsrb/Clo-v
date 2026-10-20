@@ -239,7 +239,10 @@ struct NotificationsView: View {
         async let requestTask = API.fetchFriendRequests(userId: appState.userId, incoming: true)
         do {
             notifications = try await notificationTask
-            incomingRequestCount = (try? await requestTask.count) ?? 0
+            do { incomingRequestCount = try await requestTask.count } catch {
+                Log.app.error("Load friend requests failed: \(error.localizedDescription)")
+                incomingRequestCount = 0
+            }
             hasLoaded = true
         } catch is CancellationError {
             return

@@ -345,14 +345,20 @@ struct OutfitPlannerView: View {
     }
 
     private func loadLooks() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([SavedLook].self, from: data) else { return }
-        savedLooks = decoded
+        guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
+        do {
+            savedLooks = try JSONDecoder().decode([SavedLook].self, from: data)
+        } catch {
+            Log.app.error("Loading saved looks failed: \(error.localizedDescription)")
+        }
     }
 
     private func persistLooks() {
-        guard let data = try? JSONEncoder().encode(savedLooks) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+        do {
+            UserDefaults.standard.set(try JSONEncoder().encode(savedLooks), forKey: storageKey)
+        } catch {
+            Log.app.error("Saving looks failed: \(error.localizedDescription)")
+        }
     }
 
     private func loadTryOnPhoto(_ pickerItem: PhotosPickerItem) async {

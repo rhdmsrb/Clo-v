@@ -354,10 +354,12 @@ struct AddWardrobeItemView: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
                 .onChange(of: photoItem) { _, newItem in
                     Task {
-                        guard let newItem,
-                              let data = try? await newItem.loadTransferable(type: Data.self),
-                              let loaded = UIImage(data: data) else { return }
-                        image = loaded
+                        guard let newItem else { return }
+                        do {
+                            image = try await newItem.loadImage()
+                        } catch {
+                            self.error = error.localizedDescription
+                        }
                     }
                 }
         }

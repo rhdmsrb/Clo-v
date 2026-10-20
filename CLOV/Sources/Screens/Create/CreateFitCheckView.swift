@@ -178,8 +178,16 @@ struct CreateFitCheckView: View {
             .task {
                 async let groups = API.fetchMyGroups(profileId: appState.userId)
                 async let wardrobe = API.fetchWardrobeItems(ownerId: appState.userId)
-                myGroups = (try? await groups) ?? []
-                wardrobeItems = (try? await wardrobe) ?? []
+                var loadFailed = false
+                do { myGroups = try await groups } catch {
+                    Log.app.error("Load groups failed: \(error.localizedDescription)")
+                    loadFailed = true
+                }
+                do { wardrobeItems = try await wardrobe } catch {
+                    Log.app.error("Load wardrobe failed: \(error.localizedDescription)")
+                    loadFailed = true
+                }
+                if loadFailed { self.error = "Couldn’t load your groups or wardrobe. Close and reopen to try again." }
                 selectedAudience = preselectedGroup == nil ? .everyone : .group
                 selectedGroupId = preselectedGroup?.id ?? myGroups.first?.id
             }
@@ -378,9 +386,11 @@ private struct PhotoSlotView: View {
         .buttonStyle(TileButtonStyle())
         .onChange(of: state.item) { _, newItem in
             Task {
-                if let data = try? await newItem?.loadTransferable(type: Data.self),
-                   let uiImage = UIImage(data: data) {
-                    state.image = uiImage
+                guard let newItem else { return }
+                do {
+                    state.image = try await newItem.loadImage()
+                } catch {
+                    Log.app.error("Photo pick failed: \(error.localizedDescription)")
                 }
             }
         }

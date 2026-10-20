@@ -24,7 +24,9 @@ final class CLOVAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
 
     func requestPushPermission() {
         Task {
-            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+            let granted = await Log.attempt("Push permission request") {
+                try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
+            } ?? false
             guard granted else { return }
             await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
         }
