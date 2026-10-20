@@ -22,6 +22,19 @@ final class CLOVAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         return true
     }
 
+    /// Re-registers for remote notifications (token can change) when the user
+    /// has already allowed them. Never shows a permission prompt.
+    func registerIfAuthorized() {
+        Task {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+            await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
+        }
+    }
+
+    /// Asks for permission the first time it is called while the status is
+    /// undetermined; later calls only re-register. Call it after the user has
+    /// done something that makes notifications worth having.
     func requestPushPermission() {
         Task {
             let granted = await Log.attempt("Push permission request") {

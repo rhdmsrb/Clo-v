@@ -5,6 +5,7 @@ struct CLOVApp: App {
     @StateObject private var appState = AppState()
     @UIApplicationDelegateAdaptor(CLOVAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    @State private var hasAskedForPush = false
 
     var body: some Scene {
         WindowGroup {
@@ -14,9 +15,17 @@ struct CLOVApp: App {
                 .preferredColorScheme(.light)
                 .onOpenURL { url in handle(url) }
                 .task(id: appState.session?.user.id) {
+                    // No prompt on sign-in: only refresh the token if the user
+                    // already allowed notifications.
                     if appState.isSignedIn {
-                        appDelegate.requestPushPermission()
+                        appDelegate.registerIfAuthorized()
                     }
+                }
+                .onChange(of: appState.contentRevision) { _, _ in
+                    // First vote, comment or post: now notifications have a reason to exist.
+                    guard appState.isSignedIn, !hasAskedForPush else { return }
+                    hasAskedForPush = true
+                    appDelegate.requestPushPermission()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .clovAPNsToken)) { notification in
                     guard let token = notification.object as? String, appState.isSignedIn else { return }
