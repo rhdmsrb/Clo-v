@@ -370,6 +370,7 @@ struct FeedView: View {
         } catch is CancellationError {
             return
         } catch {
+            if Task.isCancelled || (error as? URLError)?.code == .cancelled { return }
             if loadID == requestID { self.error = "Couldn’t load this content. Please try again." }
         }
     }
@@ -378,11 +379,15 @@ struct FeedView: View {
         guard !isLoading, !isLoadingMore, canLoadMore else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
+        // A reload (search, filter, refresh) replaces `items`; a page fetched
+        // for the old query must not be appended to the new list.
+        let requestID = loadID
         do {
             let page = try await API.fetchFeedPage(offset: nextOffset, limit: pageSize,
                                                    search: searchText, occasion: selectedOccasion,
                                                    followingIDs: mode == .following ? followingIDs : nil,
                                                    friendIDs: friendIDs)
+            guard loadID == requestID else { return }
             let existing = Set(items.map(\.id))
             let fresh = page.items.filter { !existing.contains($0.id) }
             items.append(contentsOf: fresh)
@@ -391,6 +396,7 @@ struct FeedView: View {
         } catch is CancellationError {
             return
         } catch {
+            if Task.isCancelled || (error as? URLError)?.code == .cancelled { return }
             // Pagination is additive. Keep the loaded feed usable and let the
             // next appearance attempt the request again.
             canLoadMore = true

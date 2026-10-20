@@ -135,13 +135,15 @@ final class LocalWeatherPromptModel: NSObject, ObservableObject, @preconcurrency
         errorMessage = "Couldn't get your location. Try again or use the regular prompt."
     }
 
+    /// Coordinates are rounded to ~11 km before leaving the device; that is
+    /// plenty for a forecast and matches the "coarse location" privacy label.
     private func fetchWeather(latitude: Double, longitude: Double) async {
         defer { isLoading = false }
         do {
             var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
             components.queryItems = [
-                URLQueryItem(name: "latitude", value: String(latitude)),
-                URLQueryItem(name: "longitude", value: String(longitude)),
+                URLQueryItem(name: "latitude", value: String(format: "%.1f", latitude)),
+                URLQueryItem(name: "longitude", value: String(format: "%.1f", longitude)),
                 URLQueryItem(name: "current", value: "temperature_2m,apparent_temperature,precipitation,rain,showers,snowfall,weather_code,wind_speed_10m"),
                 URLQueryItem(name: "daily", value: "temperature_2m_min,temperature_2m_max,precipitation_probability_max,wind_speed_10m_max,weather_code"),
                 URLQueryItem(name: "timezone", value: "auto")

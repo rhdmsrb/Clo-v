@@ -138,6 +138,14 @@ struct OutfitPlannerView: View {
         .navigationTitle("Outfit planner")
         .navigationBarTitleDisplayMode(.inline)
         .task { loadLooks() }
+        .onChange(of: selectedIDs) { _, _ in
+            // A job belongs to the clothes it was created with; changing the
+            // selection must start a new try-on, not poll the old one.
+            tryOnJobID = nil
+            tryOnImageURL = nil
+            tryOnStatus = nil
+            tryOnError = nil
+        }
         .onChange(of: tryOnPhotoItem) { _, value in
             guard let value else { return }
             Task { await loadTryOnPhoto(value) }
@@ -238,7 +246,7 @@ struct OutfitPlannerView: View {
     }
 
     private var canGenerateTryOn: Bool {
-        !isTryingOn && tryOnPhoto != nil && (!selectedIDs.isEmpty || tryOnJobID != nil)
+        !isTryingOn && tryOnPhoto != nil && !selectedIDs.isEmpty
     }
 
     private func itemTile(_ item: WardrobeItem) -> some View {

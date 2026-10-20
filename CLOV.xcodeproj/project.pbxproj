@@ -11,6 +11,7 @@
 		06CB6BD290AD4EC6551B6D3A /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76AFFFECC8F625E8DE559E1 /* AuthView.swift */; };
 		095F2CF2DCA45BA776D23019 /* VotingPhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFFEDE6F073525B208761314 /* VotingPhotoGridView.swift */; };
 		0970A373F493CB6B4CD169BC /* DeepLinkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04707C280DC50ED7B0059E86 /* DeepLinkUITests.swift */; };
+		0A93DBD0C1CEC6659DAB199A /* NewPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED9C5BD98E79FE4B46C54B7 /* NewPasswordView.swift */; };
 		0DA8D13158D5CE3C53915494 /* ShareLinkButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F860B4DDFF2854B7F726FA /* ShareLinkButton.swift */; };
 		21AF2833233DE6F6386F6FA3 /* InviteCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C687350ECCEB5117B6280F6C /* InviteCode.swift */; };
 		27368F62E0D5DAD28D23489D /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = EC3DE7FF293A34AD60A0C340 /* Supabase */; };
@@ -127,6 +128,7 @@
 		E55A52F004841DF4492C0A6F /* GroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupDetailView.swift; sourceTree = "<group>"; };
 		F4E725A874DE9D3F0C9B4430 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		F54177AC62EB6C84A6A098C9 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
+		FED9C5BD98E79FE4B46C54B7 /* NewPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewPasswordView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -250,6 +252,7 @@
 			isa = PBXGroup;
 			children = (
 				A76AFFFECC8F625E8DE559E1 /* AuthView.swift */,
+				FED9C5BD98E79FE4B46C54B7 /* NewPasswordView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -496,6 +499,7 @@
 				5C6F7459F79DB3E9F806E80A /* Log.swift in Sources */,
 				8CA1D836514AAF98E9EEFAD9 /* MainTabView.swift in Sources */,
 				66DC8DAB374ACF2DB7985363 /* Models.swift in Sources */,
+				0A93DBD0C1CEC6659DAB199A /* NewPasswordView.swift in Sources */,
 				3F628B2F5A2B993B4230CBBB /* NotificationsView.swift in Sources */,
 				A4E9A9D63BBFA3C3B95161C6 /* OnboardingView.swift in Sources */,
 				92813FBCDA784C9CED1C8294 /* OutfitPlannerView.swift in Sources */,
@@ -546,6 +550,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CLOV/CLOV.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "";
@@ -748,6 +753,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CLOV/CLOV.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "";

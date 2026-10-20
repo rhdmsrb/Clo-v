@@ -18,6 +18,10 @@ targets:
     resources:
       - path: CLOV/PrivacyInfo.xcprivacy
       - path: CLOV/Assets.xcassets
+    entitlements:
+      path: CLOV/CLOV.entitlements
+      properties:
+        aps-environment: development
     info:
       path: CLOV/Info.plist
       properties:

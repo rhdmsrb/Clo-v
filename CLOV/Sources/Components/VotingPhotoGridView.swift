@@ -138,9 +138,13 @@ struct VotingPhotoGridView: View {
 
     private func sendQuickReaction(_ reason: String) {
         reactionMessage = nil
+        guard let photoId = myVote else {
+            reactionMessage = "Vote first, then react"
+            return
+        }
         Task {
             do {
-                try await API.saveVoteReason(fitCheckId: fitCheckId, photoId: myVote ?? UUID(), tags: [reason], comment: "")
+                try await API.saveVoteReason(fitCheckId: fitCheckId, photoId: photoId, tags: [reason], comment: "")
                 reactionMessage = "Reaction sent"
             } catch {
                 reactionMessage = "Couldn't send reaction"
@@ -203,15 +207,27 @@ struct VotingPhotoGridView: View {
         }
         .buttonStyle(TileButtonStyle())
         .disabled(revealed || isVoting)
-        .simultaneousGesture(
-            TapGesture(count: 2).onEnded {
+        .overlay(alignment: .topTrailing) {
+            // Zoom is its own control: a double-tap gesture on the tile also
+            // fires the tile's vote button on the first tap.
+            Button {
                 expandedPhoto = photo
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Theme.inverseText)
+                    .frame(width: 28, height: 28)
+                    .background(Theme.ink.opacity(0.75))
+                    .clipShape(Circle())
+                    .padding(6)
             }
-        )
+            .buttonStyle(.plain)
+            .accessibilityLabel("Zoom photo \(photo.position + 1)")
+        }
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: revealed)
         .accessibilityLabel("Photo \(photo.position + 1)")
         .accessibilityValue(revealed ? "\(pct) percent of votes\(isMine ? ", your vote" : "")" : "Not revealed yet")
-        .accessibilityHint(canVote && !revealed ? "Double tap to vote, or use two fingers to zoom" : "Double tap to zoom")
+        .accessibilityHint(canVote && !revealed ? "Double tap to vote" : "")
     }
 
     private func vote(on photoId: UUID) {

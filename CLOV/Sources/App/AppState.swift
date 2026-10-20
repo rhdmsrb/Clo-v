@@ -16,6 +16,9 @@ final class AppState: ObservableObject {
     #if DEBUG
     @Published private(set) var profileLoadDebugError: String?
     #endif
+    /// True after the user opens a password-reset link; RootView shows
+    /// NewPasswordView until a new password is saved or they back out.
+    @Published var isRecoveringPassword = false
     private var lastSessionCheck: Date?
 
     /// Set from a `clov://vote/<id>` link (see .onOpenURL in CLOVApp) —
@@ -31,13 +34,15 @@ final class AppState: ObservableObject {
 
     var email: String? { session?.user.email }
 
-    /// Only valid once `isSignedIn` is true. Every screen that reads
-    /// this is behind RootView's sign-in gate (AuthView shows instead
-    /// otherwise), so hitting the fatalError here means something
-    /// routed to a screen it shouldn't have.
+    /// Last user id seen on a session. In-flight tasks and view bodies can
+    /// outlive sign-out by a frame; they keep the old id (the server rejects
+    /// the request without a session) instead of crashing the app.
+    private var lastKnownUserId: UUID?
+
+    /// Meaningful only while `isSignedIn`. Every screen that reads this is
+    /// behind RootView's sign-in gate.
     var userId: UUID {
-        if let id = session?.user.id { return id }
-        fatalError("AppState.userId read while signed out")
+        session?.user.id ?? lastKnownUserId ?? UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
     }
 
     init() {
@@ -49,14 +54,22 @@ final class AppState: ObservableObject {
     /// `isBootstrapping` on a cold launch; every sign-in/out/token
     /// refresh after that flows through the same place.
     private func listenForAuthChanges() async {
-        for await (_, session) in SupabaseManager.client.auth.authStateChanges {
+        for await (event, session) in SupabaseManager.client.auth.authStateChanges {
+            if event == .passwordRecovery { isRecoveringPassword = true }
+            // A token refresh for the user we already have loaded must not
+            // touch the profile or the UI.
+            if event == .tokenRefreshed, session != nil, session?.user.id == self.session?.user.id {
+                self.session = session
+                continue
+            }
             // Set the loading flag before publishing the authenticated session.
             // RootView must not interpret a temporarily nil profile as incomplete
             // onboarding while this request is in flight.
-            isLoadingProfile = session != nil
+            isLoadingProfile = session != nil && profile?.id != session?.user.id
             profileLoadError = nil
             self.session = session
-            if session != nil {
+            if let session {
+                lastKnownUserId = session.user.id
                 await refreshProfile()
             } else {
                 profile = nil
@@ -67,7 +80,9 @@ final class AppState: ObservableObject {
 
     func refreshProfile() async {
         guard let id = session?.user.id else { return }
-        isLoadingProfile = true
+        // Only block the UI with a spinner when there is no profile to show;
+        // background refreshes must not tear down the signed-in screens.
+        isLoadingProfile = profile?.id != id
         profileLoadError = nil
         #if DEBUG
         profileLoadDebugError = nil
@@ -130,6 +145,9 @@ final class AppState: ObservableObject {
         // Clear the app state even if the auth service is unavailable. In
         // particular, an expired refresh token must not strand the user on
         // the profile error screen with no way back to the login form.
+        // Needs the still-valid session, so it runs before the state is cleared.
+        await API.unregisterDeviceToken()
+        isRecoveringPassword = false
         session = nil
         profile = nil
         isLoadingProfile = false

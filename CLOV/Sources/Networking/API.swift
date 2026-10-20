@@ -126,6 +126,7 @@ enum API {
     static func deleteAccount() async throws {
         let session = try await client.auth.session
         let userId = session.user.id.storagePathComponent
+        await unregisterDeviceToken()
         for bucket in ["avatars", "fit-check-photos", "wardrobe-items"] {
             try await deleteStorageFolder(bucket: bucket, path: userId)
         }
@@ -519,7 +520,23 @@ enum API {
         try await client.rpc("save_vote_reason", params: Params(pFitCheckId: fitCheckId, pPhotoId: photoId, pReasonTags: tags, pReasonComment: comment)).execute()
     }
 
+    /// The APNs token registered for the signed-in user, kept so it can be
+    /// removed from the server on sign-out or account deletion. Otherwise the
+    /// next person to sign in on this device would receive the old user's pushes.
+    static var currentDeviceToken: String?
+
+    static func unregisterDeviceToken() async {
+        guard let token = currentDeviceToken else { return }
+        do {
+            try await client.from("device_tokens").delete().eq("token", value: token).execute()
+            currentDeviceToken = nil
+        } catch {
+            Log.push.error("Device token removal failed: \(error.localizedDescription)")
+        }
+    }
+
     static func registerDeviceToken(_ token: String, userId: UUID) async throws {
+        currentDeviceToken = token
         struct Payload: Encodable {
             let userId: UUID
             let token: String

@@ -213,7 +213,7 @@ struct AuthView: View {
         let address = resetEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !address.isEmpty else { return }
         do {
-            try await SupabaseManager.client.auth.resetPasswordForEmail(address)
+            try await SupabaseManager.client.auth.resetPasswordForEmail(address, redirectTo: AppConfig.authCallbackURL)
             resetNotice = "Check your email for a password reset link."
         } catch {
             resetNotice = "We couldn't send the reset link. Please check the email and try again."

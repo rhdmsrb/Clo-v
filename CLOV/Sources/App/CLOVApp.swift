@@ -20,7 +20,10 @@ struct CLOVApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .clovAPNsToken)) { notification in
                     guard let token = notification.object as? String, appState.isSignedIn else { return }
-                    Task { try? await API.registerDeviceToken(token, userId: appState.userId) }
+                    Task {
+                        do { try await API.registerDeviceToken(token, userId: appState.userId) }
+                        catch { Log.push.error("Device token registration failed: \(error.localizedDescription)") }
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
@@ -34,6 +37,16 @@ struct CLOVApp: App {
     /// MainTabView presents. Not in the original CLAUDE.md scope;
     /// added on request.
     private func handle(_ url: URL) {
+        if url.scheme == "clov", url.host == "auth-callback" {
+            // Password-reset link: exchanging it signs the user in and makes
+            // the auth client emit `.passwordRecovery`, which AppState turns
+            // into the new-password screen.
+            Task {
+                do { _ = try await SupabaseManager.client.auth.session(from: url) }
+                catch { Log.app.error("Auth callback failed: \(error.localizedDescription)") }
+            }
+            return
+        }
         guard url.scheme == "clov", url.host == "vote",
               let id = UUID(uuidString: url.lastPathComponent)
         else { return }
@@ -51,6 +64,8 @@ struct RootView: View {
         Group {
             if appState.isBootstrapping || (appState.isSignedIn && appState.isLoadingProfile) {
                 ProgressView()
+            } else if appState.isRecoveringPassword && appState.isSignedIn {
+                NewPasswordView()
             } else if !appState.isSignedIn {
                 AuthView()
             } else if let error = appState.profileLoadError {
