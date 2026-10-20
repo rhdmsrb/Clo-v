@@ -126,46 +126,27 @@ enum API {
     /// deletion of storage.objects only removes metadata, leaving files behind.
     /// A failed file removal leaves the account available for a safe retry.
     static func deleteAccount() async throws {
-        let session = try await client.auth.session
-        let userId = session.user.id.storagePathComponent
+        _ = try await client.auth.session
         await unregisterDeviceToken()
-        for bucket in ["avatars", "fit-check-photos", "wardrobe-items"] {
-            try await deleteStorageFolder(bucket: bucket, path: userId)
+        // The Edge Function deletes the account first and the user's files
+        // afterwards, so a failed deletion never costs the user their photos.
+        struct Empty: Encodable {}
+        do {
+            try await client.functions.invoke(
+                "delete-account",
+                options: FunctionInvokeOptions(body: Empty(), timeoutInterval: 60)
+            )
+        } catch let error as FunctionsError {
+            if case let .httpError(_, data) = error,
+               let response = try? JSONDecoder().decode(TryOnFunctionError.self, from: data),
+               let message = response.message {
+                throw APIError.message(message)
+            }
+            throw APIError.message("Couldn't delete your account. Please try again.")
         }
-        _ = try await client.rpc("delete_my_account").execute()
-        // Clear the local token when the server has deleted the account. This
-        // may throw if the auth session was already invalidated, which is safe
-        // to ignore because the account is already gone.
+        // The account is gone server-side; clearing the local session may
+        // throw because it is already invalid, which is safe to ignore.
         try? await client.auth.signOut()
-    }
-
-    private static func deleteStorageFolder(bucket: String, path: String) async throws {
-        let storage = client.storage.from(bucket)
-        var batches = 0
-        while true {
-            guard batches < 10_000 else {
-                throw APIError.message("Couldn't finish removing your photos. Please try again.")
-            }
-            batches += 1
-            // Always fetch the first page. Removing it makes the next page
-            // become the first, so no object is skipped as the list shrinks.
-            let entries = try await storage.list(path: path, options: SearchOptions(limit: 1000))
-            if entries.isEmpty { return }
-            let folders = entries.filter { $0.id == nil }
-            for folder in folders {
-                try await deleteStorageFolder(bucket: bucket, path: "\(path)/\(folder.name)")
-            }
-            let filePaths = entries.filter { $0.id != nil }.map { "\(path)/\($0.name)" }
-            if !filePaths.isEmpty {
-                let removed = try await storage.remove(paths: filePaths)
-                guard !removed.isEmpty else {
-                    throw APIError.message("Couldn't remove your photos. Please try again.")
-                }
-            }
-            if folders.isEmpty && filePaths.isEmpty {
-                throw APIError.message("Couldn't remove your photos. Please try again.")
-            }
-        }
     }
 
     static func updateAvatar(id: UUID, image: UIImage) async throws -> String {
