@@ -177,7 +177,7 @@ enum API {
 
     // Optional vote prompts are loaded separately so older Supabase schemas
     // can still serve the core discovery feed during a gradual rollout.
-    static let feedColumns = "id, creator_id, caption, occasion, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url)"
+    static let feedColumns = "id, creator_id, caption, occasion, is_public, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url)"
 
     static var notExpiredFilter: String {
         "expires_at.is.null,expires_at.gt.\(ISO8601DateFormatter().string(from: Date()))"
@@ -387,7 +387,7 @@ enum API {
 #endif
         let rows: [FitCheckDetailDTO] = try await client
             .from("fit_checks")
-            .select("id, caption, occasion, status, creator_id, expires_at, fit_check_photos(id, fit_check_id, image_url, position), profiles(nickname, avatar_url)")
+            .select("id, caption, occasion, is_public, status, creator_id, expires_at, fit_check_photos(id, fit_check_id, image_url, position), profiles(nickname, avatar_url)")
             .eq("id", value: id)
             .execute()
             .value
