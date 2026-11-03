@@ -11,7 +11,7 @@ struct CLOVApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
-                .tint(Theme.accent)
+                .tint(Theme.accentSecondary)
                 .onOpenURL { url in handle(url) }
                 .task(id: appState.session?.user.id) {
                     // No prompt on sign-in: only refresh the token if the user
@@ -64,6 +64,10 @@ struct CLOVApp: App {
     /// added on request.
     private func handle(_ url: URL) {
         if url.scheme == "clov", url.host == "auth-callback" {
+            guard AuthCallbackGate.shared.consume() else {
+                Log.app.error("Ignored auth callback with no pending password reset")
+                return
+            }
             // Password-reset link: exchanging it signs the user in and makes
             // the auth client emit `.passwordRecovery`, which AppState turns
             // into the new-password screen.

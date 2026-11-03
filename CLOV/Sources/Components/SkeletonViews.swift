@@ -18,7 +18,7 @@ private struct Shimmer: ViewModifier {
 }
 
 private struct SkeletonBlock: View {
-    var cornerRadius: CGFloat = 10
+    var cornerRadius: CGFloat = Theme.controlRadius
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(Theme.muted)
@@ -45,14 +45,14 @@ struct SkeletonView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                SkeletonBlock(cornerRadius: 18).frame(width: 36, height: 36)
-                SkeletonBlock(cornerRadius: 5).frame(width: 120, height: 14)
+                SkeletonBlock(cornerRadius: Theme.cardRadius).frame(width: 36, height: 36)
+                SkeletonBlock(cornerRadius: Theme.smallRadius).frame(width: 120, height: 14)
             }
             HStack(spacing: 8) {
                 SkeletonBlock().aspectRatio(0.75, contentMode: .fit)
                 SkeletonBlock().aspectRatio(0.75, contentMode: .fit)
             }
-            SkeletonBlock(cornerRadius: 5).frame(width: 180, height: 12)
+            SkeletonBlock(cornerRadius: Theme.smallRadius).frame(width: 180, height: 12)
         }
         .padding(14)
     }
@@ -62,7 +62,7 @@ struct SkeletonView: View {
             ForEach(0..<6, id: \.self) { _ in
                 VStack(alignment: .leading, spacing: 7) {
                     SkeletonBlock().aspectRatio(0.8, contentMode: .fit)
-                    SkeletonBlock(cornerRadius: 5).frame(width: 90, height: 12)
+                    SkeletonBlock(cornerRadius: Theme.smallRadius).frame(width: 90, height: 12)
                 }
             }
         }
@@ -70,10 +70,10 @@ struct SkeletonView: View {
 
     private var row: some View {
         HStack(spacing: 12) {
-            SkeletonBlock(cornerRadius: 22).frame(width: 44, height: 44)
+            SkeletonBlock(cornerRadius: Theme.cardRadius).frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 8) {
-                SkeletonBlock(cornerRadius: 5).frame(height: 13)
-                SkeletonBlock(cornerRadius: 5).frame(width: 140, height: 11)
+                SkeletonBlock(cornerRadius: Theme.smallRadius).frame(height: 13)
+                SkeletonBlock(cornerRadius: Theme.smallRadius).frame(width: 140, height: 11)
             }
         }
     }

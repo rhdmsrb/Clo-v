@@ -19,7 +19,7 @@ struct AccountView: View {
     @State private var followingIDs: Set<UUID> = []
     @State private var selectedFollowList: ProfileFollowList?
 
-    private let profileAccent = Theme.accent
+    private let profileAccent = Theme.accentSecondary
 
     var body: some View {
         let avatarURL = appState.profile?.avatarUrl
@@ -52,19 +52,19 @@ struct AccountView: View {
                 sectionHeading("Wardrobe & circle", detail: nil)
 
                 VStack(spacing: 0) {
-                    profileShortcut(title: "Wardrobe", subtitle: "Your pieces", icon: "hanger", tint: Theme.iconPlum) {
+                    profileShortcut(title: "Wardrobe", subtitle: "Your pieces", icon: "hanger") {
                         WardrobeView()
                     }
-                    profileShortcut(title: "Groups", subtitle: "Private & public circles", icon: "person.3.fill", tint: Theme.iconSage) {
+                    profileShortcut(title: "Groups", subtitle: "Private & public circles", icon: "person.3") {
                         GroupsView()
                     }
-                    profileShortcut(title: "Friends", subtitle: "Your circle", icon: "person.2.fill", tint: Theme.iconCoral) {
+                    profileShortcut(title: "Friends", subtitle: "Your circle", icon: "person.2") {
                         FriendsView()
                     }
-                    profileShortcut(title: "Your week", subtitle: "Style activity", icon: "chart.bar.fill", tint: Theme.iconApricot) {
+                    profileShortcut(title: "Your week", subtitle: "Style activity", icon: "chart.bar") {
                         StyleInsightsView()
                     }
-                    profileShortcut(title: "Privacy", subtitle: "Data & controls", icon: "lock.shield.fill", tint: Theme.mutedForeground) {
+                    profileShortcut(title: "Privacy", subtitle: "Data & controls", icon: "lock.shield") {
                         PrivacyView()
                     }
                 }
@@ -165,7 +165,7 @@ struct AccountView: View {
                 PhotosPicker(selection: $avatarItem, matching: .images) {
                     ZStack {
                         AvatarView(url: avatarURL, nickname: nickname, size: 78)
-                            .overlay(Circle().stroke(profileAccent.opacity(0.65), lineWidth: 1.5))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.avatarRadius).stroke(profileAccent.opacity(0.65), lineWidth: 1.5))
                         if uploadingAvatar {
                             ProgressView().tint(profileAccent)
                         }
@@ -226,8 +226,8 @@ struct AccountView: View {
             .padding(.top, 2)
         }
         .padding(18)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.line.opacity(0.1), lineWidth: 1))
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).stroke(Theme.line.opacity(0.1), lineWidth: 1))
     }
 
     private func profileStat(_ value: String, label: String) -> some View {
@@ -249,17 +249,14 @@ struct AccountView: View {
         title: String,
         subtitle: String,
         icon: String,
-        tint: Color,
         @ViewBuilder destination: () -> Destination
     ) -> some View {
         NavigationLink(destination: destination) {
             HStack(spacing: 13) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(tint)
-                    .frame(width: 38, height: 38)
-                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
@@ -275,8 +272,11 @@ struct AccountView: View {
                     .foregroundStyle(Theme.mutedForeground.opacity(0.7))
                     .accessibilityHidden(true)
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, 14)
             .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Theme.line.opacity(0.12)).frame(height: 1)
+            }
             .accessibilityElement(children: .combine)
         }
         .buttonStyle(.plain)
@@ -300,14 +300,14 @@ struct AccountView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
                     .background(Theme.card.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             } else {
                 VStack(spacing: 10) {
                     ForEach(items) { item in
                         HStack(spacing: 12) {
                             RemoteImage(url: item.thumbnailURL ?? "")
                                 .frame(width: 48, height: 48)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
                             NavigationLink {
                                 FitCheckDetailView(fitCheckId: item.id)
                             } label: {
@@ -320,7 +320,7 @@ struct AccountView: View {
                             if item.status == "live" && !isExpired(item.expiresAt) {
                                 Button("Terminate") { terminateTarget = item.id }
                                     .font(.system(.caption2, design: .default).weight(.bold))
-                                    .foregroundStyle(Theme.accent)
+                                    .foregroundStyle(Theme.accentSecondary)
                                     .frame(minWidth: 44, minHeight: 44)
                                     .contentShape(Rectangle())
                                     .accessibilityLabel("Terminate \(item.caption ?? "Fit-Check")")
@@ -332,7 +332,7 @@ struct AccountView: View {
                                 .contentShape(Rectangle())
                                 .accessibilityLabel("Delete \(item.caption ?? "Fit-Check")")
                         }
-                        .softCard(radius: 18, padding: 12)
+                        .softCard(radius: Theme.cardRadius, padding: 12)
                     }
                 }
             }
@@ -425,7 +425,7 @@ struct StyleInsightsView: View {
                 Text("YOUR WEEK")
                     .font(.system(.caption2, design: .default).weight(.black))
                     .tracking(1.5)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentSecondary)
                 Text("Style momentum")
                     .font(.system(size: 34, weight: .black, design: .default))
                 Text("A quick look at how you showed up this week.")
@@ -438,7 +438,7 @@ struct StyleInsightsView: View {
                             HStack(spacing: 14) {
                                 Image(systemName: "flame.fill")
                                     .font(.system(size: 28, weight: .bold))
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Theme.iconCoral)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("\(report.currentStreak)-day streak")
@@ -461,14 +461,11 @@ struct StyleInsightsView: View {
 
                             if let occasion = report.topOccasion {
                                 HStack {
-                                    Image(systemName: "sparkles")
-                                        .foregroundStyle(Theme.accent)
-                                        .accessibilityHidden(true)
                                     Text("Your top vibe: \(occasion)")
                                         .font(.system(.subheadline, design: .default).weight(.bold))
                                     Spacer()
                                 }
-                                .softCard(radius: 16, padding: 14)
+                                .softCard(radius: Theme.cardRadius, padding: 14)
                             }
                         }
                     }
@@ -486,7 +483,7 @@ struct StyleInsightsView: View {
     private func metric(_ title: String, value: Int, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentSecondary)
                 .accessibilityHidden(true)
             Text("\(value)")
                 .font(.system(size: 27, weight: .black, design: .default))
@@ -496,7 +493,7 @@ struct StyleInsightsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .softCard(radius: 16, padding: 14)
+        .softCard(radius: Theme.cardRadius, padding: 14)
     }
 
     private func load() async {

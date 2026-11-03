@@ -69,7 +69,7 @@ struct SampleVotingSessionCard: View {
                             .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                    .stroke(selectedLook == look.id ? Theme.accent : Theme.line.opacity(0.10), lineWidth: selectedLook == look.id ? 2 : 1)
+                                    .stroke(selectedLook == look.id ? Theme.accentSecondary : Theme.line.opacity(0.10), lineWidth: selectedLook == look.id ? 2 : 1)
                             }
 
                             HStack(spacing: 5) {
@@ -81,7 +81,7 @@ struct SampleVotingSessionCard: View {
                                 if selectedLook != nil {
                                     Text("\(Int((Double(look.votes + (selectedLook == look.id ? 1 : 0)) / Double(totalVotes) * 100).rounded()))%")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(Theme.accent)
+                                        .foregroundStyle(Theme.accentSecondary)
                                 }
                             }
                         }
@@ -101,7 +101,7 @@ struct SampleVotingSessionCard: View {
                 Button { showingDetails = true } label: {
                     Label("3 comments", systemImage: "bubble.left")
                         .font(.system(.caption, design: .default).weight(.semibold))
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -144,7 +144,7 @@ private struct SampleFitCheckDetailView: View {
                     Text("LIVE FIT-CHECK · SAMPLE")
                         .font(.system(.caption2, design: .default).weight(.black))
                         .tracking(1.3)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
 
                     HStack(spacing: 10) {
                         AvatarView(url: nil, nickname: "Maya", size: 40)
@@ -246,7 +246,7 @@ private struct SampleFitCheckDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(Theme.accent)
+                    Button("Done") { dismiss() }.foregroundStyle(Theme.accentSecondary)
                 }
             }
         }

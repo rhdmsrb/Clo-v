@@ -95,7 +95,7 @@ struct NotificationsView: View {
             Text("YOUR CIRCLE")
                 .font(Theme.micro)
                 .tracking(1.4)
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentSecondary)
             Text(hasUnread ? "\(unreadCount) new update\(unreadCount == 1 ? "" : "s")" : "Votes, comments, and friend updates in one place.")
                 .font(.system(.subheadline, design: .default))
                 .foregroundStyle(Theme.mutedForeground)
@@ -109,9 +109,8 @@ struct NotificationsView: View {
             HStack(spacing: 12) {
                 Image(systemName: "person.2.fill")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentSecondary)
                     .frame(width: iconButtonSize, height: iconButtonSize)
-                    .background(Theme.accent.opacity(0.10), in: Circle())
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Friend requests")
@@ -127,7 +126,7 @@ struct NotificationsView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Theme.inverseText)
                         .frame(minWidth: 24, minHeight: 24)
-                        .background(Theme.ink, in: Capsule())
+                        .background(Theme.ink, in: RoundedRectangle(cornerRadius: Theme.chipRadius))
                 }
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
@@ -178,7 +177,7 @@ struct NotificationsView: View {
                 Button { Task { await markRead(notification) } } label: {
                     Image(systemName: "checkmark.circle")
                         .font(.title3)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
                         .frame(minWidth: Self.minTapSize, minHeight: Self.minTapSize)
                         .contentShape(Rectangle())
                 }

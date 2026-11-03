@@ -21,6 +21,11 @@ final class ImageCache {
         let configuration = URLSessionConfiguration.default
         configuration.urlCache = URLCache(memoryCapacity: 20 * 1024 * 1024, diskCapacity: 200 * 1024 * 1024)
         configuration.requestCachePolicy = .returnCacheDataElseLoad
+        #if DEBUG
+        if SampleData.isActive {
+            configuration.protocolClasses = [SampleImageURLProtocol.self] + (configuration.protocolClasses ?? [])
+        }
+        #endif
         session = URLSession(configuration: configuration)
     }
 

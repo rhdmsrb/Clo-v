@@ -54,6 +54,20 @@ extension API {
         }
     }
 
+    /// Records that the owner wore this piece today; returns the updated row's
+    /// wear count and last-worn time. Requires migration 20261020000300.
+    static func logWardrobeWear(itemId: UUID) async throws -> (count: Int, lastWornAt: Date?) {
+#if DEBUG
+        if SampleData.isActive { return (1, Date()) }
+#endif
+        struct Params: Encodable { let pItemId: UUID }
+        // A single-row function result comes back as one object, or null when
+        // the piece isn't the caller's.
+        let row: WardrobeItem? = try await client.rpc("log_wardrobe_wear", params: Params(pItemId: itemId)).execute().value
+        guard let row else { throw APIError.message("Couldn't log that. Please try again.") }
+        return (row.wearCount ?? 0, row.lastWornAt)
+    }
+
     static func updateWardrobeItem(id: UUID, ownerId: UUID, image: UIImage?, name: String?, category: String,
                                    subcategory: String?, color: String?, season: String?, brand: String?,
                                    wearFrequency: String?, tags: [String]) async throws {

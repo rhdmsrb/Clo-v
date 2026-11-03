@@ -10,6 +10,10 @@ struct DailyChallengeCard: View {
     let onUseWeather: () -> Void
     let onJoin: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var isAccessibilitySize: Bool { typeSize.isAccessibilitySize }
+    private static let titleMinScale: CGFloat = 0.6
+
     private static let weatherCreditURL = URL(string: "https://open-meteo.com/")
 
     var body: some View {
@@ -32,11 +36,11 @@ struct DailyChallengeCard: View {
 
     private var promptButton: some View {
         Button(action: onJoin) {
-            HStack(spacing: 12) {
+            promptLayout {
                 Image(systemName: challengeSymbol)
                     .font(.title3)
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentSecondary)
                     .frame(width: 34)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
@@ -46,27 +50,42 @@ struct DailyChallengeCard: View {
                     Text(challenge.title)
                         .font(Theme.editorialFont(size: 23, relativeTo: .title3))
                         .foregroundStyle(Theme.ink)
-                        .lineLimit(2)
+                        .lineLimit(isAccessibilitySize ? 3 : 2)
+                        .minimumScaleFactor(Self.titleMinScale)
                     Text(challenge.prompt)
                         .font(.caption)
                         .foregroundStyle(Theme.mutedForeground)
-                        .lineLimit(2)
+                        .lineLimit(isAccessibilitySize ? nil : 2)
                 }
-                Spacer(minLength: 0)
-                Image(systemName: "arrow.up.right")
-                    .font(.caption)
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 32, height: 32)
-                    .accessibilityHidden(true)
+                .fixedSize(horizontal: false, vertical: true)
+                if !isAccessibilitySize {
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption)
+                        .foregroundStyle(Theme.accentSecondary)
+                        .frame(width: 32, height: 32)
+                        .accessibilityHidden(true)
+                }
             }
             .accessibilityElement(children: .combine)
         }
         .buttonStyle(.plain)
     }
 
+    /// Icon beside the text normally; stacked above it at accessibility sizes
+    /// so the text gets the full card width and wraps at word boundaries.
+    private func promptLayout<Content: View>(@ViewBuilder content: () -> Content) -> AnyView {
+        isAccessibilitySize
+            ? AnyView(VStack(alignment: .leading, spacing: 8, content: content))
+            : AnyView(HStack(spacing: 12, content: content))
+    }
+
     @ViewBuilder
     private var weatherRow: some View {
-        HStack(spacing: 8) {
+        let layout = isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 8))
+        layout {
             if let weather {
                 Label(weather.summary, systemImage: weather.icon)
                     .font(.caption2.weight(.semibold))
@@ -83,6 +102,7 @@ struct DailyChallengeCard: View {
                     .accessibilityHidden(true)
                 Text("Dress for your local weather")
                     .font(.caption2).foregroundStyle(Theme.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 2)
                 weatherButton
             }
@@ -105,7 +125,8 @@ struct DailyChallengeCard: View {
             }
         }
         .disabled(isWeatherLoading)
-        .foregroundStyle(Theme.accent)
+        .multilineTextAlignment(.leading)
+        .foregroundStyle(Theme.accentSecondary)
     }
 
     private var challengeSymbol: String {

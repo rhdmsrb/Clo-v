@@ -103,6 +103,7 @@ struct FeedView: View {
             error: error,
             onModeChange: { following in mode = following ? .following : .forYou },
             onBrowse: { withAnimation(.easeInOut(duration: 0.2)) { showSwipeFeed = false } },
+            onClose: { withAnimation(.easeInOut(duration: 0.2)) { showSwipeFeed = false } },
             onToggleFollow: { creatorId, follow in toggleFollow(creatorId, follow: follow) },
             onEvent: { item, event in logEvent(item, event: event) },
             onImpression: { item in logImpression(for: item) },
@@ -138,6 +139,7 @@ struct FeedView: View {
             .padding(20)
         }
         .background(Theme.background)
+        .statusBarBackdrop()
         .refreshable { await load(refreshGraph: true) }
         .onDisappear { flushImpressions() }
         .sheet(isPresented: $showChallenge) {
@@ -149,10 +151,19 @@ struct FeedView: View {
         HStack(spacing: 10) {
             Text("Discover")
                 .font(Theme.editorialFont(size: 40))
-            Spacer()
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .layoutPriority(1)
+            Spacer(minLength: 0)
+            headerButtons
+        }
+    }
+
+    /// Icon buttons stop growing past `xxxLarge` so they never crowd the title.
+    private var headerButtons: some View {
+        HStack(spacing: 0) {
             FeedIconButton(
                 systemImage: "play.rectangle",
-                tint: Theme.iconCoral,
                 accessibilityLabel: "Watch Fit-Checks",
                 accessibilityIdentifier: "watchFeedButton"
             ) {
@@ -160,7 +171,6 @@ struct FeedView: View {
             }
             FeedIconButton(
                 systemImage: isSearchExpanded ? "xmark" : "magnifyingglass",
-                tint: isSearchExpanded ? Theme.iconPlum : Theme.iconSage,
                 accessibilityLabel: isSearchExpanded ? "Close search" : "Search Fit-Checks"
             ) {
                 if isSearchExpanded { searchText = "" }
@@ -172,9 +182,18 @@ struct FeedView: View {
                 FeedBellIcon(unreadCount: unreadCount)
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .fixedSize()
     }
 
     private var modeRow: some View {
+        ViewThatFits(in: .horizontal) {
+            modeRowContent
+            ScrollView(.horizontal, showsIndicators: false) { modeRowContent }
+        }
+    }
+
+    private var modeRowContent: some View {
         HStack(spacing: 8) {
             FeedModeChip(label: "For You", isSelected: mode == .forYou) { select(.forYou) }
             FeedModeChip(label: "Following", isSelected: mode == .following) { select(.following) }
@@ -442,4 +461,26 @@ struct FeedView: View {
         guard let item = items.first(where: { $0.creatorId == creatorId }) else { return }
         logEvent(item, event: event)
     }
+}
+
+/// Covers the status bar with the screen background so scrolled content
+/// never runs under (and collides with) the clock and battery. Drawn as an
+/// overlay, so it does not change layout.
+private struct StatusBarBackdrop: ViewModifier {
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .top) {
+            GeometryReader { proxy in
+                Theme.background
+                    .frame(height: proxy.safeAreaInsets.top)
+                    .ignoresSafeArea(edges: .top)
+            }
+            .frame(height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+extension View {
+    func statusBarBackdrop() -> some View { modifier(StatusBarBackdrop()) }
 }

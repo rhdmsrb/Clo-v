@@ -36,7 +36,7 @@ struct GroupDetailView: View {
                         Text("STYLE BOARD")
                             .font(.system(.caption2, design: .default).weight(.black))
                             .tracking(1.3)
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(Theme.accentSecondary)
                         HStack {
                             Text(group.name).font(Theme.editorialFont(size: 32, relativeTo: .title))
                             Spacer()
@@ -57,7 +57,7 @@ struct GroupDetailView: View {
                         HStack(spacing: -8) {
                             ForEach(Array(members.prefix(6).enumerated()), id: \.offset) { _, member in
                                 AvatarView(url: member.avatarUrl, nickname: member.nickname, size: 26)
-                                    .overlay(Circle().stroke(Theme.background, lineWidth: 2))
+                                    .overlay(RoundedRectangle(cornerRadius: Theme.avatarRadius).stroke(Theme.background, lineWidth: 2))
                             }
                         }
                         Text("\(members.count) member\(members.count == 1 ? "" : "s")")

@@ -26,6 +26,9 @@ struct OutfitPlannerView: View {
     @State private var isTryingOn = false
     @State private var tryOnTask: Task<Void, Never>?
     @State private var editingLookID: UUID?
+    @StateObject private var localWeather = LocalWeatherPromptModel()
+    @State private var awaitingWeatherSuggestion = false
+    @State private var suggestionNote: String?
     @State private var missingPiecesNotice: String?
 
     let wardrobeItems: [WardrobeItem]
@@ -46,7 +49,7 @@ struct OutfitPlannerView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("YOUR OUTFIT STUDIO")
                         .font(.system(.caption2, design: .default).weight(.bold)).tracking(1.3)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
                     Text("Build a look")
                         .font(Theme.editorialFont(size: 34)).foregroundStyle(Theme.ink)
                     Text("Combine pieces from your wardrobe and create a photo try-on preview.")
@@ -75,6 +78,7 @@ struct OutfitPlannerView: View {
                             Text("\(selectedIDs.count) selected")
                                 .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
                         }
+                        suggestionRow
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
                                 ChipToggle(label: "All", selected: selectedCategory == nil) {
@@ -183,6 +187,51 @@ struct OutfitPlannerView: View {
 
     private static let topAnchorID = "outfit.top"
 
+    private var suggestionRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                // Reuse weather already fetched this session; onChange only fires for new values.
+                if let conditions = localWeather.conditions {
+                    applySuggestion(for: conditions)
+                } else {
+                    awaitingWeatherSuggestion = true
+                    localWeather.requestWeather()
+                }
+            } label: {
+                Label(localWeather.isLoading ? "Checking the weather…" : "Suggest for today's weather", systemImage: "cloud.sun")
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 14).frame(minHeight: 44)
+                    .background(Theme.muted.opacity(0.65), in: Capsule())
+            }
+            .disabled(localWeather.isLoading)
+            .accessibilityIdentifier("outfit.suggest")
+            if let note = suggestionNote ?? weatherProblem {
+                Text(note).font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+            }
+        }
+        .onChange(of: localWeather.conditions) { _, conditions in
+            guard awaitingWeatherSuggestion, let conditions else { return }
+            awaitingWeatherSuggestion = false
+            applySuggestion(for: conditions)
+        }
+    }
+
+    private var weatherProblem: String? {
+        if localWeather.locationDenied { return "Allow location access in Settings to get weather-based suggestions." }
+        return localWeather.errorMessage
+    }
+
+    private func applySuggestion(for conditions: LocalWeatherConditions) {
+        let picks = WeatherOutfitSuggester.suggest(from: wardrobeItems, weather: conditions)
+        guard !picks.isEmpty else {
+            suggestionNote = "Nothing in your wardrobe fits \(conditions.summary.lowercased()). Try adding a season to your pieces."
+            return
+        }
+        selectedIDs = Set(picks.map(\.id))
+        selectedCategory = nil
+        suggestionNote = "Picked \(picks.count) \(picks.count == 1 ? "piece" : "pieces") for \(conditions.summary)."
+    }
+
     private var avatarPreview: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -191,7 +240,7 @@ struct OutfitPlannerView: View {
                     Text("See it on you").font(.system(size: 20, weight: .semibold)).foregroundStyle(Theme.ink)
                 }
                 Spacer()
-                if isTryingOn { ProgressView().tint(Theme.accent) }
+                if isTryingOn { ProgressView().tint(Theme.accentSecondary) }
             }
 
             ZStack {
@@ -266,7 +315,7 @@ struct OutfitPlannerView: View {
 
             Text("When you tap Try on, your full-body photo and selected clothing photos are sent to WEARFITS. Its current policy says input images are deleted within 24 hours and generated previews may remain for up to 30 days. Results are images, not an exact-fit guarantee.")
                 .font(.system(size: 11)).foregroundStyle(Theme.mutedForeground)
-            if let tryOnStatus { Text(tryOnStatus).font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.accent) }
+            if let tryOnStatus { Text(tryOnStatus).font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.accentSecondary) }
             if let tryOnError { Text(tryOnError).font(.system(size: 12)).foregroundStyle(.red) }
         }
         .padding(14)
@@ -293,7 +342,7 @@ struct OutfitPlannerView: View {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 23, weight: .medium))
                             .symbolRenderingMode(.palette)
-                            .foregroundStyle(isSelected ? Theme.accent : .white, .white.opacity(0.95))
+                            .foregroundStyle(isSelected ? Theme.accent : .white, isSelected ? Theme.accentForeground : .white.opacity(0.95))
                             .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                             .padding(8)
                             .accessibilityHidden(true)
@@ -306,7 +355,7 @@ struct OutfitPlannerView: View {
             .background(isSelected ? Theme.accent.opacity(0.08) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(isSelected ? Theme.accent.opacity(0.65) : Theme.line.opacity(0.35), lineWidth: 1))
+                .stroke(isSelected ? Theme.accentSecondary : Theme.line.opacity(0.35), lineWidth: 1))
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
@@ -330,7 +379,7 @@ struct OutfitPlannerView: View {
                         Text("\(look.occasion) · \(pieces.count) \(pieces.count == 1 ? "piece" : "pieces")")
                             .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
                         Text(editingLookID == look.id ? "Editing" : "Tap to edit")
-                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.accent)
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.accentSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())

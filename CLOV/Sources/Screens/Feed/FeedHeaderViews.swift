@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Round tinted icon button used in the Discover header.
+/// Plain header icon button (44x44 tap area) used in the Discover header.
 struct FeedIconButton: View {
     let systemImage: String
-    let tint: Color
+    var tint: Color = Theme.ink
     let accessibilityLabel: String
     var accessibilityIdentifier: String?
     let action: () -> Void
@@ -19,17 +19,16 @@ struct FeedIconButton: View {
 
 struct FeedIconBadge: View {
     let systemImage: String
-    let tint: Color
+    var tint: Color = Theme.ink
 
-    private static let diameter: CGFloat = 42
-    private static let backgroundOpacity = 0.12
+    private static let tapSize: CGFloat = 44
 
     var body: some View {
         Image(systemName: systemImage)
-            .font(.body.weight(.semibold))
+            .font(.system(size: 18, weight: .medium))
             .foregroundStyle(tint)
-            .frame(width: Self.diameter, height: Self.diameter)
-            .background(tint.opacity(Self.backgroundOpacity), in: Circle())
+            .frame(width: Self.tapSize, height: Self.tapSize)
+            .contentShape(Rectangle())
     }
 }
 
@@ -37,20 +36,21 @@ struct FeedBellIcon: View {
     let unreadCount: Int
 
     private static let maxBadgeCount = 9
-
-    private var tint: Color { unreadCount > 0 ? Theme.iconCoral : Theme.iconApricot }
+    private static let badgeMinSize: CGFloat = 18
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            FeedIconBadge(systemImage: "bell", tint: tint)
+            FeedIconBadge(systemImage: "bell")
             if unreadCount > 0 {
                 Text(unreadCount > Self.maxBadgeCount ? "\(Self.maxBadgeCount)+" : "\(unreadCount)")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.accentForeground)
+                    .lineLimit(1)
                     .padding(4)
-                    .background(Theme.iconCoral)
+                    .frame(minWidth: Self.badgeMinSize, minHeight: Self.badgeMinSize)
+                    .background(Theme.accent)
                     .clipShape(Circle())
-                    .offset(x: 4, y: -4)
+                    .offset(x: -4, y: 4)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -67,12 +67,14 @@ struct FeedModeChip: View {
         Button(action: action) {
             Text(label)
                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .lineLimit(1)
+                .fixedSize()
                 .foregroundStyle(isSelected ? Theme.ink : Theme.mutedForeground)
                 .padding(.horizontal, 4)
                 .frame(minHeight: FeedLayout.minHitSize)
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(isSelected ? Theme.accent : .clear)
+                        .fill(isSelected ? Theme.ink : .clear)
                         .frame(height: 2)
                         .accessibilityHidden(true)
                 }
@@ -95,12 +97,14 @@ struct FeedOccasionChip: View {
         Button(action: action) {
             Text(label)
                 .font(.caption.weight(isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? Theme.accent : Theme.mutedForeground)
+                .lineLimit(1)
+                .fixedSize()
+                .foregroundStyle(isSelected ? Theme.accentSecondary : Theme.mutedForeground)
                 .padding(.horizontal, 6)
                 .frame(minHeight: FeedLayout.minHitSize)
                 .overlay(alignment: .bottom) {
                     Rectangle()
-                        .fill(isSelected ? Theme.accent.opacity(Self.underlineOpacity) : .clear)
+                        .fill(isSelected ? Theme.accentSecondary.opacity(Self.underlineOpacity) : .clear)
                         .frame(height: 1)
                         .accessibilityHidden(true)
                 }
@@ -124,8 +128,9 @@ struct FeedSortMenu: View {
                 Image(systemName: "slider.horizontal.3")
                     .foregroundStyle(Theme.iconPlum)
                     .accessibilityHidden(true)
-                Text(sort.title)
+                Text(sort.title).lineLimit(1)
             }
+            .fixedSize()
             .font(.caption.weight(.bold))
             .foregroundStyle(Theme.ink)
             .frame(minHeight: FeedLayout.minHitSize)

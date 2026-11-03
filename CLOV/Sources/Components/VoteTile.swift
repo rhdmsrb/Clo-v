@@ -13,9 +13,12 @@ struct VoteTile: View {
     let onZoom: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static let zoomTapSize: CGFloat = 44
     private static let zoomVisualSize: CGFloat = 28
+    private static let footerMinHeight: CGFloat = 36
+    private static let footerMinScale: CGFloat = 0.6
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -36,7 +39,7 @@ struct VoteTile: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous)
-                    .stroke(isMine ? Theme.accent : Theme.ink, lineWidth: isMine ? 3 : 1)
+                    .stroke(isMine ? Theme.accentSecondary : Theme.ink, lineWidth: isMine ? 3 : 1)
             }
         }
         .buttonStyle(TileButtonStyle())
@@ -44,14 +47,14 @@ struct VoteTile: View {
         // `onVote`'s callers also guard against revealed/in-flight votes.
         .allowsHitTesting(!(revealed || isDisabled))
         .accessibilityRemoveTraits(revealed ? .isButton : [])
-        .accessibilityLabel("Look \(photo.position + 1)")
+        .accessibilityLabel("Look \(photo.position)")
         .accessibilityValue(revealed ? "\(percent) percent of votes\(isLeading ? ", leading" : "")\(isMine ? ", your vote" : "")" : "")
         .accessibilityHint(revealed ? "Results are shown" : (canVote ? "Casts your vote for this look" : ""))
         .accessibilityAddTraits(isMine ? .isSelected : [])
     }
 
     private var positionBadge: some View {
-        Text(String(format: "%02d", photo.position + 1))
+        Text(String(format: "%02d", photo.position))
             .font(Theme.micro)
             .foregroundStyle(Theme.inverseText)
             .padding(.horizontal, 7)
@@ -60,27 +63,52 @@ struct VoteTile: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 4) {
+        Group {
             if revealed {
-                Text("\(percent)%").font(.headline.weight(.black))
-                if isLeading {
-                    Label("LEADS", systemImage: "star.fill")
-                        .font(Theme.micro)
-                        .labelStyle(.titleAndIcon)
-                }
-                if isMine {
-                    Image(systemName: "checkmark").font(Theme.micro)
+                // Drops the "LEADS" word before it would wrap; the percent
+                // always stays on one line. Full wording lives in the
+                // tile's accessibilityValue.
+                ViewThatFits(in: .horizontal) {
+                    resultRow(showsLeadLabel: true)
+                    resultRow(showsLeadLabel: false)
                 }
             } else {
-                Text("VOTE").font(Theme.micro)
+                Text("VOTE").font(Theme.micro).lineLimit(1)
             }
-            Spacer(minLength: 0)
         }
         .foregroundStyle(Theme.inverseText)
         .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, minHeight: 36)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: Self.footerMinHeight)
+        // The bar goes first so the ink fill (added last) sits behind it.
+        .background(alignment: .leading) { if revealed { ResultBar(percent: percent, isMine: isMine) } }
         .background(Theme.ink)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+
+    private func resultRow(showsLeadLabel: Bool) -> some View {
+        HStack(spacing: 4) {
+            Text("\(percent)%")
+                .font(.headline.weight(.black))
+                .contentTransition(.numericText(value: Double(percent)))
+                .animation(reduceMotion ? nil : .snappy, value: percent)
+                .lineLimit(1)
+                .minimumScaleFactor(Self.footerMinScale)
+            if isLeading {
+                if showsLeadLabel && !dynamicTypeSize.isAccessibilitySize {
+                    Label("LEADS", systemImage: "star.fill")
+                        .font(Theme.micro)
+                        .lineLimit(1)
+                        .fixedSize()
+                } else {
+                    Image(systemName: "star.fill").font(Theme.micro)
+                }
+            }
+            if isMine {
+                Image(systemName: "checkmark").font(Theme.micro)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     // Zoom is its own control: a double-tap gesture on the tile would also
@@ -97,6 +125,28 @@ struct VoteTile: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Zoom look \(photo.position + 1)")
+        .accessibilityLabel("Zoom look \(photo.position)")
+    }
+}
+
+/// Accent fill behind the result footer that grows to the look's share of votes.
+private struct ResultBar: View {
+    let percent: Int
+    let isMine: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var filled = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            Rectangle()
+                .fill(Theme.accent.opacity(isMine ? 0.45 : 0.3))
+                .frame(width: proxy.size.width * (filled ? CGFloat(percent) / 100 : 0))
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.8)) { filled = true }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: percent)
+        .accessibilityHidden(true)
     }
 }

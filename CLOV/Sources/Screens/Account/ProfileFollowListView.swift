@@ -89,7 +89,7 @@ struct ProfileFollowListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
                 }
             }
             .task { await load() }
@@ -111,7 +111,7 @@ struct ProfileFollowListView: View {
             .foregroundStyle(isFollowing ? Theme.ink : Theme.inverseText)
             .padding(.horizontal, 13)
             .frame(minHeight: 32)
-            .background(isFollowing ? Theme.muted : Theme.ink, in: Capsule())
+            .background(isFollowing ? Theme.muted : Theme.ink, in: RoundedRectangle(cornerRadius: Theme.chipRadius))
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }

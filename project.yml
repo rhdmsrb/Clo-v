@@ -19,10 +19,6 @@ targets:
       - path: CLOV/Sources
       - path: CLOV/Assets.xcassets
       - path: CLOV/PrivacyInfo.xcprivacy
-    entitlements:
-      path: CLOV/CLOV.entitlements
-      properties:
-        aps-environment: development
     info:
       path: CLOV/Info.plist
       properties:
@@ -46,6 +42,11 @@ targets:
         SWIFT_VERSION: "5.0"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
+        CODE_SIGN_ENTITLEMENTS: CLOV/CLOV.entitlements
+      configs:
+        Release:
+          # Release builds register for production APNs.
+          CODE_SIGN_ENTITLEMENTS: CLOV/CLOVRelease.entitlements
     dependencies:
       - package: Supabase
         product: Supabase

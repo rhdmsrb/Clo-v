@@ -21,7 +21,7 @@ struct ClothingCatalogView: View {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("A LITTLE MORE TO WEAR")
-                        .font(.system(.caption2, design: .default).weight(.black)).tracking(1.3).foregroundStyle(Theme.accent)
+                        .font(.system(.caption2, design: .default).weight(.black)).tracking(1.3).foregroundStyle(Theme.accentSecondary)
                     Text("Clothing catalog")
                         .font(Theme.editorialFont(size: 34))
                     Text("Find a piece and add it to your wardrobe. Photos are credited to their original creators.")
@@ -36,12 +36,12 @@ struct ClothingCatalogView: View {
                     Button { Task { await search() } } label: {
                         Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))
                             .foregroundStyle(Theme.inverseText).frame(width: 36, height: 36).background(Theme.ink)
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius))
                             .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                     }.accessibilityLabel("Search clothing catalog")
                 }
                 .padding(.leading, 13).padding(.trailing, 6).padding(.vertical, 6)
-                .background(Theme.muted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: 10))
+                .background(Theme.muted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -53,7 +53,7 @@ struct ClothingCatalogView: View {
                             }
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink)
                             .padding(.horizontal, 12).padding(.vertical, 8)
-                            .background(Theme.muted.opacity(0.65)).clipShape(Capsule())
+                            .background(Theme.muted.opacity(0.65)).clipShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
                         }
                     }
                 }
@@ -147,12 +147,12 @@ private struct CatalogImageCard: View {
                             Spacer()
                             Image(systemName: "plus")
                                 .font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.inverseText)
-                                .frame(width: 32, height: 32).background(Theme.ink.opacity(0.9)).clipShape(Circle())
+                                .frame(width: 32, height: 32).background(Theme.ink.opacity(0.9)).clipShape(RoundedRectangle(cornerRadius: Theme.avatarRadius))
                                 .accessibilityHidden(true)
                         }.padding(9)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
             }
             // Fix the card's width-to-height ratio before the remote image is
             // laid out. Openverse thumbnails have mixed intrinsic dimensions.
@@ -161,7 +161,7 @@ private struct CatalogImageCard: View {
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink).lineLimit(2)
             Text("\(result.creatorText.isEmpty ? "Creator unknown" : result.creatorText) · \(result.license.uppercased())")
                 .font(.system(size: 10)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
-            if let url = URL(string: result.licenseURL ?? "") {
+            if let url = SafeLink.httpsURL(result.licenseURL) {
                 Link("License details", destination: url).font(.system(size: 10, weight: .medium))
             }
         }

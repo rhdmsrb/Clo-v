@@ -56,7 +56,7 @@ struct NewPasswordView: View {
                     Task { await appState.signOut() }
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentSecondary)
                 .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
             }
             .padding(24)

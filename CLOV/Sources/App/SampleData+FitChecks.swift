@@ -93,9 +93,11 @@ extension SampleData {
     static func fixture(id: UUID) -> Fixture? { fixtures.first { $0.id == id } }
 
     static var publicFeed: [FeedItemDTO] {
-        fixtures
+        // Expired posts sort last so the first visible card is open for voting.
+        let visible = fixtures
             .filter { $0.isPublic && $0.status == "live" && ($0.creator.id != me.id || $0.number == 5) }
             .map(\.feedItem)
+        return visible.filter { !isExpired($0.expiresAt) } + visible.filter { isExpired($0.expiresAt) }
     }
 
     static func feedPage(offset: Int, limit: Int, search: String, occasion: String?,

@@ -57,7 +57,7 @@ struct PhotoZoomView: View {
                 switch phase {
                 case .success(let image):
                     image.resizable().scaledToFit()
-                        .accessibilityLabel("Look \(photo.position + 1), enlarged")
+                        .accessibilityLabel("Look \(photo.position), enlarged")
                         .accessibilityAddTraits(.isImage)
                         .accessibilityAction(named: "Toggle zoom") { toggleZoom(size: size) }
                 case .empty:

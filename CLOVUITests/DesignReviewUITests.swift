@@ -7,8 +7,6 @@ import XCTest
 /// can be reviewed from the resulting .xcresult bundle. Steps are tolerant:
 /// a missing element is recorded as a failure but never stops the walk.
 final class DesignReviewUITests: XCTestCase {
-    // Photo positions are stored 1-based, and the UI labels them
-    // "Look \(position + 1)", so the first photo is currently "Look 2".
     private static let sampleDataArgument = "--uiTestSampleData"
     private static let extraLargeAccessibilitySize = "UICTContentSizeCategoryAccessibilityXL"
     private static let shortWait: TimeInterval = 5
@@ -67,7 +65,11 @@ final class DesignReviewUITests: XCTestCase {
     /// Voting opens the "why did you vote" sheet, which doubles as the
     /// comment sheet stop.
     private func voteOnFirstLook(_ app: XCUIApplication, prefix: String) {
-        guard let look = scrollToVisible(app, buttons(app, labeled: "Look 2")), tap(look) else {
+        guard let look = scrollToVisible(app, buttons(app, labeled: "Look 1")) else {
+            attach(app, name: "\(prefix)-03-vote-missing"); return
+        }
+        attach(app, name: "\(prefix)-03a-before-vote")
+        guard tap(look) else {
             attach(app, name: "\(prefix)-03-vote-missing"); return
         }
         settle()
@@ -77,20 +79,23 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     private func openCommentSheet(_ app: XCUIApplication, prefix: String) {
-        guard let look = scrollToVisible(app, buttons(app, labeled: "Look 2")), tap(look) else {
+        guard let look = scrollToVisible(app, buttons(app, labeled: "Look 1")), tap(look) else {
             attach(app, name: "\(prefix)-comment-sheet-missing"); return
         }
         settle()
         attach(app, name: "\(prefix)-comment-sheet")
+        dismissSheet(app)
+        attach(app, name: "\(prefix)-after-vote")
     }
 
     private func openPhotoZoom(_ app: XCUIApplication, prefix: String) {
-        guard let zoom = scrollToVisible(app, buttons(app, labeled: "Zoom look 2")), tap(zoom) else { attach(app, name: "\(prefix)-04-zoom-missing"); return }
+        guard let zoom = scrollToVisible(app, buttons(app, labeled: "Zoom look 1")), tap(zoom) else { attach(app, name: "\(prefix)-04-zoom-missing"); return }
         settle()
         attach(app, name: "\(prefix)-04-photo-zoom")
         // The close "X" sits at the top-right of the zoom cover.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.11)).tap()
         settle()
+        attach(app, name: "\(prefix)-04b-after-zoom-close")
     }
 
     private func openFirstDetail(_ app: XCUIApplication, prefix: String) {

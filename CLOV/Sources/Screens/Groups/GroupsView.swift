@@ -34,7 +34,7 @@ struct GroupsView: View {
                         .autocorrectionDisabled()
                         .padding(12)
                         .background(Theme.muted)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
                     if let joinError {
                         Text(joinError).font(.caption).foregroundStyle(.red)
                     }
@@ -53,7 +53,7 @@ struct GroupsView: View {
                                 .foregroundStyle(Theme.mutedForeground)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(16)
-                                .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                         } else {
                             VStack(spacing: 0) {
                                 ForEach(groups) { group in
@@ -61,7 +61,7 @@ struct GroupsView: View {
                                         HStack(spacing: 13) {
                                             Image(systemName: "person.2")
                                                 .font(.system(size: 16, weight: .regular))
-                                                .foregroundStyle(Theme.accent)
+                                                .foregroundStyle(Theme.accentSecondary)
                                                 .frame(width: 34)
                                                 .accessibilityHidden(true)
                                             VStack(alignment: .leading, spacing: 3) {
@@ -107,7 +107,7 @@ struct GroupsView: View {
                             }
                         }
                         .padding(16)
-                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                         .accessibilityElement(children: .combine)
                     }
                 }
@@ -187,7 +187,7 @@ private struct NewGroupSheet: View {
             TextField("Name your circle", text: $name)
                 .padding(14)
                 .background(Theme.background)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             if let error {
                 Text(error).font(.caption).foregroundStyle(.red)
             }

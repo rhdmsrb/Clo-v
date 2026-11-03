@@ -10,6 +10,8 @@ struct SearchExploreView: View {
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
+    @FocusState private var isSearchFocused: Bool
+    @Environment(\.isTabActive) private var isTabActive
 
     private let occasions = ["Everyday", "Work", "Date", "Party", "Travel", "Wedding"]
     private var requestKey: String { "\(query.trimmingCharacters(in: .whitespacesAndNewlines))|\(occasion ?? "")" }
@@ -20,7 +22,7 @@ struct SearchExploreView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("STYLE, IN YOUR WORDS")
                         .font(.system(.caption2, design: .default).weight(.bold)).tracking(1.4)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
                     Text("Find your next look")
                         .font(Theme.editorialFont(size: 34)).foregroundStyle(Theme.ink)
                 }
@@ -31,6 +33,7 @@ struct SearchExploreView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .submitLabel(.search)
+                        .focused($isSearchFocused)
                         .accessibilityIdentifier("search.query")
                     if !query.isEmpty {
                         Button { query = "" } label: {
@@ -81,8 +84,13 @@ struct SearchExploreView: View {
             .padding(20)
             .padding(.bottom, 90)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
+        .statusBarBackdrop()
         .navigationBarHidden(true)
+        .onChange(of: isTabActive) { _, active in
+            if !active { isSearchFocused = false }
+        }
         .task(id: requestKey) {
             if hasLoaded {
                 try? await Task.sleep(for: .milliseconds(300))

@@ -58,7 +58,7 @@ struct AuthView: View {
                         .font(.subheadline)
                         .padding(14)
                         .background(Theme.muted)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
@@ -109,7 +109,7 @@ struct AuthView: View {
                 } label: {
                     Text(mode.switchPrompt)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
                 }
                 .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
 
@@ -149,7 +149,7 @@ struct AuthView: View {
                         .autocorrectionDisabled()
                         .padding(14)
                         .background(Theme.card)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
                     if let resetNotice {
                         Text(resetNotice)
                             .font(.footnote)
@@ -217,6 +217,7 @@ struct AuthView: View {
         guard !address.isEmpty else { return }
         do {
             try await SupabaseManager.client.auth.resetPasswordForEmail(address, redirectTo: AppConfig.authCallbackURL)
+            AuthCallbackGate.shared.markResetRequested()
             resetNotice = "Check your email for a password reset link."
         } catch {
             resetNotice = "We couldn't send the reset link. Please check the email and try again."

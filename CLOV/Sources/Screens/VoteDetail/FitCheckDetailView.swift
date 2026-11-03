@@ -58,7 +58,7 @@ struct FitCheckDetailView: View {
                                 Text("FIT CHECK / \((expired ? "ENDED" : detail.status).uppercased())")
                                     .font(.system(.caption2, design: .default).weight(.black))
                                     .tracking(1.4)
-                                    .foregroundStyle(Theme.accent)
+                                    .foregroundStyle(Theme.accentSecondary)
                                 Text("The edit")
                                     .font(.system(size: 40, weight: .black, design: .default))
                             }
@@ -136,7 +136,7 @@ struct FitCheckDetailView: View {
                         Text("NOTES FROM THE CIRCLE")
                             .font(.system(.caption2, design: .default).weight(.black))
                             .tracking(1.2)
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(Theme.accentSecondary)
 
                             if comments.isEmpty {
                                 Text("No comments yet — vote to leave the first one.")
@@ -154,8 +154,8 @@ struct FitCheckDetailView: View {
                                             }
                                         .padding(.horizontal, 12).padding(.vertical, 10)
                                         .background(Theme.card)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+                                        .overlay(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous)
                                             .stroke(Theme.line.opacity(0.2), lineWidth: 1))
                                         }
                                         .accessibilityElement(children: .combine)

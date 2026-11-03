@@ -115,6 +115,8 @@ enum API {
         struct Payload: Encodable {
             let nickname: String
             let stylePreferences: [String]
+            // The RPC's parameters are p_-prefixed (p_nickname, p_style_preferences).
+            enum CodingKeys: String, CodingKey { case nickname = "p_nickname"; case stylePreferences = "p_style_preferences" }
         }
         do {
             _ = try await client

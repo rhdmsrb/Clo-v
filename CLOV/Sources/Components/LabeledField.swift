@@ -10,7 +10,7 @@ import SwiftUI
 /// another `.softCard()`, so two shadows don't stack.
 struct LabeledField<Content: View>: View {
     var label: String? = nil
-    var radius: CGFloat = 18
+    var radius: CGFloat = Theme.fieldRadius
     var padding: CGFloat = 16
     var insetStyle: Bool = false
     @ViewBuilder var content: () -> Content

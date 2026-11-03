@@ -67,7 +67,7 @@ struct PhotoSlotView: View {
 
     @State private var pickError: String?
 
-    private static let tileRadius: CGFloat = 18
+    private static let tileRadius: CGFloat = Theme.tileRadius
 
     var body: some View {
         VStack(spacing: 6) {
@@ -162,7 +162,7 @@ struct WardrobePickerView: View {
                             .aspectRatio(3.0 / 4.0, contentMode: .fill)
                             .frame(maxWidth: .infinity)
                             .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
                         Text(Self.displayName(for: item).uppercased())
                             .font(Theme.micro)
                             .lineLimit(1)

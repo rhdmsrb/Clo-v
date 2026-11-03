@@ -4,7 +4,7 @@ import PhotosUI
 struct WardrobeView: View {
     @EnvironmentObject private var appState: AppState
     @State private var items: [WardrobeItem] = []
-    @State private var selectedCategory: WardrobeCategory?
+    @State private var filter = WardrobeFilter()
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
@@ -12,10 +12,7 @@ struct WardrobeView: View {
     @State private var deleteTarget: WardrobeItem?
     @State private var editTarget: WardrobeItem?
 
-    private var visibleItems: [WardrobeItem] {
-        guard let selectedCategory else { return items }
-        return items.filter { $0.category == selectedCategory.rawValue }
-    }
+    private var visibleItems: [WardrobeItem] { filter.apply(to: items) }
 
     private var sections: [(WardrobeCategory, [WardrobeItem])] {
         WardrobeCategory.allCases.compactMap { category in
@@ -24,12 +21,82 @@ struct WardrobeView: View {
         }
     }
 
+    private var emptyText: String {
+        filter.isActive ? "No pieces match your search or filters." : "Your wardrobe is empty. Add your first piece."
+    }
+
+    private var searchAndFilterBar: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
+                    .accessibilityHidden(true)
+                TextField("Search name, brand, color or tag", text: $filter.searchText)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .accessibilityIdentifier("wardrobe.search")
+                if !filter.searchText.isEmpty {
+                    Button { filter.searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.mutedForeground)
+                            .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                    }.accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, 13).frame(minHeight: 44)
+            .background(Theme.muted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: 10))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ChipToggle(label: "All", selected: filter.category == nil) { filter.category = nil }
+                    ForEach(WardrobeCategory.allCases) { category in
+                        ChipToggle(label: category.label, selected: filter.category == category) { filter.category = category }
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Menu {
+                    Picker("Season", selection: $filter.season) {
+                        Text("Any season").tag(WardrobeSeason?.none)
+                        ForEach(WardrobeSeason.allCases) { Text($0.label).tag(WardrobeSeason?.some($0)) }
+                    }
+                } label: {
+                    menuLabel(icon: "sun.max", title: filter.season?.label ?? "Any season", highlighted: filter.season != nil)
+                }
+                .accessibilityLabel("Season: \(filter.season?.label ?? "Any")")
+                Menu {
+                    Picker("Sort", selection: $filter.sort) {
+                        ForEach(WardrobeSort.allCases) { Text($0.label).tag($0) }
+                    }
+                } label: {
+                    menuLabel(icon: "arrow.up.arrow.down", title: filter.sort.label, highlighted: false)
+                }
+                .accessibilityLabel("Sort: \(filter.sort.label)")
+                Spacer()
+                Text("\(visibleItems.count) \(visibleItems.count == 1 ? "piece" : "pieces")")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedForeground)
+                if filter.isActive {
+                    Button("Clear") { filter = WardrobeFilter(sort: filter.sort) }
+                        .font(.caption.weight(.semibold)).tint(Theme.accentSecondary)
+                        .frame(minHeight: 44)
+                }
+            }
+        }
+    }
+
+    private func menuLabel(icon: String, title: String, highlighted: Bool) -> some View {
+        Label(title, systemImage: icon)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(highlighted ? Theme.inverseText : Theme.ink)
+            .padding(.horizontal, 12).frame(minHeight: 36)
+            .background(highlighted ? Theme.ink : Theme.muted.opacity(0.65), in: Capsule())
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("PERSONAL CATALOG").font(.system(.caption2, design: .default).weight(.black)).tracking(1.4).foregroundStyle(Theme.accent)
+                        Text("PERSONAL CATALOG").font(.system(.caption2, design: .default).weight(.black)).tracking(1.4).foregroundStyle(Theme.accentSecondary)
                         Text("My Wardrobe").font(Theme.editorialFont(size: 42))
                     }
                     Spacer()
@@ -55,7 +122,7 @@ struct WardrobeView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "hanger")
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(Theme.accentSecondary)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Plan a look").font(.system(size: 16, weight: .semibold))
@@ -76,17 +143,10 @@ struct WardrobeView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("wardrobe.planLook")
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ChipToggle(label: "All", selected: selectedCategory == nil) { selectedCategory = nil }
-                        ForEach(WardrobeCategory.allCases) { category in
-                            ChipToggle(label: category.label, selected: selectedCategory == category) { selectedCategory = category }
-                        }
-                    }
-                }
+                if !items.isEmpty { searchAndFilterBar }
 
                 AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
-                               emptyText: "Your wardrobe is empty. Add your first piece.", topPadding: 36,
+                               emptyText: emptyText, topPadding: 36,
                                hasLoaded: hasLoaded, retry: { await load() }, skeleton: .grid) {
                     VStack(alignment: .leading, spacing: 24) {
                         ForEach(sections, id: \.0) { category, categoryItems in
@@ -100,7 +160,8 @@ struct WardrobeView: View {
                                     ForEach(categoryItems) { item in
                                         WardrobeItemCard(item: item,
                                                          onEdit: { editTarget = item },
-                                                         onDelete: { deleteTarget = item })
+                                                         onDelete: { deleteTarget = item },
+                                                         onWorn: { Task { await logWear(item) } })
                                     }
                                 }
                             }
@@ -149,6 +210,19 @@ struct WardrobeView: View {
         catch { self.error = "Couldn't load your wardrobe. Please try again." }
     }
 
+    private func logWear(_ item: WardrobeItem) async {
+        do {
+            let result = try await API.logWardrobeWear(itemId: item.id)
+            guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+            items[index].wearCount = result.count
+            items[index].lastWornAt = result.lastWornAt
+            Haptics.success()
+        } catch {
+            Haptics.error()
+            self.error = "Couldn't log that you wore this. Please try again."
+        }
+    }
+
     private func delete(_ item: WardrobeItem) async {
         do { try await API.deleteWardrobeItem(id: item.id, ownerId: appState.userId); items.removeAll { $0.id == item.id }; appState.contentDidChange() }
         catch { self.error = "Couldn't remove this item. Please try again." }
@@ -159,6 +233,7 @@ private struct WardrobeItemCard: View {
     let item: WardrobeItem
     let onEdit: () -> Void
     let onDelete: () -> Void
+    let onWorn: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
@@ -169,6 +244,7 @@ private struct WardrobeItemCard: View {
                         .accessibilityAddTraits(.isImage)
                 }
                 Menu {
+                    Button("Wore it today", systemImage: "checkmark.circle", action: onWorn)
                     Button("Edit", action: onEdit)
                     Button("Remove", role: .destructive, action: onDelete)
                 } label: {
@@ -181,6 +257,10 @@ private struct WardrobeItemCard: View {
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.line.opacity(0.25), lineWidth: 1))
             Text((item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category).uppercased())
                 .font(.system(.caption, design: .default).weight(.black)).lineLimit(1)
+            if let wearSummary = item.wearSummary {
+                Text(wearSummary)
+                    .font(.system(.caption2, design: .default).weight(.semibold)).foregroundStyle(Theme.accentSecondary)
+            }
             HStack(spacing: 4) {
                 if let color = item.color, !color.isEmpty { Text(color) }
                 if let brand = item.brand, !brand.isEmpty { Text("· \(brand)") }
@@ -194,11 +274,11 @@ private struct WardrobeItemCard: View {
                         Text("Photo · \(details.first ?? "Creator")")
                             .font(.system(size: 10)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
                         Spacer(minLength: 2)
-                        if details.count > 2, let license = URL(string: details[2]) {
+                        if details.count > 2, let license = SafeLink.httpsURL(details[2]) {
                             Link(details.count > 1 ? details[1] : "License", destination: license)
                                 .font(.system(size: 10, weight: .medium))
                         }
-                        if details.count > 3, let source = URL(string: details[3]) {
+                        if details.count > 3, let source = SafeLink.httpsURL(details[3]) {
                             Link("Source", destination: source).font(.system(size: 10, weight: .medium))
                         }
                     }
@@ -206,7 +286,7 @@ private struct WardrobeItemCard: View {
                 if !styles.isEmpty {
                     Text(styles.prefix(2).map { "#\($0)" }.joined(separator: "  "))
                     .font(.system(.caption2, design: .default).weight(.semibold))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentSecondary)
                     .lineLimit(1)
                 }
             }
@@ -309,7 +389,7 @@ struct AddWardrobeItemView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(item == nil ? "ADD TO WARDROBE" : "EDIT WARDROBE ITEM")
-                        .font(.system(.caption2, design: .default).weight(.black)).tracking(1.5).foregroundStyle(Theme.accent)
+                        .font(.system(.caption2, design: .default).weight(.black)).tracking(1.5).foregroundStyle(Theme.accentSecondary)
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         ZStack {
                             if let image {

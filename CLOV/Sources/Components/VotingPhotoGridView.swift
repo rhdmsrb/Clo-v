@@ -23,6 +23,7 @@ struct VotingPhotoGridView: View {
     @State private var commentPhotoId: UUID?
     @State private var expandedPhoto: FitCheckPhoto?
     @State private var reactionMessage: String?
+    @State private var streak = VoteStreak()
 
     /// When the parent card owns the expiry clock it passes the current tick
     /// here; otherwise the grid runs its own timeline.
@@ -72,6 +73,7 @@ struct VotingPhotoGridView: View {
         .fullScreenCover(item: $expandedPhoto) { photo in
             PhotoZoomView(photo: photo)
         }
+        .task { streak = VoteStreakStore.load(for: voterId) }
         .sensoryFeedback(.impact(weight: .medium), trigger: myVote) { old, new in old == nil && new != nil }
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
     }
@@ -100,7 +102,7 @@ struct VotingPhotoGridView: View {
             Text(revealed ? "THE RESULT" : "MAKE YOUR PICK")
                 .font(Theme.micro)
                 .tracking(1.4)
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentSecondary)
 
             if let prompt, !prompt.isEmpty {
                 Text(prompt)
@@ -115,8 +117,8 @@ struct VotingPhotoGridView: View {
             if let error {
                 Text(error).font(.caption2).foregroundStyle(Theme.danger)
             }
-            if myVote != nil {
-                quickReactionBar
+            if myVote != nil, creatorId != voterId {
+                resultCard
             }
             voteSummary
         }
@@ -153,6 +155,43 @@ struct VotingPhotoGridView: View {
         )
     }
 
+    private var myPercent: Int {
+        guard let myVote, total > 0 else { return 0 }
+        return Int((Double(counts[myVote] ?? 0) / Double(total) * 100).rounded())
+    }
+
+    /// What the voter's pick means, their streak, and an optional way to say why.
+    private var resultCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(VoteInsight.message(percent: myPercent,
+                                     isLeading: (counts[myVote ?? UUID()] ?? 0) == leadingCount,
+                                     total: total, optionCount: photos.count))
+                .font(Theme.bodyEmphasis)
+                .foregroundStyle(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            if let summary = streak.summary() {
+                Label(summary, systemImage: "flame.fill")
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.accentSecondary)
+            }
+            Button { commentPhotoId = myVote } label: {
+                Label("Tell them why", systemImage: "text.bubble")
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: Theme.minTapSize)
+                    .background(Theme.muted.opacity(0.65), in: Capsule())
+            }
+            .accessibilityHint("Add a comment and what stood out")
+            quickReactionBar
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous).stroke(Theme.controlBorder.opacity(0.5), lineWidth: 1))
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+
     private var quickReactionBar: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("QUICK REACTION")
@@ -178,7 +217,7 @@ struct VotingPhotoGridView: View {
             if let reactionMessage {
                 Text(reactionMessage)
                     .font(.caption2)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentSecondary)
             }
         }
         .opacity(isSendingReaction ? 0.6 : 1)
@@ -228,8 +267,8 @@ struct VotingPhotoGridView: View {
             do {
                 try await API.castVote(fitCheckId: fitCheckId, photoId: photoId, voterId: voterId, creatorId: creatorId, status: status, expiresAt: expiresAt)
                 Haptics.success()
+                streak = VoteStreakStore.recordVote(for: voterId)
                 appState.contentDidChange()
-                commentPhotoId = photoId
             } catch APIError.alreadyVoted {
                 // The vote exists on the server (another device, or a retry
                 // after a lost response); refetch instead of rolling back.

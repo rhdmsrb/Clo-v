@@ -1,39 +1,49 @@
 import SwiftUI
 import UIKit
 
-// Visual direction: clean white surfaces, ink, and a restrained champagne accent.
+// Visual direction: white surfaces, deep blue ink, and a bubblegum pink accent.
 enum Theme {
-    static let accent = adaptive((0.40, 0.28, 0.17), (0.86, 0.74, 0.56))
-    static let accentSecondary = adaptive((0.61, 0.43, 0.28), (0.75, 0.61, 0.42))
-    // Small, expressive icon colors add personality without changing the
-    // neutral typography or the black-and-white surfaces.
-    static let iconCoral = Color(red: 0.82, green: 0.31, blue: 0.29)
-    static let iconApricot = Color(red: 0.91, green: 0.55, blue: 0.25)
-    // Lifted in dark mode so it keeps >= 3:1 on the dark tab bar surface.
-    static let iconPlum = adaptive((0.49, 0.34, 0.57), (0.68, 0.54, 0.76))
-    static let iconSage = Color(red: 0.34, green: 0.51, blue: 0.40)
-    /// Text/icons on top of `accent` fills (accent is dark in light mode, light in dark mode).
-    static let accentForeground = adaptive((1.0, 1.0, 1.0), (0.02, 0.02, 0.02))
-    static let background = adaptive((1.0, 1.0, 1.0), (0.06, 0.06, 0.06))
-    static let card = adaptive((1.0, 1.0, 1.0), (0.12, 0.12, 0.12))
-    static let muted = adaptive((0.96, 0.96, 0.96), (0.18, 0.18, 0.18))
-    static let mutedForeground = adaptive((0.38, 0.38, 0.38), (0.74, 0.74, 0.74))
-    static let line = adaptive((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
-    static let ink = adaptive((0.02, 0.02, 0.02), (0.98, 0.98, 0.98))
-    static let inverseText = adaptive((1.0, 1.0, 1.0), (0.02, 0.02, 0.02))
+    // Palette: deep blue #0A2472, pure white, bubblegum pink #FF9ECF.
+    // Pink is a fill/accent color (about 1.9:1 on white). Text and icons on light
+    // surfaces use `accentSecondary` or `ink`; on dark or photo surfaces pink is fine.
+    static let accent = adaptive((1.0, 0.62, 0.81), (1.0, 0.62, 0.81))
+    /// Blue (light) / soft pink (dark) for text, icons and strokes on page surfaces.
+    static let accentSecondary = adaptive((0.106, 0.227, 0.620), (1.0, 0.72, 0.86))
+    // Small, expressive icon colors for page surfaces; each keeps >= 3:1
+    // against `background` in both modes.
+    static let iconCoral = adaptive((0.78, 0.13, 0.46), (1.0, 0.62, 0.81))
+    static let iconApricot = adaptive((0.106, 0.227, 0.620), (0.725, 0.776, 0.941))
+    static let iconPlum = adaptive((0.20, 0.31, 0.66), (0.62, 0.70, 1.0))
+    static let iconSage = adaptive((0.12, 0.42, 0.80), (0.55, 0.75, 1.0))
+    /// Text/icons on top of `accent` (pink) fills: deep blue in both modes.
+    static let accentForeground = adaptive((0.039, 0.141, 0.447), (0.039, 0.141, 0.447))
+    static let background = adaptive((1.0, 1.0, 1.0), (0.024, 0.090, 0.302))
+    static let card = adaptive((1.0, 1.0, 1.0), (0.043, 0.129, 0.439))
+    static let muted = adaptive((0.957, 0.961, 0.969), (0.063, 0.165, 0.478))
+    static let mutedForeground = adaptive((0.290, 0.353, 0.561), (0.725, 0.776, 0.941))
+    static let line = adaptive((0.039, 0.141, 0.447), (1.0, 1.0, 1.0))
+    static let ink = adaptive((0.039, 0.141, 0.447), (1.0, 1.0, 1.0))
+    static let inverseText = adaptive((1.0, 1.0, 1.0), (0.024, 0.090, 0.302))
 
     /// Destructive / error text and icons; adapts for contrast in dark mode.
     static let danger = adaptive((0.75, 0.15, 0.13), (1.0, 0.45, 0.42))
-    /// Floating tab bar surface (near-black in light mode, lifted in dark mode so it stays visible).
-    static let tabBarSurface = adaptiveAlpha((0.0, 0.0, 0.0), (0.16, 0.16, 0.16), alpha: 0.94)
+    /// Primary button fill: deep blue in light mode, pink in dark mode.
+    static let primaryButtonFill = adaptive((0.039, 0.141, 0.447), (1.0, 0.62, 0.81))
+    /// Text on `primaryButtonFill`.
+    static let primaryButtonText = adaptive((1.0, 1.0, 1.0), (0.039, 0.141, 0.447))
+    /// Floating tab bar surface (deep blue in light mode, lifted in dark mode so it stays visible).
+    static let tabBarSurface = adaptiveAlpha((0.039, 0.141, 0.447), (0.043, 0.129, 0.439), alpha: 1.0)
 
-    // Corner-radius tokens.
-    static let cardRadius: CGFloat = 16
-    static let tileRadius: CGFloat = 16
-    static let smallRadius: CGFloat = 8
-    static let controlRadius: CGFloat = 14
-    static let fieldRadius: CGFloat = 13
-    static let barRadius: CGFloat = 28
+    // Corner-radius tokens. The visual direction is square-cornered and
+    // editorial; raise these here (not per view) if a softer look is wanted.
+    static let cardRadius: CGFloat = 0
+    static let tileRadius: CGFloat = 0
+    static let smallRadius: CGFloat = 0
+    static let controlRadius: CGFloat = 0
+    static let fieldRadius: CGFloat = 0
+    static let barRadius: CGFloat = 0
+    static let chipRadius: CGFloat = 0
+    static let avatarRadius: CGFloat = 0
 
     // Dynamic Type text styles. Prefer these over fixed `.system(size:)`.
     static let micro = Font.system(.caption2, design: .default, weight: .black)
@@ -54,24 +64,11 @@ enum Theme {
     /// Minimum comfortable tap target.
     static let minTapSize: CGFloat = 44
     /// Border for unselected chips and text fields; >= 3:1 against light and dark surfaces.
-    static let controlBorder = line.opacity(0.45)
+    static let controlBorder = line.opacity(0.55)
 
     /// Returns `animation`, or nil when Reduce Motion is on. Use with `withAnimation`.
     static func animation(_ animation: Animation, reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : animation
-    }
-
-    // Kept for existing views. The accent is intentionally flat so photos and
-    // typography remain the visual focus.
-    static var accentGradient: LinearGradient {
-        LinearGradient(
-            colors: [accent, accent],
-            startPoint: .topLeading, endPoint: .bottomTrailing
-        )
-    }
-
-    static var glossHighlight: LinearGradient {
-        LinearGradient(colors: [.clear, .clear], startPoint: .top, endPoint: .bottom)
     }
 
     /// Builds a `Color` that resolves to `light` or `dark` RGB (0...1,
@@ -124,10 +121,9 @@ struct SoftCard: ViewModifier {
         content
             .padding(padding)
             .background(Theme.card)
-            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(Theme.line.opacity(0.12), lineWidth: 1))
-            .shadow(color: Theme.cardShadow, radius: 5, y: 2)
+            .clipShape(RoundedRectangle(cornerRadius: radius))
+            .overlay(RoundedRectangle(cornerRadius: radius)
+                .stroke(Theme.line.opacity(0.18), lineWidth: 1))
     }
 }
 
@@ -144,9 +140,9 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(.system(.subheadline, design: .default).weight(.bold))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
-            .background(isDisabled ? Theme.muted : Theme.ink)
-            .foregroundStyle(Theme.inverseText)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(isDisabled ? Theme.muted : Theme.primaryButtonFill)
+            .foregroundStyle(isDisabled ? Theme.mutedForeground : Theme.primaryButtonText)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .motionSafeAnimation(value: configuration.isPressed)
     }
@@ -160,8 +156,8 @@ struct OutlineButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .background(configuration.isPressed ? Theme.muted : Theme.card)
             .foregroundStyle(Color.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius)
                 .stroke(Theme.controlBorder, lineWidth: 1))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .motionSafeAnimation(value: configuration.isPressed)
@@ -189,19 +185,19 @@ struct AvatarView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(Circle())
+        .clipShape(RoundedRectangle(cornerRadius: Theme.avatarRadius))
         .overlay {
             if ringed {
-                Circle().stroke(Theme.accentGradient, lineWidth: 2.5)
+                RoundedRectangle(cornerRadius: Theme.avatarRadius)
+                    .stroke(Theme.accentSecondary, lineWidth: 1.5)
                     .padding(-3)
-                    .shadow(color: Theme.accent.opacity(0.45), radius: 6)
             }
         }
         .accessibilityHidden(true)
     }
 
     private var initialCircle: some View {
-        Circle()
+        RoundedRectangle(cornerRadius: Theme.avatarRadius)
             .fill(Theme.ink)
             .overlay(
                 Text(String((nickname?.first).map(String.init) ?? "?").uppercased())
@@ -225,10 +221,10 @@ struct ChipToggle: View {
                 .frame(minHeight: Theme.minTapSize)
                 .background(selected ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.card))
                 .foregroundStyle(selected ? Theme.inverseText : Color.primary)
-                .clipShape(Capsule())
-                .overlay(Capsule()
+                .clipShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
+                .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius)
                     .stroke(selected ? Color.clear : Theme.controlBorder, lineWidth: 1))
-                .contentShape(Capsule())
+                .contentShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -254,7 +250,7 @@ extension View {
     }
 }
 
-/// Pill-shaped toggle chip whose padding, minimum height, background and hit
+/// Toggle chip whose padding, minimum height, background and hit
 /// shape all live inside the button label, so the whole chip is tappable.
 struct ChipButtonStyle: ButtonStyle {
     var isSelected: Bool
@@ -272,9 +268,9 @@ struct ChipButtonStyle: ButtonStyle {
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 8)
             .frame(maxWidth: expands ? .infinity : nil, minHeight: Theme.minTapSize)
-            .background(isSelected ? Theme.accent : unselectedFill, in: Capsule())
-            .overlay(Capsule().stroke(isSelected ? Color.clear : Theme.controlBorder, lineWidth: 1))
-            .contentShape(Capsule())
+            .background(isSelected ? Theme.accent : unselectedFill, in: RoundedRectangle(cornerRadius: Theme.chipRadius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.chipRadius).stroke(isSelected ? Theme.accentSecondary : Theme.controlBorder, lineWidth: isSelected ? 2 : 1))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }

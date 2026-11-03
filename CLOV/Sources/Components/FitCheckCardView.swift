@@ -83,7 +83,7 @@ struct FitCheckCardView: View {
         Button { onToggleFollow(!isFollowing) } label: {
             Text(isFollowing ? "Following" : "Follow")
                 .font(.system(.caption, design: .default).weight(.bold))
-                .foregroundStyle(isFollowing ? Theme.mutedForeground : Theme.accent)
+                .foregroundStyle(isFollowing ? Theme.mutedForeground : Theme.accentSecondary)
                 .padding(.horizontal, 8)
                 .frame(minHeight: Theme.minTapSize)
                 .contentShape(Rectangle())
@@ -126,7 +126,7 @@ struct FitCheckCardView: View {
         if let occasion = item.occasion, !occasion.isEmpty {
             Text(occasion)
                 .font(.system(.caption, design: .default).weight(.medium))
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentSecondary)
         }
 
         NavigationLink(value: FitCheckRoute(id: item.id)) {

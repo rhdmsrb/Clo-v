@@ -16,6 +16,8 @@ struct MainTabView: View {
     /// content is inset by the real size rather than a fixed guess.
     @State private var barHeight: CGFloat = 76
     private static let barBottomPadding: CGFloat = 4
+    /// Extra scroll room so the last row clears the bar's shadow.
+    private static let contentClearance: CGFloat = 12
     @State private var showCreate = false
     @State private var feedPath = NavigationPath()
     @State private var accountPath = NavigationPath()
@@ -42,7 +44,7 @@ struct MainTabView: View {
                 }
                 tabRoot(.account) { NavigationStack(path: $accountPath) { AccountView() } }
             }
-            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: barHeight) }
+            .safeAreaInset(edge: .bottom) { Color.clear.frame(height: barHeight + Self.contentClearance) }
 
             // Capped here, above the bar's @ScaledMetric reads, so its
             // metrics and fonts stop growing together.
@@ -95,7 +97,10 @@ struct MainTabView: View {
         .onPreferenceChange(BarHeightKey.self) { height in
             if height > 0 { barHeight = height }
         }
-        .onChange(of: tab) { _, newTab in mountedTabs.insert(newTab) }
+        .onChange(of: tab) { _, newTab in
+            mountedTabs.insert(newTab)
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
         .sensoryFeedback(.selection, trigger: tab)
         .sensoryFeedback(.impact(weight: .medium), trigger: showCreate) { _, new in new }
     }
@@ -154,7 +159,8 @@ private struct FloatingTabBar: View {
     @ScaledMetric(relativeTo: .body) private var createIconWidth: CGFloat = 46
     @ScaledMetric(relativeTo: .body) private var createIconHeight: CGFloat = 40
 
-    private static let inactiveTabLabelOpacity = 0.62
+    private static let inactiveTabLabelOpacity = 0.75
+    private static let labelMinScale: CGFloat = 0.7
 
     var body: some View {
         HStack(spacing: 0) {
@@ -165,7 +171,7 @@ private struct FloatingTabBar: View {
 
             createButton
 
-            tabButton(.activity, systemImage: "heart", activeSystemImage: "heart.fill", label: "Activity")
+            tabButton(.activity, systemImage: "bell", activeSystemImage: "bell.fill", label: "Activity")
                 .accessibilityIdentifier("activityTab")
 
             tabButton(.account, systemImage: "person.crop.circle", activeSystemImage: "person.crop.circle.fill", label: "Profile")
@@ -178,7 +184,7 @@ private struct FloatingTabBar: View {
         .background(Theme.tabBarSurface, in: RoundedRectangle(cornerRadius: Theme.barRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.barRadius, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(Theme.controlBorder, lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
     }
@@ -187,14 +193,16 @@ private struct FloatingTabBar: View {
         Button(action: onCreate) {
             VStack(spacing: 3) {
                 Image(systemName: "plus")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Theme.iconCoral)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Theme.accentForeground)
                     .frame(width: createIconWidth, height: createIconHeight)
-                    .background(Color.white)
+                    .background(Theme.accent)
                     .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                     .shadow(color: .white.opacity(0.18), radius: 8, y: 4)
                 Text("Post")
                     .font(.caption2.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(Self.labelMinScale)
                     .foregroundStyle(.white)
             }
             .frame(maxWidth: .infinity, minHeight: tabHitHeight)
@@ -215,12 +223,14 @@ private struct FloatingTabBar: View {
         Button { onSelect(target) } label: {
             VStack(spacing: 3) {
                 Image(systemName: isSelected ? activeSystemImage : systemImage)
-                    .font(.title3.weight(isSelected ? .semibold : .regular))
-                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: 22, weight: .regular))
                     .frame(width: tabIconWidth, height: tabIconHeight)
-                    .foregroundStyle(isSelected ? tabTint(target) : .white.opacity(Self.inactiveTabLabelOpacity))
-                    .background(isSelected ? tabTint(target).opacity(0.18) : .clear, in: Circle())
-                Text(label).font(.caption2.weight(isSelected ? .bold : .medium))
+                    .foregroundStyle(isSelected ? Theme.accentForeground : .white.opacity(Self.inactiveTabLabelOpacity))
+                    .background(isSelected ? Theme.accent : .clear, in: Circle())
+                Text(label)
+                    .font(.caption2.weight(isSelected ? .bold : .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(Self.labelMinScale)
             }
             .foregroundStyle(.white.opacity(isSelected ? 1 : Self.inactiveTabLabelOpacity))
             .frame(maxWidth: .infinity, minHeight: tabHitHeight)
@@ -238,15 +248,6 @@ private struct FloatingTabBar: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityShowsLargeContentViewer {
             Label(label, systemImage: isSelected ? activeSystemImage : systemImage)
-        }
-    }
-
-    private func tabTint(_ target: Tab) -> Color {
-        switch target {
-        case .feed: Theme.iconApricot
-        case .search: Theme.iconSage
-        case .activity: Theme.iconCoral
-        case .account: Theme.iconPlum
         }
     }
 }

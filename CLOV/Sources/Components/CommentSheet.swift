@@ -20,6 +20,7 @@ struct CommentSheet: View {
     @State private var isCommenting = false
     @State private var commentPosted = false
     @State private var commentError: String?
+    @State private var detent: PresentationDetent = .large
 
     private static let maxCommentLength = 280
     private static let closeDelay: Duration = .milliseconds(700)
@@ -39,9 +40,10 @@ struct CommentSheet: View {
                         .padding(24)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                .safeAreaInset(edge: .bottom, spacing: 0) { pinnedActions }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationCornerRadius(12)
         .presentationBackground(Theme.card)
         .interactiveDismissDisabled(isCommenting)
@@ -83,17 +85,30 @@ struct CommentSheet: View {
             }
         Text("\(commentBody.count)/\(Self.maxCommentLength)")
             .font(.caption2)
-            .foregroundStyle(commentBody.count == Self.maxCommentLength ? Theme.accent : Theme.mutedForeground)
+            .foregroundStyle(commentBody.count == Self.maxCommentLength ? Theme.accentSecondary : Theme.mutedForeground)
             .frame(maxWidth: .infinity, alignment: .trailing)
         Text("WHAT STOOD OUT?")
             .font(Theme.micro)
             .foregroundStyle(.secondary)
             .accessibilityAddTraits(.isHeader)
         tagGrid
-        if let commentError {
-            Text(commentError).font(.caption).foregroundStyle(Theme.danger)
+    }
+
+    /// Always visible below the scrolling form, so Skip and Save never
+    /// fall below the sheet's fold.
+    private var pinnedActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let commentError {
+                Text(commentError).font(.caption).foregroundStyle(Theme.danger)
+            }
+            actions
         }
-        actions
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card)
+        .overlay(alignment: .top) { Divider() }
     }
 
     private var tagGrid: some View {

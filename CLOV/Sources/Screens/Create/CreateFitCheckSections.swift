@@ -51,7 +51,7 @@ struct PhotoGridSection: View {
                     Button { onPickWardrobe(slot.id) } label: {
                         Label("My Wardrobe", systemImage: "hanger")
                             .font(Theme.microMedium)
-                            .foregroundStyle(Theme.accent)
+                            .foregroundStyle(Theme.accentSecondary)
                             .frame(minHeight: 44)
                     }
                     .disabled(!canUseWardrobe)
@@ -113,7 +113,7 @@ struct PromptSection: View {
                         Button { votePrompt = suggestion } label: { Text(suggestion) }
                             .buttonStyle(ChipButtonStyle(
                                 isSelected: false,
-                                unselectedFill: Theme.iconPlum.opacity(0.11),
+                                unselectedFill: Theme.muted,
                                 unselectedForeground: Theme.ink,
                                 horizontalPadding: 10
                             ))
@@ -199,7 +199,7 @@ struct AudienceSection: View {
             .padding(11)
             .frame(maxWidth: .infinity, minHeight: 44)
             .background(isSelected ? Theme.accent.opacity(0.12) : Theme.card, in: shape)
-            .overlay(shape.stroke(isSelected ? Theme.accent.opacity(0.55) : Theme.controlBorder, lineWidth: 1))
+            .overlay(shape.stroke(isSelected ? Theme.accentSecondary.opacity(0.9) : Theme.controlBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -216,7 +216,7 @@ struct AudienceSection: View {
             }
             .pickerStyle(.menu)
             .padding(.horizontal, 12)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 12))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.controlRadius))
         }
     }
 }

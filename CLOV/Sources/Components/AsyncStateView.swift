@@ -85,8 +85,8 @@ struct AsyncStateView<Content: View>: View {
         VStack(spacing: 10) {
             if let emptyIcon {
                 Image(systemName: emptyIcon)
-                    .font(.title2)
-                    .foregroundStyle(Theme.accent)
+                    .font(.system(size: 28, weight: .regular))
+                    .foregroundStyle(Theme.accentSecondary)
                     .accessibilityHidden(true)
             }
             if let emptyTitle {

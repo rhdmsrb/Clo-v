@@ -25,11 +25,11 @@ struct FriendsView: View {
                         .onSubmit { Task { await search() } }
                     Button("Search") { Task { await search() } }
                         .font(.system(.subheadline, design: .default).weight(.bold))
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(Theme.accentSecondary)
                         .frame(minHeight: Theme.minTapSize)
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(Theme.card).clipShape(Capsule())
+                .background(Theme.card).clipShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
 
                 if hasSearched || !searchResults.isEmpty { peopleSection("SEARCH RESULTS", people: searchResults, showAdd: true) }
                 requestsSection
@@ -52,13 +52,13 @@ struct FriendsView: View {
     @ViewBuilder private var requestsSection: some View {
         Text("INCOMING REQUESTS").font(.system(.caption2).weight(.bold)).foregroundStyle(.secondary)
         if incoming.isEmpty { Text("No pending requests.").font(.subheadline).foregroundStyle(Theme.mutedForeground) }
-        else { ForEach(incoming) { request in personRow(peopleById[request.requesterId], action: AnyView(HStack(spacing: 8) { Button("Accept") { Task { await respond(request.id, accept: true) } }.foregroundStyle(Theme.accent).accessibilityLabel("Accept request from \(name(request.requesterId))"); Button("Decline") { Task { await respond(request.id, accept: false) } }.foregroundStyle(.secondary).accessibilityLabel("Decline request from \(name(request.requesterId))") })) } }
+        else { ForEach(incoming) { request in personRow(peopleById[request.requesterId], action: AnyView(HStack(spacing: 8) { Button("Accept") { Task { await respond(request.id, accept: true) } }.foregroundStyle(Theme.accentSecondary).accessibilityLabel("Accept request from \(name(request.requesterId))"); Button("Decline") { Task { await respond(request.id, accept: false) } }.foregroundStyle(.secondary).accessibilityLabel("Decline request from \(name(request.requesterId))") })) } }
     }
 
     @ViewBuilder private func peopleSection(_ title: String, people: [AuthorInfoWithId], showAdd: Bool) -> some View {
         Text(title).font(.system(.caption2).weight(.bold)).foregroundStyle(.secondary)
         if people.isEmpty { Text(showAdd ? "No users found." : "Add friends and family to start your circle.").font(.subheadline).foregroundStyle(Theme.mutedForeground) }
-        else { ForEach(people) { person in personRow(person, action: showAdd ? AnyView(Button("Add") { Task { await send(person.id) } }.foregroundStyle(Theme.accent).accessibilityLabel("Add \(person.nickname) as a friend")) : nil) } }
+        else { ForEach(people) { person in personRow(person, action: showAdd ? AnyView(Button("Add") { Task { await send(person.id) } }.foregroundStyle(Theme.accentSecondary).accessibilityLabel("Add \(person.nickname) as a friend")) : nil) } }
     }
 
     private func name(_ id: UUID) -> String { peopleById[id]?.nickname ?? "this person" }
@@ -74,7 +74,7 @@ struct FriendsView: View {
                 }
             }
             Spacer(); action.frame(minHeight: Theme.minTapSize)
-        }.softCard(radius: 18, padding: 12)
+        }.softCard(radius: Theme.cardRadius, padding: 12)
     }
 
     private func load() async {
