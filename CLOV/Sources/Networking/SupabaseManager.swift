@@ -47,9 +47,12 @@ enum SupabaseManager {
         encoder.dateEncodingStrategy = .iso8601
 
         #if DEBUG && targetEnvironment(simulator)
-        let authOptions = SupabaseClientOptions.AuthOptions(storage: DebugAuthStorage())
+        let authOptions = SupabaseClientOptions.AuthOptions(storage: DebugAuthStorage(), flowType: .pkce)
         #else
-        let authOptions = SupabaseClientOptions.AuthOptions()
+        // Pin PKCE: auth links must carry a `code` we can only redeem with the
+        // verifier stored on this device, so a crafted clov:// link with an
+        // implicit-grant fragment is rejected by session(from:).
+        let authOptions = SupabaseClientOptions.AuthOptions(flowType: .pkce)
         #endif
 
         return SupabaseClient(

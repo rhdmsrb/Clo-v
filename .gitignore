@@ -3,3 +3,10 @@ xcuserdata/
 *.xcuserstate
 build/
 DerivedData/
+
+# Local secrets and Supabase CLI state
+supabase/.temp/
+.env
+.env.*
+*.p8
+*.p12

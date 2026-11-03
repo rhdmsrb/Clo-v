@@ -48,4 +48,35 @@ do $$ begin
   end;
 end $$;
 
+-- Note: now() is constant inside one transaction, so which tokens are pruned
+-- (stalest first) is not verified here; only the cap is.
+-- 5. Unknown platforms are rejected; the per-user cap prunes the stalest tokens.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true), set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1"}', true);
+do $$ begin
+  begin
+    perform public.register_device_token('test-token-3', 'android');
+    assert false, 'non-ios platform should raise';
+  exception when sqlstate '22023' then null;
+  end;
+end $$;
+do $$ begin
+  for i in 1..25 loop
+    perform public.register_device_token('cap-token-' || i);
+  end loop;
+  assert (select count(*) from public.device_tokens
+           where user_id = '00000000-0000-0000-0000-0000000000a1') = 20,
+         'user must hold exactly 20 tokens after 25 registrations';
+end $$;
+
+-- 6. Anonymous callers cannot execute the RPC at all.
+reset role;
+set local role anon;
+do $$ begin
+  begin
+    perform public.register_device_token('anon-token');
+    assert false, 'anon call should be denied';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+
 rollback;
