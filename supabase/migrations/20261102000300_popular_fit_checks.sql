@@ -15,16 +15,15 @@ stable
 security invoker
 set search_path = ''
 as $$
+    -- vote_count / comment_count are maintained by live AFTER INSERT/DELETE
+    -- triggers (bump_vote_count, bump_comment_count), so no per-row counting.
     select f.id,
-           (
-             (select count(*) from public.fit_check_votes v where v.fit_check_id = f.id)
-             + 2 * (select count(*) from public.fit_check_comments c where c.fit_check_id = f.id)
-           )::bigint as score
+           (f.vote_count + 2 * f.comment_count)::bigint as score
       from public.fit_checks f
      where f.is_public = true
        and f.status = 'live'
        and (f.expires_at is null or f.expires_at > now())
-       and f.created_at >= now() - make_interval(days => greatest(1, least(coalesce(p_window_days, 7), 90)))
+       and f.created_at >= now() - make_interval(days => greatest(1, least(coalesce(p_window_days, 7), 30)))
        and not exists (
              select 1 from public.blocked_users b where b.blocked_id = f.creator_id
            )

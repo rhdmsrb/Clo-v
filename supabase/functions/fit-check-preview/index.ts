@@ -64,7 +64,7 @@ Deno.serve(async (request) => {
 
   const { data: row, error } = await admin.from("fit_checks")
     .select("id, creator_id, caption, occasion, expires_at, is_public, status, " +
-      "fit_check_photos(image_url, position), profiles(nickname)")
+      "vote_count, comment_count, fit_check_photos(image_url, position), profiles(nickname)")
     .eq("id", fitCheckId.toLowerCase())
     .maybeSingle();
   if (error) {
@@ -93,23 +93,14 @@ Deno.serve(async (request) => {
   }
   if (photos.length === 0) return json(UNAVAILABLE_BODY, 404);
 
-  // Count with head queries instead of embedding every vote/comment row.
-  const [votes, comments] = await Promise.all([
-    admin.from("fit_check_votes").select("photo_id", { count: "exact", head: true }).eq("fit_check_id", row.id),
-    admin.from("fit_check_comments").select("id", { count: "exact", head: true }).eq("fit_check_id", row.id),
-  ]);
-  if (votes.error || comments.error) {
-    console.error("fit-check-preview count failed", row.id, votes.error?.message ?? comments.error?.message);
-  }
-
   return json({
     id: row.id,
     caption: row.caption ?? null,
     occasion: row.occasion ?? null,
     expiresAt: row.expires_at ?? null,
     authorNickname: row.profiles?.nickname ?? null,
-    voteCount: votes.count ?? 0,
-    commentCount: comments.count ?? 0,
+    voteCount: row.vote_count ?? 0,
+    commentCount: row.comment_count ?? 0,
     photos,
   }, 200, { "Cache-Control": "public, max-age=60" });
 });
