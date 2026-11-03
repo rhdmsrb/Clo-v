@@ -20,6 +20,21 @@ struct SharedFitCheckPreview: Decodable, Equatable {
     let photos: [Photo]
 }
 
+extension SharedFitCheckPreview {
+    /// Drops photo URLs that are not `https` on our own Supabase host, so a
+    /// bad response can never make the app load an arbitrary remote image.
+    func keepingTrustedPhotos(trustedHost: String? = AppConfig.supabaseURL.host) -> SharedFitCheckPreview {
+        let trusted = photos.filter {
+            SafeLink.httpsURL($0.url.absoluteString) != nil && $0.url.host == trustedHost
+        }
+        return SharedFitCheckPreview(
+            id: id, caption: caption, occasion: occasion, expiresAt: expiresAt,
+            authorNickname: authorNickname, voteCount: voteCount,
+            commentCount: commentCount, photos: trusted
+        )
+    }
+}
+
 private struct PreviewRequest: Encodable {
     let id: String
 }
@@ -34,10 +49,11 @@ extension API {
     /// post is private, expired or missing.
     static func fetchSharedPreview(fitCheckId: UUID) async throws -> SharedFitCheckPreview {
         do {
-            return try await client.functions.invoke(
+            let preview: SharedFitCheckPreview = try await client.functions.invoke(
                 "fit-check-preview",
                 options: FunctionInvokeOptions(body: PreviewRequest(id: fitCheckId.storagePathComponent))
             )
+            return preview.keepingTrustedPhotos()
         } catch let error as FunctionsError {
             if case let .httpError(_, data) = error,
                let response = try? JSONDecoder().decode(PreviewError.self, from: data),

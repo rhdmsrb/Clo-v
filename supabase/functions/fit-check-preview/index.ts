@@ -5,16 +5,26 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 //
 // The service role bypasses RLS, so every visibility rule is enforced here:
 // only public, live, unexpired Fit-Checks are returned, and only a minimal
-// set of fields (no user ids, no voter or commenter details).
+// set of fields. The JSON carries no user ids or voter/commenter details, but
+// the signed photo URLs embed the creator id in their path
+// (/<creatorId>/<fitCheckId>/<file>), so viewers can link posts by author.
+// Blocks are intentionally not applied to a public link.
+//
+// Abuse: this endpoint is public and shares the project's function quota, so
+// put a rate limit (WAF/CDN) in front of it before relying on it at scale.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
-const PHOTO_URL_TTL_SECONDS = 60 * 60;
+// Short lifetime: an already issued URL outlives a take-down or expiry.
+const PHOTO_URL_TTL_SECONDS = 15 * 60;
 const MAX_PHOTOS = 4;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PHOTO_BUCKET = "fit-check-photos";
+// One constant for every "not shown" case, so missing, private, draft and
+// expired posts are indistinguishable to the caller.
+const UNAVAILABLE_BODY = { message: "This post isn't available." };
 
 const json = (body: unknown, status = 200, extraHeaders: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {
@@ -54,8 +64,7 @@ Deno.serve(async (request) => {
 
   const { data: row, error } = await admin.from("fit_checks")
     .select("id, creator_id, caption, occasion, expires_at, is_public, status, " +
-      "fit_check_photos(image_url, position), fit_check_votes(photo_id), fit_check_comments(id), " +
-      "profiles(nickname)")
+      "fit_check_photos(image_url, position), profiles(nickname)")
     .eq("id", fitCheckId.toLowerCase())
     .maybeSingle();
   if (error) {
@@ -67,7 +76,7 @@ Deno.serve(async (request) => {
   // does not reveal which of them exists.
   const expired = row?.expires_at ? new Date(row.expires_at).getTime() <= Date.now() : false;
   if (!row || row.is_public !== true || row.status !== "live" || expired) {
-    return json({ message: "This post isn't available." }, 404);
+    return json(UNAVAILABLE_BODY, 404);
   }
 
   const photoRows = (row.fit_check_photos ?? [])
@@ -77,11 +86,21 @@ Deno.serve(async (request) => {
 
   const photos: { position: number; url: string }[] = [];
   for (const photo of photoRows) {
-    const { data: signed } = await admin.storage.from(PHOTO_BUCKET)
+    const { data: signed, error: signError } = await admin.storage.from(PHOTO_BUCKET)
       .createSignedUrl(photo.image_url, PHOTO_URL_TTL_SECONDS);
+    if (signError) console.error("fit-check-preview sign failed", row.id, signError.message);
     if (signed?.signedUrl) photos.push({ position: photo.position, url: signed.signedUrl });
   }
-  if (photos.length === 0) return json({ message: "This post isn't available." }, 404);
+  if (photos.length === 0) return json(UNAVAILABLE_BODY, 404);
+
+  // Count with head queries instead of embedding every vote/comment row.
+  const [votes, comments] = await Promise.all([
+    admin.from("fit_check_votes").select("photo_id", { count: "exact", head: true }).eq("fit_check_id", row.id),
+    admin.from("fit_check_comments").select("id", { count: "exact", head: true }).eq("fit_check_id", row.id),
+  ]);
+  if (votes.error || comments.error) {
+    console.error("fit-check-preview count failed", row.id, votes.error?.message ?? comments.error?.message);
+  }
 
   return json({
     id: row.id,
@@ -89,8 +108,8 @@ Deno.serve(async (request) => {
     occasion: row.occasion ?? null,
     expiresAt: row.expires_at ?? null,
     authorNickname: row.profiles?.nickname ?? null,
-    voteCount: (row.fit_check_votes ?? []).length,
-    commentCount: (row.fit_check_comments ?? []).length,
+    voteCount: votes.count ?? 0,
+    commentCount: comments.count ?? 0,
     photos,
   }, 200, { "Cache-Control": "public, max-age=60" });
 });
