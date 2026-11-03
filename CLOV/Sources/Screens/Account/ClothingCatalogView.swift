@@ -75,7 +75,7 @@ struct ClothingCatalogView: View {
                                 CatalogImageCard(result: result, isPreparing: isPreparingImage && selected?.id == result.id)
                             }.buttonStyle(.plain).disabled(isPreparingImage)
                             .accessibilityAction(named: "License details") {
-                                if let url = result.licenseURL.flatMap(URL.init(string:)) { openURL(url) }
+                                if let url = SafeLink.httpsURL(result.licenseURL) { openURL(url) }
                             }
                         }
                     }
@@ -113,12 +113,29 @@ struct ClothingCatalogView: View {
         guard let url = URL(string: result.imageURL) else { return }
         isPreparingImage = true; defer { isPreparingImage = false }
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let image = UIImage(data: data) else { throw URLError(.cannotDecodeContentData) }
+            let data = try await Task.detached { try await CatalogImageDownloader.download(url) }.value
+            guard let image = UIImage(data: data) else { throw URLError(.cannotDecodeContentData) }
             selectedImage = image
             selected = result
         } catch { self.error = "This photo couldn't be opened. Try another one." }
+    }
+}
+
+/// Downloads a third-party catalog image with a hard size cap. Runs off the
+/// main actor so reading the byte stream never blocks the UI.
+private enum CatalogImageDownloader {
+    static let maxBytes = 8 * 1024 * 1024
+
+    static func download(_ url: URL) async throws -> Data {
+        let (bytes, response) = try await URLSession.shared.bytes(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              response.expectedContentLength <= maxBytes else { throw URLError(.dataLengthExceedsMaximum) }
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count > maxBytes { throw URLError(.dataLengthExceedsMaximum) }
+        }
+        return data
     }
 }
 
@@ -250,6 +267,8 @@ private enum OpenverseCatalog {
         return decoded.results.compactMap { result in
             guard let imageURL = URL(string: result.thumbnail), imageURL.scheme?.lowercased() == "https",
                   let directURL = URL(string: result.imageURL), directURL.scheme?.lowercased() == "https" else { return nil }
+            // A missing license URL falls back to creativecommons.org; a present but non-https one is dropped.
+            guard result.licenseURL == nil || SafeLink.httpsURL(result.licenseURL) != nil else { return nil }
             let searchableText = ([result.titleText] + (result.tags ?? []).map(\.name)).joined(separator: " ").lowercased()
             let blockedTerms = ["halloween", "sexy", "lingerie", "underwear", "costume", "uniform"]
             guard !blockedTerms.contains(where: { searchableText.contains($0) }) else { return nil }
