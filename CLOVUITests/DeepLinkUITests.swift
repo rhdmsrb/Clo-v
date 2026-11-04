@@ -6,24 +6,23 @@ import XCTest
 /// exercises the system's "Open in CLO-V?" confirmation the same way a
 /// person would encounter it.
 final class DeepLinkUITests: XCTestCase {
+    private static let sampleDataArgument = "--uiTestSampleData"
+    /// SampleData fixture 3 ("Brunch outfit"), posted by someone else and
+    /// already expired: SampleData.uuid(1_003).
+    private static let expiredSampleFitCheckId = "00000000-0000-4000-8000-000000001003"
+
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
     func testExpiredFitCheckLinkShowsVotingEnded() throws {
-        // Sign in first so MainTabView (which owns the deep-link
-        // fullScreenCover) is actually mounted when the link arrives.
+        // Offline sample mode (DEBUG): a fake signed-in, onboarded session with
+        // canned data and no network, so MainTabView (which owns the deep-link
+        // fullScreenCover) is mounted when the link arrives.
         let clov = XCUIApplication()
+        clov.launchArguments.append(Self.sampleDataArgument)
         clov.launch()
-        let emailField = clov.textFields.firstMatch
-        if emailField.waitForExistence(timeout: 10) {
-            emailField.tap()
-            emailField.typeText("1")
-            clov.secureTextFields.firstMatch.tap()
-            clov.secureTextFields.firstMatch.typeText("1")
-            clov.buttons["Log in"].tap()
-            _ = clov.staticTexts["Feed"].waitForExistence(timeout: 10)
-        }
+        XCTAssertTrue(clov.buttons["feedTab"].waitForExistence(timeout: 15), "Sample session never reached the main tabs.")
         XCUIDevice.shared.press(.home) // send to background without terminating
 
         let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
@@ -35,7 +34,7 @@ final class DeepLinkUITests: XCTestCase {
         let addressField = safari.textFields["Address"]
         XCTAssertTrue(addressField.waitForExistence(timeout: 5))
         addressField.tap()
-        addressField.typeText("clov://vote/1a5461a2-3d6f-454e-9de5-1b70fd3a8db1\n")
+        addressField.typeText("clov://vote/\(Self.expiredSampleFitCheckId)\n")
 
         let openButton = safari.buttons["Open"]
         XCTAssertTrue(openButton.waitForExistence(timeout: 8), "System 'Open in CLO-V?' confirmation never appeared.")
@@ -43,7 +42,10 @@ final class DeepLinkUITests: XCTestCase {
 
         XCTAssertTrue(clov.wait(for: .runningForeground, timeout: 8), "CLO-V never came to the foreground after the deep link.")
 
-        let endedText = clov.staticTexts["Voting has ended"]
+        // VotingEndedView combines its texts into one accessibility element,
+        // so match on the label rather than an exact static text.
+        let endedText = clov.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "Voting has ended")).firstMatch
         XCTAssertTrue(endedText.waitForExistence(timeout: 8), "Deep-linking to an expired Fit-Check did not show the 'Voting has ended' placeholder.")
 
         let attachment = XCTAttachment(screenshot: clov.screenshot())
