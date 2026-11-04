@@ -115,6 +115,14 @@ struct WardrobeItem: Codable, Identifiable, Equatable {
     var tags: [String]?
     var createdAt: Date?
     var updatedAt: Date?
+    /// Times the owner logged wearing this piece ("Wore it today").
+    var wearCount: Int?
+    var lastWornAt: Date?
+
+    var wearSummary: String? {
+        guard let wearCount, wearCount > 0 else { return nil }
+        return "Worn \(wearCount) \(wearCount == 1 ? "time" : "times")"
+    }
 }
 
 /// Lightweight activity summary shown in the account tab. The counts are

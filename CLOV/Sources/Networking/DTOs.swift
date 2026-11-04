@@ -26,6 +26,9 @@ struct FeedItemDTO: Codable, Identifiable {
     var fitCheckVotes: [VoteRef]
     var fitCheckComments: [CommentRef]
     var profiles: AuthorInfo?
+    /// From fit_checks.is_public. Nil when the server did not send it, which
+    /// callers must treat as "not public".
+    var isPublic: Bool?
 }
 
 struct FitCheckDetailDTO: Codable {
@@ -39,6 +42,8 @@ struct FitCheckDetailDTO: Codable {
     var expiresAt: Date?
     var fitCheckPhotos: [FitCheckPhoto]
     var profiles: AuthorInfo?
+    /// From fit_checks.is_public; nil must be treated as "not public".
+    var isPublic: Bool?
 }
 
 struct CommentDTO: Codable, Identifiable {

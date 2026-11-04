@@ -10,6 +10,8 @@ struct SearchExploreView: View {
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
+    @FocusState private var isSearchFocused: Bool
+    @Environment(\.isTabActive) private var isTabActive
 
     private let occasions = ["Everyday", "Work", "Date", "Party", "Travel", "Wedding"]
     private var requestKey: String { "\(query.trimmingCharacters(in: .whitespacesAndNewlines))|\(occasion ?? "")" }
@@ -19,32 +21,38 @@ struct SearchExploreView: View {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("STYLE, IN YOUR WORDS")
-                        .font(.system(.caption2, design: .default).weight(.bold)).tracking(1.4)
-                        .foregroundStyle(Theme.accent)
+                        .font(Theme.micro).tracking(1.4)
+                        .foregroundStyle(Theme.accentDeep)
                     Text("Find your next look")
-                        .font(Theme.editorialFont(size: 34)).foregroundStyle(Theme.ink)
+                        .font(Theme.displayFont).foregroundStyle(Theme.ink)
+                        .lineLimit(2).minimumScaleFactor(0.7)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        .accessibilityAddTraits(.isHeader)
                 }
                 HStack(spacing: 11) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
+                        .accessibilityHidden(true)
                     TextField("Try ‘wedding guest’ or a creator", text: $query)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .submitLabel(.search)
+                        .focused($isSearchFocused)
                         .accessibilityIdentifier("search.query")
                     if !query.isEmpty {
                         Button { query = "" } label: {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.mutedForeground)
+                                .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                         }.accessibilityLabel("Clear search")
                     }
                 }
-                .font(.system(size: 15))
-                .padding(.horizontal, 15).frame(height: 52)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(Theme.line.opacity(0.12), lineWidth: 1))
+                .font(Theme.body)
+                .padding(.horizontal, 15).frame(minHeight: 52)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
 
                 VStack(alignment: .leading, spacing: 11) {
                     Text("BROWSE BY OCCASION")
-                        .font(.system(.caption2, design: .default).weight(.bold)).tracking(1.1)
+                        .font(Theme.micro).tracking(1.1)
                         .foregroundStyle(Theme.mutedForeground)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 9) {
@@ -56,10 +64,10 @@ struct SearchExploreView: View {
 
                 HStack(alignment: .firstTextBaseline) {
                     Text(query.isEmpty ? "Looks to explore" : "Search results")
-                        .font(.system(size: 20, weight: .semibold)).foregroundStyle(Theme.ink)
+                        .font(Theme.title).foregroundStyle(Theme.ink)
                     Spacer()
                     if hasLoaded && !results.isEmpty {
-                        Text("\(results.count) looks").font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                        Text("\(results.count) looks").font(Theme.caption).foregroundStyle(Theme.mutedForeground)
                     }
                 }
 
@@ -69,7 +77,7 @@ struct SearchExploreView: View {
                                 ? "No looks found. Try another search or occasion."
                                 : "No looks to explore yet. Check back when your circle starts posting.",
                                topPadding: 28, hasLoaded: hasLoaded, retry: { await load() }) {
-                    LazyVStack(spacing: 14) {
+                    LazyVStack(spacing: 16) {
                         ForEach(results) { item in
                             FitCheckCardView(item: item, voterId: appState.userId)
                         }
@@ -79,8 +87,13 @@ struct SearchExploreView: View {
             .padding(20)
             .padding(.bottom, 90)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
+        .statusBarBackdrop()
         .navigationBarHidden(true)
+        .onChange(of: isTabActive) { _, active in
+            if !active { isSearchFocused = false }
+        }
         .task(id: requestKey) {
             if hasLoaded {
                 try? await Task.sleep(for: .milliseconds(300))
@@ -95,15 +108,7 @@ struct SearchExploreView: View {
     }
 
     private func occasionChip(_ title: String, value: String?) -> some View {
-        let selected = occasion == value
-        return Button { occasion = value } label: {
-            Text(title).font(.system(size: 13, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Theme.inverseText : Theme.ink)
-                .padding(.horizontal, 15).padding(.vertical, 9)
-                .background(selected ? Theme.ink : Theme.card, in: Capsule())
-                .overlay(Capsule().stroke(selected ? .clear : Theme.line.opacity(0.15), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
+        ChipToggle(label: title, selected: occasion == value) { occasion = value }
     }
 
     @MainActor
@@ -118,7 +123,7 @@ struct SearchExploreView: View {
                 search: query.trimmingCharacters(in: .whitespacesAndNewlines),
                 occasion: occasion,
                 followingIDs: nil,
-                friendIDs: (try? await API.fetchFriendIDs(userId: appState.userId)) ?? []
+                friendIDs: await Log.attempt("Load friend IDs") { try await API.fetchFriendIDs(userId: appState.userId) } ?? []
             )
             results = page.items
             hasLoaded = true

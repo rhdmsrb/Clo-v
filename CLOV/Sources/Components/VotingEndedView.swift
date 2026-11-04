@@ -10,19 +10,20 @@ struct VotingEndedView: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "hourglass")
-                .font(.system(size: 28))
+                .font(.system(.title, design: .rounded))
                 .foregroundStyle(Theme.mutedForeground)
+                .accessibilityHidden(true)
             Text("Voting has ended")
-                .font(.system(.subheadline, design: .default).weight(.bold))
+                .font(Theme.headline)
+                .foregroundStyle(Theme.ink)
             Text("The photos and results for this Fit-Check are no longer visible.")
-                .font(.caption)
+                .font(Theme.caption)
                 .foregroundStyle(Theme.mutedForeground)
                 .multilineTextAlignment(.center)
         }
+        .accessibilityElement(children: .combine)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 32)
-        .padding(.horizontal, 20)
-        .background(Theme.muted)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+        .padding(.vertical, 16)
+        .elevatedCard(radius: Theme.cardRadius, padding: 20)
     }
 }

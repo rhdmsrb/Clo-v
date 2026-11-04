@@ -29,6 +29,20 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "C75D7E87A2C30DEEBEE8F2FA"
+               BuildableName = "CLOVTests.xctest"
+               BlueprintName = "CLOVTests"
+               ReferencedContainer = "container:CLOV.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "892BDC1E1F3A5BD5A1DC8CFB"
                BuildableName = "CLOVUITests.xctest"
                BlueprintName = "CLOVUITests"
@@ -53,6 +67,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "C75D7E87A2C30DEEBEE8F2FA"
+               BuildableName = "CLOVTests.xctest"
+               BlueprintName = "CLOVTests"
+               ReferencedContainer = "container:CLOV.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
          <TestableReference
             skipped = "NO"
             parallelizable = "NO">

@@ -13,15 +13,22 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    # XcodeGen has no target-level `resources` key; resource files must be
+    # listed under `sources` or they are silently left out of the app bundle.
     sources:
       - path: CLOV/Sources
-    resources:
-      - path: CLOV/PrivacyInfo.xcprivacy
       - path: CLOV/Assets.xcassets
+      - path: CLOV/Resources
+      - path: CLOV/PrivacyInfo.xcprivacy
     info:
       path: CLOV/Info.plist
       properties:
         UILaunchScreen: {}
+        UIAppFonts:
+          - OpenSans-Regular.ttf
+          - OpenSans-SemiBold.ttf
+          - OpenSans-Bold.ttf
+          - OpenSans-ExtraBold.ttf
         CFBundleDisplayName: "CLO-V"
         CLOVShareBaseURL: ""
         NSPhotoLibraryUsageDescription: "CLO-V needs access to your photos so you can post a Fit-Check."
@@ -41,6 +48,11 @@ targets:
         SWIFT_VERSION: "5.0"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
+        CODE_SIGN_ENTITLEMENTS: CLOV/CLOV.entitlements
+      configs:
+        Release:
+          # Release builds register for production APNs.
+          CODE_SIGN_ENTITLEMENTS: CLOV/CLOVRelease.entitlements
     dependencies:
       - package: Supabase
         product: Supabase
@@ -58,12 +70,28 @@ targets:
         DEVELOPMENT_TEAM: ""
     dependencies:
       - target: CLOV
+  CLOVTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: CLOVTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    dependencies:
+      - target: CLOV
 schemes:
   CLOV:
     build:
       targets:
         CLOV: all
         CLOVUITests: [test]
+        CLOVTests: [test]
     test:
       targets:
+        - CLOVTests
         - CLOVUITests

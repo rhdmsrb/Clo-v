@@ -11,6 +11,9 @@ struct NotificationsView: View {
     @State private var hasLoaded = false
     @State private var error: String?
 
+    @ScaledMetric(relativeTo: .body) private var iconButtonSize: CGFloat = 42
+    private static let minTapSize: CGFloat = 44
+
     private var unreadCount: Int { notifications.filter { !$0.isRead }.count }
     private var hasUnread: Bool { unreadCount > 0 }
 
@@ -25,10 +28,10 @@ struct NotificationsView: View {
         }
     }
 
-    private var groupedNotifications: [(String, [NotificationDTO])] {
-        let groups = Dictionary(grouping: filteredNotifications) { sectionTitle(for: $0.createdAt) }
-        return ["TODAY", "THIS WEEK", "EARLIER"].compactMap { title in
-            groups[title].map { (title, $0) }
+    private var groupedNotifications: [ActivitySection] {
+        let groups = Dictionary(grouping: filteredNotifications) { ActivityPeriod(date: $0.createdAt) }
+        return ActivityPeriod.allCases.compactMap { period in
+            groups[period].map { ActivitySection(period: period, items: $0) }
         }
     }
 
@@ -39,27 +42,19 @@ struct NotificationsView: View {
                 friendRequestsShortcut
                 filterBar
 
-                if hasLoaded && filteredNotifications.isEmpty {
-                    emptyFilteredState
-                } else if isLoading && notifications.isEmpty {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
-                } else if let error, notifications.isEmpty {
-                    VStack(spacing: 12) {
-                        Text(error).font(.subheadline).foregroundStyle(Theme.mutedForeground)
-                        Button("Try again") { Task { await load() } }.buttonStyle(OutlineButtonStyle())
-                    }.frame(maxWidth: .infinity).padding(.top, 40)
-                } else {
-                    if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-                    ForEach(groupedNotifications, id: \.0) { title, items in
-                        VStack(alignment: .leading, spacing: 9) {
-                            Text(title)
-                                .font(.system(.caption2, design: .default).weight(.black))
-                                .tracking(1.2)
-                                .foregroundStyle(Theme.mutedForeground)
-                                .padding(.top, 2)
-                            ForEach(items) { notification in row(for: notification) }
-                        }
-                    }
+                AsyncStateView(
+                    isLoading: isLoading,
+                    error: error,
+                    isEmpty: filteredNotifications.isEmpty,
+                    emptyText: emptyText,
+                    topPadding: 42,
+                    hasLoaded: hasLoaded,
+                    retry: { await load() },
+                    emptyIcon: filter == .unread ? "checkmark.circle" : "bell",
+                    errorIcon: "exclamationmark.triangle",
+                    skeleton: .rows
+                ) {
+                    ForEach(groupedNotifications) { section in sectionView(section) }
                 }
             }
             .padding(20)
@@ -71,26 +66,38 @@ struct NotificationsView: View {
             if hasUnread {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Mark all read") { Task { await markAllRead() } }
-                        .font(.system(size: 13, weight: .bold))
+                        .font(Theme.label)
+                        .foregroundStyle(Theme.accentDeep)
                 }
             }
         }
         // FitCheckRoute is registered by the parent tab's NavigationStack.
-        .task { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
+    }
+
+    private func sectionView(_ section: ActivitySection) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            SectionHeader(title: section.period.title)
+            ForEach(section.items) { notification in row(for: notification) }
+        }
     }
 
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Activity")
-                .font(Theme.editorialFont(size: 34))
+                .font(Theme.editorialFont(size: 34, relativeTo: .largeTitle))
                 .foregroundStyle(Theme.ink)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .accessibilityAddTraits(.isHeader)
             Text("YOUR CIRCLE")
-                .font(.system(.caption2, design: .default).weight(.black))
+                .font(Theme.micro)
                 .tracking(1.4)
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentDeep)
             Text(hasUnread ? "\(unreadCount) new update\(unreadCount == 1 ? "" : "s")" : "Votes, comments, and friend updates in one place.")
-                .font(.system(.subheadline, design: .default))
+                .font(Theme.body)
                 .foregroundStyle(Theme.mutedForeground)
         }
     }
@@ -101,34 +108,34 @@ struct NotificationsView: View {
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "person.2.fill")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 42, height: 42)
-                    .background(Theme.accent.opacity(0.10), in: Circle())
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.accentDeep)
+                    .frame(width: iconButtonSize, height: iconButtonSize)
+                    .background(Theme.accentTint, in: Circle())
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Friend requests")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Theme.bodyEmphasis)
                         .foregroundStyle(Theme.ink)
                     Text(incomingRequestCount == 0 ? "Find and manage your circle" : "\(incomingRequestCount) waiting for your reply")
-                        .font(.system(size: 12))
+                        .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
                 }
                 Spacer()
                 if incomingRequestCount > 0 {
                     Text("\(incomingRequestCount)")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(Theme.font(.caption, weight: .bold))
                         .foregroundStyle(Theme.inverseText)
                         .frame(minWidth: 24, minHeight: 24)
-                        .background(Theme.ink, in: Capsule())
+                        .background(Theme.ink, in: RoundedRectangle(cornerRadius: Theme.chipRadius))
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.mutedForeground)
+                    .accessibilityHidden(true)
             }
-            .padding(13)
-            .background(Theme.card)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.line.opacity(0.10), lineWidth: 1))
+            .accessibilityElement(children: .combine)
+            .softCard(padding: 13)
         }
         .buttonStyle(.plain)
     }
@@ -141,21 +148,6 @@ struct NotificationsView: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private var emptyFilteredState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: filter == .unread ? "checkmark.circle" : "bell")
-                .font(.system(size: 26, weight: .regular))
-                .foregroundStyle(Theme.accent)
-            Text(emptyText)
-                .font(.subheadline)
-                .foregroundStyle(Theme.mutedForeground)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 42)
     }
 
     private var emptyText: String {
@@ -182,9 +174,9 @@ struct NotificationsView: View {
             if !notification.isRead {
                 Button { Task { await markRead(notification) } } label: {
                     Image(systemName: "checkmark.circle")
-                        .font(.system(size: 19, weight: .regular))
-                        .foregroundStyle(Theme.accent)
-                        .frame(width: 32, height: 36)
+                        .font(.title3)
+                        .foregroundStyle(Theme.accentDeep)
+                        .frame(minWidth: Self.minTapSize, minHeight: Self.minTapSize)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -192,26 +184,41 @@ struct NotificationsView: View {
             }
         }
         .padding(12)
-        .background(notification.isRead ? Theme.card : Theme.accent.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.line.opacity(0.08), lineWidth: 1))
+        .background(notification.isRead ? Theme.card : Theme.accentTint,
+                    in: RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
+            .stroke(notification.isRead ? Color.clear : Theme.accentDeep.opacity(0.35), lineWidth: 1))
     }
 
     private func notificationContent(_ notification: NotificationDTO) -> some View {
-        HStack(alignment: .top, spacing: 11) {
-            AvatarView(url: notification.actor?.avatarUrl, nickname: notification.actor?.nickname, size: 40)
+        let style = NotificationStyle(type: notification.type)
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: style.icon)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(style.tint)
+                .frame(width: iconButtonSize, height: iconButtonSize)
+                .background(style.tint.opacity(0.14), in: Circle())
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 5) {
-                (Text(notification.actor?.nickname ?? "Someone").fontWeight(.semibold)
-                    + Text(" \(notificationText(for: notification.type))"))
-                .font(.subheadline)
-                .foregroundStyle(Theme.ink)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if !notification.isRead {
+                        Circle().fill(Theme.accentDeep).frame(width: 8, height: 8).accessibilityHidden(true)
+                    }
+                    (Text(notification.actor?.nickname ?? "Someone").fontWeight(.bold)
+                        + Text(" \(notificationText(for: notification.type))"))
+                        .font(Theme.bodyEmphasis)
+                        .fontWeight(notification.isRead ? .regular : .semibold)
+                        .foregroundStyle(Theme.ink)
+                }
                 Text(notification.createdAt.formatted(.relative(presentation: .named)))
-                    .font(.caption)
+                    .font(Theme.caption)
                     .foregroundStyle(Theme.mutedForeground)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(notification.isRead ? "" : "Unread")
     }
 
     private func notificationText(for type: String) -> String {
@@ -224,13 +231,6 @@ struct NotificationsView: View {
         }
     }
 
-    private func sectionTitle(for date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "TODAY" }
-        if let week = calendar.dateInterval(of: .weekOfYear, for: Date()), week.contains(date) { return "THIS WEEK" }
-        return "EARLIER"
-    }
-
     private func load() async {
         isLoading = true
         error = nil
@@ -239,13 +239,16 @@ struct NotificationsView: View {
         async let requestTask = API.fetchFriendRequests(userId: appState.userId, incoming: true)
         do {
             notifications = try await notificationTask
-            incomingRequestCount = (try? await requestTask.count) ?? 0
+            do { incomingRequestCount = try await requestTask.count } catch {
+                Log.app.error("Load friend requests failed: \(error.localizedDescription)")
+                incomingRequestCount = 0
+            }
             hasLoaded = true
         } catch is CancellationError {
             return
         } catch {
-            self.error = "Couldn’t load activity. Pull to refresh and try again."
-            hasLoaded = true
+            if Task.isCancelled || (error as? URLError)?.code == .cancelled { return }
+            self.error = "Couldn’t load activity. Check your connection and try again."
         }
     }
 
@@ -264,11 +267,7 @@ struct NotificationsView: View {
     private func markAllRead() async {
         do {
             try await API.markAllNotificationsRead(recipientId: appState.userId)
-            notifications = notifications.map { notification in
-                var result = notification
-                result.isRead = true
-                return result
-            }
+            notifications = notifications.map(\.markedRead)
             onRead()
         } catch {
             self.error = "Couldn’t update activity. Please try again."
@@ -285,6 +284,56 @@ private enum ActivityFilter: String, CaseIterable, Identifiable {
         case .unread: "Unread"
         case .fitChecks: "Fit-Checks"
         case .friends: "Friends"
+        }
+    }
+}
+
+private enum ActivityPeriod: CaseIterable, Hashable {
+    case today, thisWeek, earlier
+
+    init(date: Date, calendar: Calendar = .current, now: Date = Date()) {
+        if calendar.isDateInToday(date) {
+            self = .today
+        } else if let week = calendar.dateInterval(of: .weekOfYear, for: now), week.contains(date) {
+            self = .thisWeek
+        } else {
+            self = .earlier
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .today: "Today"
+        case .thisWeek: "This week"
+        case .earlier: "Earlier"
+        }
+    }
+}
+
+private struct ActivitySection: Identifiable {
+    let period: ActivityPeriod
+    let items: [NotificationDTO]
+    var id: String { period.title }
+}
+
+private extension NotificationDTO {
+    var markedRead: NotificationDTO {
+        NotificationDTO(id: id, type: type, isRead: true, createdAt: createdAt, fitCheckId: fitCheckId, actor: actor)
+    }
+}
+
+/// Leading icon and tint per notification type (tint is decorative; the text states the meaning).
+private struct NotificationStyle {
+    let icon: String
+    let tint: Color
+
+    init(type: String) {
+        switch type {
+        case "vote": (icon, tint) = ("hand.thumbsup.fill", Theme.accentDeep)
+        case "comment": (icon, tint) = ("bubble.left.fill", Theme.iconPlum)
+        case "friend_request": (icon, tint) = ("person.badge.plus", Theme.iconSage)
+        case "friend_accepted": (icon, tint) = ("person.2.fill", Theme.win)
+        default: (icon, tint) = ("bell.fill", Theme.mutedForeground)
         }
     }
 }

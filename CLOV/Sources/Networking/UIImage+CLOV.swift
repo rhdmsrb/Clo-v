@@ -1,4 +1,17 @@
+import PhotosUI
+import SwiftUI
 import UIKit
+
+extension PhotosPickerItem {
+    /// Loads the picked photo, throwing a user-presentable error instead of
+    /// letting an unreadable pick silently do nothing.
+    func loadImage() async throws -> UIImage {
+        guard let data = try await loadTransferable(type: Data.self),
+              let image = UIImage(data: data)
+        else { throw APIError.message("We couldn’t read that photo. Please pick a different one.") }
+        return image
+    }
+}
 
 extension UIImage {
     /// Redraws the image with `.up` orientation so pixel-buffer cropping

@@ -19,6 +19,8 @@ struct GroupDetailView: View {
     @State private var memberToRemove: GroupMemberDisplay?
     @State private var newName = ""
 
+    @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 36
+
     private var isOwner: Bool { group?.creatorId == appState.userId }
 
     var body: some View {
@@ -26,82 +28,17 @@ struct GroupDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 60, hasLoaded: hasLoaded, retry: { await load() }) {
                 if !isMember {
-                    Text("You're not a member of \(group?.name ?? "this group"). Ask a member for the invite link.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.mutedForeground)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
+                    EmptyStateView(
+                        icon: "lock",
+                        title: "Members only",
+                        message: "You're not a member of \(group?.name ?? "this group"). Ask a member for the invite code."
+                    )
+                    .padding(.top, 40)
                 } else if let group {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("STYLE BOARD")
-                            .font(.system(.caption2, design: .default).weight(.black))
-                            .tracking(1.3)
-                            .foregroundStyle(Theme.accent)
-                        HStack {
-                            Text(group.name).font(Theme.editorialFont(size: 32, relativeTo: .title))
-                            Spacer()
-                            Menu {
-                                if isOwner {
-                                    Button("Rename board") { newName = group.name; showRename = true }
-                                    Button("Delete board", role: .destructive) { showDelete = true }
-                                } else {
-                                    Button("Leave board", role: .destructive) { showLeave = true }
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle").font(.title3)
-                            }
-                            .accessibilityLabel("Board options")
-                        }
-                        HStack(spacing: -8) {
-                            ForEach(Array(members.prefix(6).enumerated()), id: \.offset) { _, member in
-                                AvatarView(url: member.avatarUrl, nickname: member.nickname, size: 26)
-                                    .overlay(Circle().stroke(Theme.background, lineWidth: 2))
-                            }
-                        }
-                        Text("\(members.count) member\(members.count == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(Theme.mutedForeground)
-                        ForEach(members) { member in
-                            HStack(spacing: 8) {
-                                AvatarView(url: member.avatarUrl, nickname: member.nickname, size: 28)
-                                Text(member.nickname ?? "Someone").font(.subheadline)
-                                if member.id == group.creatorId { Text("Owner").font(.caption).foregroundStyle(Theme.mutedForeground) }
-                                Spacer()
-                                if isOwner && member.id != appState.userId {
-                                    Button("Remove") { memberToRemove = member }
-                                        .font(.caption.weight(.semibold))
-                                }
-                            }
-                        }
-                        if !items.isEmpty {
-                            Text("\(items.count) look\(items.count == 1 ? "" : "s") · \(contributorCount) contributor\(contributorCount == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(Theme.mutedForeground)
-                        }
-                    }
-
-                    HStack(spacing: 8) {
-                        Button("+ Post to board") { showCreate = true }
-                            .buttonStyle(PrimaryButtonStyle())
-                        ShareLink(item: "Join my style board on CLO·V — invite code: \(group.inviteCode)") {
-                            Text("Invite friends")
-                        }
-                        .buttonStyle(OutlineButtonStyle())
-                    }
-
-                    if items.isEmpty {
-                        Text("No looks on this board yet. Add the first one.")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.mutedForeground)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 30)
-                    } else {
-                        VStack(spacing: 20) {
-                            ForEach(items) { item in
-                                FitCheckCardView(item: item, voterId: appState.userId)
-                            }
-                        }
-                    }
+                    header(group)
+                    membersList(group)
+                    actionRow(group)
+                    looksSection
                 }
                 }
             }
@@ -114,7 +51,7 @@ struct GroupDetailView: View {
         .fullScreenCover(isPresented: $showCreate) {
             CreateFitCheckView(preselectedGroup: group)
         }
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
         .alert("Rename board", isPresented: $showRename) {
             TextField("Board name", text: $newName)
@@ -134,6 +71,142 @@ struct GroupDetailView: View {
         )) {
             Button("Remove member", role: .destructive) {
                 if let memberToRemove { Task { await remove(memberToRemove) } }
+            }
+        }
+    }
+
+    private func header(_ group: FashionGroup) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("STYLE BOARD")
+                        .font(Theme.micro)
+                        .tracking(1.3)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Text(group.name)
+                        .font(Theme.editorialFont(size: 32, relativeTo: .title))
+                        .foregroundStyle(.white)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.7)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        .accessibilityAddTraits(.isHeader)
+                }
+                Spacer(minLength: 8)
+                optionsMenu(group)
+            }
+            HStack(spacing: 10) {
+                stackedAvatars
+                countCapsule("\(members.count) member\(members.count == 1 ? "" : "s")", icon: "person.2.fill")
+            }
+            if !items.isEmpty {
+                Text("\(items.count) look\(items.count == 1 ? "" : "s") · \(contributorCount) contributor\(contributorCount == 1 ? "" : "s")")
+                    .font(Theme.caption)
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+        .elevatedShadow()
+    }
+
+    private func optionsMenu(_ group: FashionGroup) -> some View {
+        Menu {
+            if isOwner {
+                Button("Rename board") { newName = group.name; showRename = true }
+                Button("Delete board", role: .destructive) { showDelete = true }
+            } else {
+                Button("Leave board", role: .destructive) { showLeave = true }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.title3)
+                .foregroundStyle(.white)
+                .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Board options")
+    }
+
+    private var stackedAvatars: some View {
+        HStack(spacing: -10) {
+            ForEach(Array(members.prefix(6).enumerated()), id: \.offset) { _, member in
+                AvatarView(url: member.avatarUrl, nickname: member.nickname, size: avatarSize)
+                    .overlay(Circle().stroke(Theme.card, lineWidth: 2))
+            }
+        }
+    }
+
+    private func countCapsule(_ text: String, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).accessibilityHidden(true)
+            Text(text)
+        }
+        .font(Theme.caption)
+        .foregroundStyle(Theme.accentForeground)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 32)
+        .background(Theme.accent, in: Capsule(style: .continuous))
+    }
+
+    private func membersList(_ group: FashionGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Members")
+            ForEach(members) { member in
+                HStack(spacing: 10) {
+                    AvatarView(url: member.avatarUrl, nickname: member.nickname, size: avatarSize)
+                    Text(member.nickname ?? "Someone").font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
+                    if member.id == group.creatorId {
+                        Text("Owner")
+                            .font(Theme.micro)
+                            .foregroundStyle(Theme.accentDeep)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Theme.accentTint, in: Capsule(style: .continuous))
+                    }
+                    Spacer()
+                    if isOwner && member.id != appState.userId {
+                        Button("Remove") { memberToRemove = member }
+                            .font(Theme.caption)
+                            .foregroundStyle(Theme.danger)
+                            .frame(minHeight: Theme.minTapSize)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel("Remove \(member.nickname ?? "member")")
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .softCard()
+    }
+
+    private func actionRow(_ group: FashionGroup) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Button("+ Post to board") { showCreate = true }
+                    .buttonStyle(PrimaryButtonStyle())
+                ShareLink(item: "Join my style board on CLO·V — invite code: \(group.inviteCode)") {
+                    Text("Invite friends")
+                }
+                .buttonStyle(OutlineButtonStyle())
+            }
+            InviteCodeCapsule(code: group.inviteCode)
+        }
+    }
+
+    @ViewBuilder private var looksSection: some View {
+        if items.isEmpty {
+            EmptyStateView(
+                icon: "photo.on.rectangle",
+                title: "No looks yet",
+                message: "No looks on this board yet. Add the first one.",
+                actionTitle: "+ Post to board"
+            ) { showCreate = true }
+            .padding(.vertical, 20)
+        } else {
+            VStack(spacing: 20) {
+                ForEach(items) { item in
+                    FitCheckCardView(item: item, voterId: appState.userId)
+                }
             }
         }
     }

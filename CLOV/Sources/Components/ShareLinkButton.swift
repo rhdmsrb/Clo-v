@@ -12,26 +12,24 @@ struct ShareLinkButton: View {
     var title: String = "Share Fit-Check"
     var summary: String?
 
-    private var shareURL: URL {
-        if let base = Bundle.main.object(forInfoDictionaryKey: "CLOVShareBaseURL") as? String,
-           let url = URL(string: base), url.scheme == "https", url.host != nil {
-            return url.appending(path: "vote/\(fitCheckId.uuidString.lowercased())")
-        }
-        return URL(string: "clov://vote/\(fitCheckId.uuidString.lowercased())")!
-    }
+    /// nil hides the button: see `ShareURL` for why there is no custom-scheme fallback in release.
+    private var shareURL: URL? { ShareURL.make(fitCheckId: fitCheckId) }
 
-    private var shareText: String {
-        if let summary, !summary.isEmpty { return "\(summary)\n\nVote on CLO·V: \(shareURL.absoluteString)" }
-        return "Vote on my Fit-Check on CLO·V: \(shareURL.absoluteString)"
+    private func shareText(for url: URL) -> String {
+        if let summary, !summary.isEmpty { return "\(summary)\n\nVote on CLO·V: \(url.absoluteString)" }
+        return "Vote on my Fit-Check on CLO·V: \(url.absoluteString)"
     }
 
     var body: some View {
-        ShareLink(item: shareText, subject: Text(title)) {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.mutedForeground)
-                .frame(width: 32, height: 32)
+        if let shareURL {
+            ShareLink(item: shareText(for: shareURL), subject: Text(title)) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(.subheadline, weight: .semibold))
+                    .foregroundStyle(Theme.mutedForeground)
+                    .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(title)
         }
-        .accessibilityLabel(title)
     }
 }

@@ -5,6 +5,9 @@ enum AppConfig {
     // Same Supabase project the Next.js web prototype uses
     // (../prototype/.env.local) — one backend, two clients.
     static let supabaseURL = URL(string: "https://exbozksjwpyvstqhcyqy.supabase.co")!
+    /// Deep link the password-reset email returns to. Must also be listed under
+    /// Authentication > URL Configuration > Redirect URLs in the Supabase dashboard.
+    static let authCallbackURL = URL(string: "clov://auth-callback")!
     static let supabaseAnonKey = "sb_publishable_wlceXdLHdxHp5brmwrg12Q_glPGikbe"
 }
 
@@ -44,9 +47,12 @@ enum SupabaseManager {
         encoder.dateEncodingStrategy = .iso8601
 
         #if DEBUG && targetEnvironment(simulator)
-        let authOptions = SupabaseClientOptions.AuthOptions(storage: DebugAuthStorage())
+        let authOptions = SupabaseClientOptions.AuthOptions(storage: DebugAuthStorage(), flowType: .pkce)
         #else
-        let authOptions = SupabaseClientOptions.AuthOptions()
+        // Pin PKCE: auth links must carry a `code` we can only redeem with the
+        // verifier stored on this device, so a crafted clov:// link with an
+        // implicit-grant fragment is rejected by session(from:).
+        let authOptions = SupabaseClientOptions.AuthOptions(flowType: .pkce)
         #endif
 
         return SupabaseClient(

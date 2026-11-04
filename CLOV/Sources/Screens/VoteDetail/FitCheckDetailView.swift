@@ -45,125 +45,19 @@ struct FitCheckDetailView: View {
         votes.first(where: { $0.voterId == appState.userId })?.photoId
     }
 
+    private static let pagePadding: CGFloat = 20
+    private static let sectionSpacing: CGFloat = 20
+    private static let displayMinScale: CGFloat = 0.7
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: Self.sectionSpacing) {
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 60,
                                hasLoaded: hasLoaded, retry: { await load() }) {
-                    if let detail {
-                        let expired = isExpired(detail.expiresAt)
-
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("FIT CHECK / \((expired ? "ENDED" : detail.status).uppercased())")
-                                    .font(.system(.caption2, design: .default).weight(.black))
-                                    .tracking(1.4)
-                                    .foregroundStyle(Theme.accent)
-                                Text("The edit")
-                                    .font(.system(size: 40, weight: .black, design: .default))
-                            }
-                            Spacer()
-                            if !expired {
-                                ShareLinkButton(
-                                    fitCheckId: detail.id,
-                                    title: "Share Fit-Check",
-                                    summary: shareSummary
-                                )
-                            }
-                        }
-
-                        HStack(spacing: 10) {
-                            AvatarView(url: detail.profiles?.avatarUrl, nickname: detail.profiles?.nickname, size: 38)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text((detail.profiles?.nickname ?? "Someone").uppercased())
-                                    .font(.system(.subheadline, design: .default).weight(.black))
-                                Text("FROM THE CIRCLE")
-                                    .font(.system(.caption2, design: .default).weight(.bold))
-                                    .tracking(0.8)
-                                    .foregroundStyle(Theme.mutedForeground)
-                            }
-                        }
-
-                        statusStrip(for: detail, expired: expired)
-
-                        if expired {
-                            if detail.creatorId == appState.userId {
-                                Text("Voting has ended. Your results are saved here for you.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.mutedForeground)
-                                VotingPhotoGridView(
-                                    fitCheckId: detail.id,
-                                    creatorId: detail.creatorId,
-                                    status: detail.status,
-                                    photos: detail.fitCheckPhotos,
-                                    voteCounts: voteCounts,
-                                    totalVotes: votes.count,
-                                    myVote: nil,
-                                    voterId: appState.userId,
-                                    expiresAt: detail.expiresAt,
-                                    prompt: detail.votePrompt
-                                )
-                            } else {
-                                VotingEndedView()
-                            }
-                        } else {
-                            if let caption = detail.caption, !caption.isEmpty {
-                                Text(caption).font(.subheadline).foregroundStyle(Theme.mutedForeground)
-                            }
-
-                            VotingPhotoGridView(
-                                fitCheckId: detail.id,
-                                creatorId: detail.creatorId,
-                                status: detail.status,
-                                photos: detail.fitCheckPhotos,
-                                voteCounts: voteCounts,
-                                totalVotes: votes.count,
-                                myVote: myVote,
-                                voterId: appState.userId,
-                                expiresAt: detail.expiresAt,
-                                prompt: detail.votePrompt
-                            )
-
-                            if detail.status == "archived" {
-                                Text("This Fit-Check has ended — voting is closed.")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.mutedForeground)
-                                    .frame(maxWidth: .infinity)
-                            }
-
-                        Text("NOTES FROM THE CIRCLE")
-                            .font(.system(.caption2, design: .default).weight(.black))
-                            .tracking(1.2)
-                            .foregroundStyle(Theme.accent)
-
-                            if comments.isEmpty {
-                                Text("No comments yet — vote to leave the first one.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.mutedForeground)
-                            } else {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    ForEach(comments) { comment in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            AvatarView(url: comment.profiles?.avatarUrl, nickname: comment.profiles?.nickname, size: 28)
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(comment.profiles?.nickname ?? "Someone")
-                                                    .font(.system(.caption2, design: .default).weight(.black))
-                                                Text(comment.body).font(.subheadline)
-                                            }
-                                        .padding(.horizontal, 12).padding(.vertical, 10)
-                                        .background(Theme.card)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .stroke(Theme.line.opacity(0.2), lineWidth: 1))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    if let detail { loadedContent(detail) }
                 }
             }
-            .padding(20)
+            .padding(Self.pagePadding)
         }
         .background(Theme.background)
         .navigationTitle("")
@@ -182,6 +76,7 @@ struct FitCheckDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("Report or block")
             }
         }
         .confirmationDialog("Why are you reporting this?", isPresented: $showingReportReasons, titleVisibility: .visible) {
@@ -205,24 +100,171 @@ struct FitCheckDetailView: View {
         .refreshable { await load() }
     }
 
-    private func statusStrip(for detail: FitCheckDetailDTO, expired: Bool) -> some View {
-        HStack {
-            Text(expired ? "CLOSED" : "OPEN FOR VOTES")
-                .font(.system(.caption2, design: .default).weight(.black))
-                .tracking(0.9)
-            Spacer()
-            if let expiresAt = detail.expiresAt, !expired {
-                Text(RelativeDateTimeFormatter().localizedString(for: expiresAt, relativeTo: Date()).uppercased())
-                    .font(.system(.caption2, design: .default).weight(.bold))
+    // MARK: Sections
+
+    @ViewBuilder
+    private func loadedContent(_ detail: FitCheckDetailDTO) -> some View {
+        let expired = isExpired(detail.expiresAt)
+        header(detail, expired: expired)
+        creatorRow(detail)
+        statusStrip(for: detail, expired: expired)
+        if let summary = heroSummary(detail, expired: expired) { summary }
+
+        if expired {
+            if detail.creatorId == appState.userId {
+                Text("Voting has ended. Your results are saved here for you.")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.mutedForeground)
+                votingSection(detail, myVote: nil)
             } else {
-                Text("\(votes.count) VOTES")
-                    .font(.system(.caption2, design: .default).weight(.bold))
+                VotingEndedView()
+            }
+        } else {
+            if let caption = detail.caption, !caption.isEmpty {
+                Text(caption).font(Theme.bodyEmphasis).foregroundStyle(Theme.mutedForeground)
+            }
+            votingSection(detail, myVote: myVote)
+            if detail.status == "archived" {
+                Text("This Fit-Check has ended — voting is closed.")
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.mutedForeground)
+                    .frame(maxWidth: .infinity)
+            }
+            commentsSection
+        }
+    }
+
+    private func votingSection(_ detail: FitCheckDetailDTO, myVote: UUID?) -> some View {
+        VotingPhotoGridView(
+            fitCheckId: detail.id,
+            creatorId: detail.creatorId,
+            status: detail.status,
+            photos: detail.fitCheckPhotos,
+            voteCounts: voteCounts,
+            totalVotes: votes.count,
+            myVote: myVote,
+            voterId: appState.userId,
+            expiresAt: detail.expiresAt,
+            prompt: detail.votePrompt,
+            isPublicPost: detail.isPublic == true
+        )
+        .elevatedCard()
+    }
+
+    private func header(_ detail: FitCheckDetailDTO, expired: Bool) -> some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FIT CHECK / \((expired ? "ENDED" : detail.status).uppercased())")
+                    .font(Theme.micro)
+                    .tracking(1.4)
+                    .foregroundStyle(Theme.accentDeep)
+                Text("The edit")
+                    .font(Theme.editorialFont(size: 40))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Self.displayMinScale)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Spacer()
+            if !expired {
+                ShareLinkButton(fitCheckId: detail.id, title: "Share Fit-Check", summary: shareSummary)
             }
         }
-        .foregroundStyle(Theme.inverseText)
-        .padding(.horizontal, 12)
+    }
+
+    private func creatorRow(_ detail: FitCheckDetailDTO) -> some View {
+        HStack(spacing: 10) {
+            AvatarView(url: detail.profiles?.avatarUrl, nickname: detail.profiles?.nickname, size: 38)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(detail.profiles?.nickname ?? "Someone")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.ink)
+                Text("From the circle")
+                    .font(Theme.micro)
+                    .foregroundStyle(Theme.mutedForeground)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Winner summary. Only shown when the result is visible to this viewer,
+    /// so it never spoils an undecided vote.
+    private func heroSummary(_ detail: FitCheckDetailDTO, expired: Bool) -> AnyView? {
+        let isCreator = detail.creatorId == appState.userId
+        guard !votes.isEmpty, isCreator || (!expired && myVote != nil) else { return nil }
+        let leading = voteCounts.values.max() ?? 0
+        let percent = Int((Double(leading) / Double(votes.count) * 100).rounded())
+        let card = HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("\(percent)%")
+                .font(Theme.editorialFont(size: 44))
+                .lineLimit(1)
+                .minimumScaleFactor(Self.displayMinScale)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            VStack(alignment: .leading, spacing: 2) {
+                Label("Leading look", systemImage: "crown.fill").font(Theme.label)
+                Text("\(votes.count) \(votes.count == 1 ? "vote" : "votes")").font(Theme.caption)
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(Color.white)
+        .padding(Self.pagePadding)
+        .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+        .layeredShadow()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Leading look has \(percent) percent of \(votes.count) \(votes.count == 1 ? "vote" : "votes")")
+        return AnyView(card)
+    }
+
+    private var commentsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Notes from the circle")
+            if comments.isEmpty {
+                Text("No comments yet — vote to leave the first one.")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.mutedForeground)
+            } else {
+                ForEach(comments) { comment in commentRow(comment) }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .elevatedCard()
+    }
+
+    private func commentRow(_ comment: CommentDTO) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            AvatarView(url: comment.profiles?.avatarUrl, nickname: comment.profiles?.nickname, size: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(comment.profiles?.nickname ?? "Someone")
+                    .font(Theme.micro)
+                    .foregroundStyle(Theme.ink)
+                Text(comment.body).font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func statusStrip(for detail: FitCheckDetailDTO, expired: Bool) -> some View {
+        HStack {
+            Label(expired ? "Closed" : "Open for votes", systemImage: expired ? "lock.fill" : "circle.fill")
+                .font(Theme.label)
+            Spacer()
+            if let expiresAt = detail.expiresAt, !expired {
+                Text(RelativeDateTimeFormatter().localizedString(for: expiresAt, relativeTo: Date()))
+                    .font(Theme.caption)
+            } else {
+                Text("\(votes.count) \(votes.count == 1 ? "vote" : "votes")")
+                    .font(Theme.caption)
+            }
+        }
+        .foregroundStyle(Theme.accentForeground)
+        .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Theme.ink)
+        .background(Theme.accent, in: Capsule())
+        .accessibilityElement(children: .combine)
     }
 
     private var shareSummary: String {

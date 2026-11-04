@@ -19,72 +19,34 @@ struct AccountView: View {
     @State private var followingIDs: Set<UUID> = []
     @State private var selectedFollowList: ProfileFollowList?
 
-    private let profileAccent = Theme.accent
+    private let profileAccent = Theme.accentDeep
+    private let shortcutColumns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
 
     var body: some View {
         let avatarURL = appState.profile?.avatarUrl
         let nickname = appState.profile?.nickname
         let uploadingAvatar = isUploadingAvatar
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Your profile")
-                            .font(.system(size: 13, weight: .medium, design: .default))
-                            .tracking(0.2)
-                            .foregroundStyle(profileAccent)
-                        Text("Your style")
-                            .font(Theme.editorialFont(size: 34))
-                            .tracking(-0.5)
-                    }
-                    Spacer()
-                    Button { showingEditProfile = true } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Theme.ink)
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Edit profile")
-                }
-
+            VStack(alignment: .leading, spacing: 24) {
+                header
                 profileHero(avatarURL: avatarURL, nickname: nickname, uploadingAvatar: uploadingAvatar)
 
-                sectionHeading("Wardrobe & circle", detail: nil)
+                SectionHeader(title: "Wardrobe & circle")
+                shortcutGrid
 
-                VStack(spacing: 0) {
-                    profileShortcut(title: "Wardrobe", subtitle: "Your pieces", icon: "hanger", tint: Theme.iconPlum) {
-                        WardrobeView()
+                SectionHeader(title: "Your Fit-Checks")
+                    .overlay(alignment: .trailing) {
+                        Text("\(liveVotes.count + archivedVotes.count) posts")
+                            .font(Theme.caption)
+                            .foregroundStyle(Theme.mutedForeground)
                     }
-                    profileShortcut(title: "Groups", subtitle: "Private & public circles", icon: "person.3.fill", tint: Theme.iconSage) {
-                        GroupsView()
-                    }
-                    profileShortcut(title: "Friends", subtitle: "Your circle", icon: "person.2.fill", tint: Theme.iconCoral) {
-                        FriendsView()
-                    }
-                    profileShortcut(title: "Your week", subtitle: "Style activity", icon: "chart.bar.fill", tint: Theme.iconApricot) {
-                        StyleInsightsView()
-                    }
-                    profileShortcut(title: "Privacy", subtitle: "Data & controls", icon: "lock.shield.fill", tint: Theme.mutedForeground) {
-                        PrivacyView()
-                    }
-                }
-
-                sectionHeading("Your Fit-Checks", detail: "\(liveVotes.count + archivedVotes.count) posts")
 
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 20, hasLoaded: hasLoaded, retry: { await load() }) {
                     votesSection(title: "LIVE", items: liveVotes, emptyText: "No live votes yet — post a Fit-Check to get started.")
                     votesSection(title: "ENDED", items: archivedVotes, emptyText: "Completed Fit-Checks will land here.")
                 }
 
-                Button("Log out") { Task { await appState.signOut() } }
-                    .buttonStyle(OutlineButtonStyle())
-
-                Button("Delete account", role: .destructive) {
-                    showingDeleteAccountConfirmation = true
-                }
-                .font(.footnote.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .disabled(isDeletingAccount)
+                accountFooter
             }
             .padding(20)
             // Leave room for the floating tab bar so the final section can
@@ -95,7 +57,7 @@ struct AccountView: View {
             Color.clear.frame(height: 82)
         }
         .background(Theme.background)
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView(profile: appState.profile)
@@ -143,105 +105,170 @@ struct AccountView: View {
     @State private var liveVotes: [MyFitCheck] = []
     @State private var archivedVotes: [MyFitCheck] = []
 
-    private func sectionHeading(_ title: String, detail: String?) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(Theme.editorialFont(size: 25, relativeTo: .title2))
-                .foregroundStyle(Theme.ink)
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your profile")
+                    .font(Theme.label)
+                    .foregroundStyle(profileAccent)
+                Text("Your style")
+                    .font(Theme.editorialFont(size: 34))
+                    .tracking(-0.5)
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .accessibilityAddTraits(.isHeader)
+            }
             Spacer()
-            if let detail {
-                Text(detail)
-                    .font(.system(size: 12, weight: .regular, design: .default))
-                    .foregroundStyle(Theme.mutedForeground)
+            Button { showingEditProfile = true } label: {
+                Image(systemName: "pencil")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .background(Theme.muted, in: Circle())
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel("Edit profile")
+        }
+    }
+
+    private var shortcutGrid: some View {
+        LazyVGrid(columns: shortcutColumns, spacing: 16) {
+            profileShortcut(title: "Wardrobe", subtitle: "Your pieces", icon: "hanger", tint: Theme.iconCoral) {
+                WardrobeView()
+            }
+            profileShortcut(title: "Groups", subtitle: "Private & public circles", icon: "person.3", tint: Theme.iconPlum) {
+                GroupsView()
+            }
+            profileShortcut(title: "Friends", subtitle: "Your circle", icon: "person.2", tint: Theme.iconApricot) {
+                FriendsView()
+            }
+            profileShortcut(title: "Your week", subtitle: "Style activity", icon: "chart.bar", tint: Theme.iconSage) {
+                StyleInsightsView()
+            }
+            profileShortcut(title: "Privacy", subtitle: "Data & controls", icon: "lock.shield", tint: Theme.iconPlum) {
+                PrivacyView()
             }
         }
-        .padding(.top, 2)
+    }
+
+    private var accountFooter: some View {
+        VStack(spacing: 4) {
+            Button { Task { await appState.signOut() } } label: {
+                Text("Log out")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.mutedForeground)
+                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Button(role: .destructive) {
+                showingDeleteAccountConfirmation = true
+            } label: {
+                Text("Delete account")
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.danger)
+                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isDeletingAccount)
+        }
+        .padding(.top, 8)
     }
 
     private func profileHero(avatarURL: String?, nickname: String?, uploadingAvatar: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 14) {
-                PhotosPicker(selection: $avatarItem, matching: .images) {
-                    ZStack {
-                        AvatarView(url: avatarURL, nickname: nickname, size: 78)
-                            .overlay(Circle().stroke(profileAccent.opacity(0.65), lineWidth: 1.5))
-                        if uploadingAvatar {
-                            ProgressView().tint(profileAccent)
-                        }
+        VStack(spacing: 14) {
+            PhotosPicker(selection: $avatarItem, matching: .images) {
+                ZStack {
+                    AvatarView(url: avatarURL, nickname: nickname, size: 96, ringed: true)
+                    if uploadingAvatar {
+                        ProgressView().tint(.white)
                     }
                 }
-                .onChange(of: avatarItem) { _, newItem in
-                    Task { await uploadAvatar(newItem) }
-                }
-                .accessibilityLabel("Change profile photo")
+                .padding(8)
+                .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                .contentShape(Circle())
+            }
+            .onChange(of: avatarItem) { _, newItem in
+                Task { await uploadAvatar(newItem) }
+            }
+            .accessibilityLabel("Change profile photo")
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(nickname ?? "Your style profile")
-                        .font(Theme.editorialFont(size: 30, relativeTo: .title2))
-                        .foregroundStyle(Theme.ink)
+            VStack(spacing: 4) {
+                Text(nickname ?? "Your style profile")
+                    .font(Theme.editorialFont(size: 30, relativeTo: .title2))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                if let email = appState.email {
+                    Text(email)
+                        .font(Theme.caption)
+                        .foregroundStyle(Color.white.opacity(0.9))
                         .lineLimit(1)
-                    if let email = appState.email {
-                        Text(email)
-                            .font(.system(.caption, design: .default).weight(.medium))
-                            .foregroundStyle(Theme.mutedForeground)
-                            .lineLimit(1)
-                    }
-                    if let createdAt = appState.profile?.createdAt {
-                        Label("Here since \(createdAt.formatted(.dateTime.month(.abbreviated).year()))", systemImage: "calendar")
-                            .font(.system(size: 10, weight: .medium, design: .default))
-                            .foregroundStyle(profileAccent)
-                    }
                 }
-                Spacer(minLength: 0)
+                if let createdAt = appState.profile?.createdAt {
+                    Label("Here since \(createdAt.formatted(.dateTime.month(.abbreviated).year()))", systemImage: "calendar")
+                        .font(Theme.micro)
+                        .foregroundStyle(Color.white.opacity(0.9))
+                }
             }
 
             if let styles = appState.profile?.stylePreferences, !styles.isEmpty {
                 Text(styles.joined(separator: "  ·  "))
-                    .font(.system(size: 13, weight: .medium, design: .default))
-                    .foregroundStyle(profileAccent)
+                    .font(Theme.label)
+                    .foregroundStyle(Color.white)
+                    .multilineTextAlignment(.center)
             } else {
                 Text("Add your style preferences to personalize your feed.")
-                            .font(.system(.subheadline, design: .default))
-                    .foregroundStyle(Theme.mutedForeground)
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Color.white.opacity(0.9))
+                    .multilineTextAlignment(.center)
             }
 
-            Rectangle()
-                .fill(Theme.line.opacity(0.12))
-                .frame(height: 1)
-
-            HStack(spacing: 0) {
-                profileStat("\(liveVotes.count + archivedVotes.count)", label: "Fit-Checks")
-                Button { selectedFollowList = .followers } label: {
-                    profileStat("\(followerIDs.count)", label: "Followers")
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-                Button { selectedFollowList = .following } label: {
-                    profileStat("\(followingIDs.count)", label: "Following")
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
+            ViewThatFits(in: .horizontal) {
+                countCapsules(spacing: 8, horizontal: true)
+                countCapsules(spacing: 8, horizontal: false)
             }
-            .padding(.top, 2)
         }
-        .padding(18)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.line.opacity(0.1), lineWidth: 1))
+        .frame(maxWidth: .infinity)
+        .padding(20)
+        .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: Self.heroRadius, style: .continuous))
+        .elevatedShadow()
     }
 
-    private func profileStat(_ value: String, label: String) -> some View {
-        VStack(alignment: .center, spacing: 4) {
-            Text(value)
-                .font(Theme.editorialFont(size: 27, relativeTo: .title2))
-                .foregroundStyle(Theme.ink)
-            Text(label)
-                .font(.system(size: 12, weight: .medium, design: .default))
-                .foregroundStyle(Theme.mutedForeground)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .fixedSize(horizontal: true, vertical: false)
+    @ViewBuilder
+    private func countCapsules(spacing: CGFloat, horizontal: Bool) -> some View {
+        let layout = horizontal ? AnyLayout(HStackLayout(spacing: spacing)) : AnyLayout(VStackLayout(spacing: spacing))
+        layout {
+            countCapsule("\(liveVotes.count + archivedVotes.count)", label: "Fit-Checks")
+            Button { selectedFollowList = .followers } label: {
+                countCapsule("\(followerIDs.count)", label: "Followers")
+            }
+            .buttonStyle(.plain)
+            Button { selectedFollowList = .following } label: {
+                countCapsule("\(followingIDs.count)", label: "Following")
+            }
+            .buttonStyle(.plain)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private static let heroRadius: CGFloat = 28
+
+    /// Opaque-feeling dark capsule over the gradient so white text stays >= 4.5:1.
+    private func countCapsule(_ value: String, label: String) -> some View {
+        VStack(spacing: 0) {
+            Text(value).font(Theme.headline)
+            Text(label).font(Theme.micro).fixedSize(horizontal: true, vertical: false)
+        }
+        .foregroundStyle(Color.white)
+        .padding(.horizontal, 14)
+        .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+        .background(Color.black.opacity(0.35), in: Capsule(style: .continuous))
+        .contentShape(Capsule(style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private func profileShortcut<Destination: View>(
@@ -252,77 +279,77 @@ struct AccountView: View {
         @ViewBuilder destination: () -> Destination
     ) -> some View {
         NavigationLink(destination: destination) {
-            HStack(spacing: 13) {
+            VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
+                    .font(Theme.headline)
                     .foregroundStyle(tint)
-                    .frame(width: 38, height: 38)
-                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
+                    .frame(width: 44, height: 44)
+                    .background(tint.opacity(0.14), in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16, weight: .medium, design: .default))
+                        .font(Theme.headline)
                         .foregroundStyle(Theme.ink)
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .regular, design: .default))
+                        .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
+                        .multilineTextAlignment(.leading)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.mutedForeground.opacity(0.7))
             }
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+            .elevatedCard(radius: Theme.tileRadius, padding: 14)
+            .contentShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+            .accessibilityElement(children: .combine)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(title == "Your week" ? "yourWeekButton" : "profileShortcut_\(title)")
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Theme.line.opacity(0.1))
-                .frame(height: 0.7)
-                .padding(.leading, 45)
-        }
     }
 
     @ViewBuilder
     private func votesSection(title: String, items: [MyFitCheck], emptyText: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.system(.caption2, design: .default).weight(.bold)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(Theme.micro).foregroundStyle(Theme.mutedForeground)
             if items.isEmpty {
                 Text(emptyText)
-                    .font(.subheadline)
+                    .font(Theme.bodyEmphasis)
                     .foregroundStyle(Theme.mutedForeground)
+                    .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(Theme.card.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .padding(18)
+                    .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
             } else {
-                VStack(spacing: 10) {
+                VStack(spacing: 16) {
                     ForEach(items) { item in
                         HStack(spacing: 12) {
                             RemoteImage(url: item.thumbnailURL ?? "")
                                 .frame(width: 48, height: 48)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
                             NavigationLink {
                                 FitCheckDetailView(fitCheckId: item.id)
                             } label: {
                                 Text(item.caption ?? "Untitled")
-                                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                                    .font(Theme.bodyEmphasis)
+                                    .foregroundStyle(Theme.ink)
                                     .lineLimit(1)
                             }
                             .buttonStyle(.plain)
                             Spacer()
                             if item.status == "live" && !isExpired(item.expiresAt) {
                                 Button("Terminate") { terminateTarget = item.id }
-                                    .font(.system(.caption2, design: .default).weight(.bold))
-                                    .foregroundStyle(Theme.accent)
+                                    .font(Theme.micro)
+                                    .foregroundStyle(Theme.accentDeep)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                                    .accessibilityLabel("Terminate \(item.caption ?? "Fit-Check")")
                             }
                             Button("Delete") { deleteTarget = item.id }
-                                .font(.system(.caption2, design: .default).weight(.bold))
-                                .foregroundStyle(.red)
+                                .font(Theme.micro)
+                                .foregroundStyle(Theme.danger)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                                .accessibilityLabel("Delete \(item.caption ?? "Fit-Check")")
                         }
-                        .softCard(radius: 18, padding: 12)
+                        .softCard(radius: Theme.tileRadius, padding: 12)
                     }
                 }
             }
@@ -339,8 +366,8 @@ struct AccountView: View {
             let all = try await API.fetchMyFitChecksWithStatus(creatorId: appState.userId)
             liveVotes = all.filter { $0.status == "live" && !isExpired($0.expiresAt) }
             archivedVotes = all.filter { $0.status == "archived" || isExpired($0.expiresAt) }
-            followerIDs = (try? await followersTask) ?? []
-            followingIDs = (try? await followingTask) ?? []
+            followerIDs = try await followersTask
+            followingIDs = try await followingTask
             hasLoaded = true
         } catch is CancellationError {
             return
@@ -384,10 +411,11 @@ struct AccountView: View {
     }
 
     private func uploadAvatar(_ item: PhotosPickerItem?) async {
-        guard let item, let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
+        guard let item else { return }
         isUploadingAvatar = true
         defer { isUploadingAvatar = false }
         do {
+            let image = try await item.loadImage()
             _ = try await API.updateAvatar(id: appState.userId, image: image)
             Haptics.success()
             await appState.refreshProfile()
@@ -412,13 +440,17 @@ struct StyleInsightsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("YOUR WEEK")
-                    .font(.system(.caption2, design: .default).weight(.black))
+                    .font(Theme.micro)
                     .tracking(1.5)
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(Theme.accentDeep)
                 Text("Style momentum")
-                    .font(.system(size: 34, weight: .black, design: .default))
+                    .font(Theme.editorialFont(size: 34))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 Text("A quick look at how you showed up this week.")
-                    .font(.subheadline)
+                    .font(Theme.font(.subheadline))
                     .foregroundStyle(Theme.mutedForeground)
 
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 16, hasLoaded: hasLoaded, retry: { await load() }) {
@@ -427,16 +459,19 @@ struct StyleInsightsView: View {
                             HStack(spacing: 14) {
                                 Image(systemName: "flame.fill")
                                     .font(.system(size: 28, weight: .bold))
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Theme.iconCoral)
+                                    .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("\(report.currentStreak)-day streak")
-                                        .font(.system(.title3, design: .default).weight(.heavy))
+                                        .font(Theme.title)
+                                        .foregroundStyle(Theme.ink)
                                     Text(report.currentStreak == 0 ? "Start with one small style action today." : "Keep the momentum going.")
-                                        .font(.caption)
+                                        .font(Theme.font(.caption))
                                         .foregroundStyle(Theme.mutedForeground)
                                 }
                                 Spacer()
                             }
+                            .accessibilityElement(children: .combine)
                             .softCard()
 
                             LazyVGrid(columns: columns, spacing: 12) {
@@ -448,13 +483,12 @@ struct StyleInsightsView: View {
 
                             if let occasion = report.topOccasion {
                                 HStack {
-                                    Image(systemName: "sparkles")
-                                        .foregroundStyle(Theme.accent)
                                     Text("Your top vibe: \(occasion)")
-                                        .font(.system(.subheadline, design: .default).weight(.bold))
+                                        .font(Theme.bodyEmphasis)
+                                        .foregroundStyle(Theme.ink)
                                     Spacer()
                                 }
-                                .softCard(radius: 16, padding: 14)
+                                .softCard(radius: Theme.tileRadius, padding: 14)
                             }
                         }
                     }
@@ -465,22 +499,26 @@ struct StyleInsightsView: View {
         .background(Theme.background)
         .navigationTitle("Your week")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: appState.contentRevision) { await load() }
+        .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
     }
 
     private func metric(_ title: String, value: Int, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accentDeep)
+                .accessibilityHidden(true)
             Text("\(value)")
-                .font(.system(size: 27, weight: .black, design: .default))
+                .font(Theme.editorialFont(size: 28, relativeTo: .title2))
+                .foregroundStyle(Theme.ink)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             Text(title)
-                .font(.caption)
+                .font(Theme.font(.caption))
                 .foregroundStyle(Theme.mutedForeground)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .softCard(radius: 16, padding: 14)
+        .accessibilityElement(children: .combine)
+        .softCard(radius: Theme.tileRadius, padding: 14)
     }
 
     private func load() async {
@@ -535,7 +573,7 @@ private struct EditProfileView: View {
                             .autocorrectionDisabled()
                     }
                     Text("WHAT'S YOUR STYLE?")
-                        .font(.caption2.weight(.bold))
+                        .font(Theme.micro)
                         .foregroundStyle(Theme.mutedForeground)
                     FlowLayout(spacing: 8) {
                         ForEach(Self.styleOptions, id: \.self) { style in
@@ -545,7 +583,7 @@ private struct EditProfileView: View {
                             }
                         }
                     }
-                    if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+                    if let error { Text(error).font(Theme.label).foregroundStyle(Theme.danger) }
                     Button(isSaving ? "Saving…" : "Save profile") { Task { await save() } }
                         .buttonStyle(PrimaryButtonStyle(isDisabled: isSaving))
                         .disabled(isSaving)

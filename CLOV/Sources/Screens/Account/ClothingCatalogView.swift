@@ -3,6 +3,7 @@ import SwiftUI
 /// Searches Openverse for clothing imagery shared under permissive Creative Commons
 /// licenses. Every result keeps its creator, license, and source URL attached when saved.
 struct ClothingCatalogView: View {
+    @Environment(\.openURL) private var openURL
     @State private var query = "women's blouse shirt clothing"
     @State private var results: [OpenverseImage] = []
     @State private var isLoading = false
@@ -13,71 +14,82 @@ struct ClothingCatalogView: View {
     @State private var isPreparingImage = false
     @State private var selectedCategory: WardrobeCategory = .top
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("A LITTLE MORE TO WEAR")
-                        .font(.system(.caption2, design: .default).weight(.black)).tracking(1.3).foregroundStyle(Theme.accent)
+                        .font(Theme.micro).tracking(1.3).foregroundStyle(Theme.accentDeep)
                     Text("Clothing catalog")
                         .font(Theme.editorialFont(size: 34))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        .accessibilityAddTraits(.isHeader)
                     Text("Find a piece and add it to your wardrobe. Photos are credited to their original creators.")
-                        .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
+                        .font(Theme.bodyEmphasis).foregroundStyle(Theme.mutedForeground)
                 }
 
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
+                        .accessibilityHidden(true)
                     TextField("Try linen, blazer, sneakers…", text: $query)
                         .submitLabel(.search).onSubmit { selectedCategory = .other; Task { await search() } }
                     Button { Task { await search() } } label: {
-                        Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Theme.inverseText).frame(width: 36, height: 36).background(Theme.ink)
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                        Image(systemName: "arrow.right").font(Theme.label)
+                            .foregroundStyle(Color.white).frame(width: 36, height: 36).background(Theme.heroGradient, in: Circle())
+                            .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize).contentShape(Circle())
                     }.accessibilityLabel("Search clothing catalog")
                 }
                 .padding(.leading, 13).padding(.trailing, 6).padding(.vertical, 6)
-                .background(Theme.muted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: 10))
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(CatalogCategory.allCases) { choice in
+                            let isSelected = selectedCategory == choice.category && query == choice.query
                             Button(choice.label) {
                                 query = choice.query
                                 selectedCategory = choice.category
                                 Task { await search() }
                             }
-                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink)
-                            .padding(.horizontal, 12).padding(.vertical, 8)
-                            .background(Theme.muted.opacity(0.65)).clipShape(Capsule())
+                            .buttonStyle(ChipButtonStyle(isSelected: isSelected, font: Theme.label, horizontalPadding: 16))
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                     }
+                    .padding(.vertical, 2)
                 }
 
                 if isLoading && results.isEmpty {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 44)
                 } else if let error {
-                    VStack(spacing: 10) {
-                        Text(error).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground).multilineTextAlignment(.center)
-                        Button("Try again") { Task { await search() } }.buttonStyle(PrimaryButtonStyle())
-                    }.frame(maxWidth: .infinity).padding(.vertical, 30)
+                    EmptyStateView(icon: "wifi.exclamationmark", title: "Catalog unavailable", message: error,
+                                   actionTitle: "Try again", tint: Theme.danger) { Task { await search() } }
+                        .padding(.vertical, 24)
                 } else if hasSearched && results.isEmpty {
-                    Text("No clothing photos found. Try another search.")
-                        .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground).frame(maxWidth: .infinity).padding(.vertical, 36)
+                    EmptyStateView(icon: "magnifyingglass", title: "No photos found",
+                                   message: "No clothing photos found. Try another search.")
+                        .padding(.vertical, 24)
                 } else {
-                    LazyVGrid(columns: columns, spacing: 18) {
+                    LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(results) { result in
                             Button { Task { await prepare(result) } } label: {
                                 CatalogImageCard(result: result, isPreparing: isPreparingImage && selected?.id == result.id)
                             }.buttonStyle(.plain).disabled(isPreparingImage)
+                            .accessibilityAction(named: "License details") {
+                                if let url = SafeLink.httpsURL(result.licenseURL) { openURL(url) }
+                            }
                         }
                     }
                     if isLoading { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 10) }
                 }
 
                 Text("Images from Openverse · Filtered to CC0, public domain, CC BY, and CC BY-SA. Check each source page for its license details.")
-                    .font(.system(size: 11)).foregroundStyle(Theme.mutedForeground).padding(.top, 4)
+                    .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground).padding(.top, 4)
             }.padding(20)
         }
         .background(Theme.background)
@@ -107,12 +119,29 @@ struct ClothingCatalogView: View {
         guard let url = URL(string: result.imageURL) else { return }
         isPreparingImage = true; defer { isPreparingImage = false }
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let image = UIImage(data: data) else { throw URLError(.cannotDecodeContentData) }
+            let data = try await Task.detached { try await CatalogImageDownloader.download(url) }.value
+            guard let image = UIImage(data: data) else { throw URLError(.cannotDecodeContentData) }
             selectedImage = image
             selected = result
         } catch { self.error = "This photo couldn't be opened. Try another one." }
+    }
+}
+
+/// Downloads a third-party catalog image with a hard size cap. Runs off the
+/// main actor so reading the byte stream never blocks the UI.
+private enum CatalogImageDownloader {
+    static let maxBytes = 8 * 1024 * 1024
+
+    static func download(_ url: URL) async throws -> Data {
+        let (bytes, response) = try await URLSession.shared.bytes(from: url)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              response.expectedContentLength <= maxBytes else { throw URLError(.dataLengthExceedsMaximum) }
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count > maxBytes { throw URLError(.dataLengthExceedsMaximum) }
+        }
+        return data
     }
 }
 
@@ -140,22 +169,24 @@ private struct CatalogImageCard: View {
                         HStack {
                             Spacer()
                             Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.inverseText)
-                                .frame(width: 32, height: 32).background(Theme.ink.opacity(0.9)).clipShape(Circle())
+                                .font(Theme.label).foregroundStyle(Theme.inverseText)
+                                .frame(width: 32, height: 32).background(Theme.ink.opacity(0.9), in: Circle())
+                                .accessibilityHidden(true)
                         }.padding(9)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
             }
             // Fix the card's width-to-height ratio before the remote image is
             // laid out. Openverse thumbnails have mixed intrinsic dimensions.
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
+            .elevatedShadow()
             Text(result.titleText.isEmpty ? "Untitled clothing photo" : result.titleText)
-                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink).lineLimit(2)
+                .font(Theme.caption).foregroundStyle(Theme.ink).lineLimit(2)
             Text("\(result.creatorText.isEmpty ? "Creator unknown" : result.creatorText) · \(result.license.uppercased())")
-                .font(.system(size: 10)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
-            if let url = URL(string: result.licenseURL ?? "") {
-                Link("License details", destination: url).font(.system(size: 10, weight: .medium))
+                .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground).lineLimit(1)
+            if let url = SafeLink.httpsURL(result.licenseURL) {
+                Link("License details", destination: url).font(Theme.micro).foregroundStyle(Theme.accentDeep)
             }
         }
         .contentShape(Rectangle())
@@ -241,8 +272,10 @@ private enum OpenverseCatalog {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         let decoded = try JSONDecoder().decode(Response.self, from: data)
         return decoded.results.compactMap { result in
-            guard let imageURL = URL(string: result.thumbnail), ["https", "http"].contains(imageURL.scheme?.lowercased() ?? ""),
-                  let directURL = URL(string: result.imageURL), ["https", "http"].contains(directURL.scheme?.lowercased() ?? "") else { return nil }
+            guard let imageURL = URL(string: result.thumbnail), imageURL.scheme?.lowercased() == "https",
+                  let directURL = URL(string: result.imageURL), directURL.scheme?.lowercased() == "https" else { return nil }
+            // A missing license URL falls back to creativecommons.org; a present but non-https one is dropped.
+            guard result.licenseURL == nil || SafeLink.httpsURL(result.licenseURL) != nil else { return nil }
             let searchableText = ([result.titleText] + (result.tags ?? []).map(\.name)).joined(separator: " ").lowercased()
             let blockedTerms = ["halloween", "sexy", "lingerie", "underwear", "costume", "uniform"]
             guard !blockedTerms.contains(where: { searchableText.contains($0) }) else { return nil }
