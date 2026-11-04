@@ -17,6 +17,11 @@ struct VoteStreak: Codable, Equatable {
         return VoteStreak(days: isNextDay ? days + 1 : 1, votesToday: 1, lastVoteDay: date)
     }
 
+    /// The streak after a vote is cancelled: today's count drops by one, the day streak is kept.
+    func unrecording() -> VoteStreak {
+        VoteStreak(days: days, votesToday: max(votesToday - 1, 0), lastVoteDay: lastVoteDay)
+    }
+
     /// e.g. "Vote 3 today · 4-day streak"; nil when the last vote wasn't today.
     func summary(on date: Date = .now, calendar: Calendar = .current) -> String? {
         guard let lastVoteDay, calendar.isDate(lastVoteDay, inSameDayAs: date), votesToday > 0 else { return nil }
@@ -38,6 +43,17 @@ enum VoteStreakStore {
     @discardableResult
     static func recordVote(for userId: UUID, on date: Date = .now) -> VoteStreak {
         let updated = load(for: userId).recording(on: date)
+        do {
+            UserDefaults.standard.set(try JSONEncoder().encode(updated), forKey: key(for: userId))
+        } catch {
+            Log.app.error("Saving vote streak failed: \(error.localizedDescription)")
+        }
+        return updated
+    }
+
+    @discardableResult
+    static func unrecordVote(for userId: UUID) -> VoteStreak {
+        let updated = load(for: userId).unrecording()
         do {
             UserDefaults.standard.set(try JSONEncoder().encode(updated), forKey: key(for: userId))
         } catch {
