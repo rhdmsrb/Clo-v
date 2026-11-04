@@ -86,6 +86,10 @@ struct AuthorInfoWithId: Codable, Identifiable {
     var accountCode: String
     var avatarUrl: String?
     var mutualCount: Int = 0
+
+    // `mutualCount` is filled in client-side from get_mutual_friend_counts;
+    // profile queries never return it, so it must not be required when decoding.
+    private enum CodingKeys: String, CodingKey { case id, nickname, accountCode, avatarUrl }
 }
 
 struct MutualFriendCountDTO: Codable {

@@ -52,11 +52,14 @@ struct CreateFitCheckView: View {
                     PhotoCountSection(photoCount: photoCount, onSelect: selectPhotoCount)
                     PhotoGridSection(slots: $slots, canUseWardrobe: !wardrobeItems.isEmpty) { wardrobeSlotId = $0 }
                     NoteSection(caption: $caption)
-                    PromptSection(
-                        votePrompt: $votePrompt,
-                        suggestions: Self.promptSuggestions(occasion: occasion),
-                        maxLength: Self.maxPromptLength
-                    )
+                    // Hidden: the live create_fit_check_draft has no vote_prompt
+                    // column, so the text would be silently dropped. Restore
+                    // together with server support.
+                    // PromptSection(
+                    //     votePrompt: $votePrompt,
+                    //     suggestions: Self.promptSuggestions(occasion: occasion),
+                    //     maxLength: Self.maxPromptLength
+                    // )
                     OccasionSection(occasion: $occasion, options: Self.occasionOptions)
                     VotingWindowSection(votingDuration: $votingDuration)
                     AudienceSection(selectedAudience: $selectedAudience, selectedGroupId: $selectedGroupId, myGroups: myGroups)
