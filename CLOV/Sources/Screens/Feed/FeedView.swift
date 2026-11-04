@@ -189,7 +189,7 @@ struct FeedView: View {
             } label: {
                 FeedBellIcon(unreadCount: unreadCount)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(InstantPressStyle())
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .fixedSize()
@@ -305,11 +305,11 @@ struct FeedView: View {
 
     private func select(_ newMode: FeedMode) {
         guard mode != newMode else { return }
-        withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { mode = newMode }
+        mode = newMode
     }
 
     private func select(occasion: String?) {
-        withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { selectedOccasion = occasion }
+        selectedOccasion = occasion
     }
 
     private func refreshVisibleItems() {

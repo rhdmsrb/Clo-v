@@ -8,13 +8,13 @@ enum Theme {
     // Rose #E491A6 is a fill/accent only (never text on light surfaces).
     // Use `accentDeep` for rose-family text/icons (>= 4.5:1 on background,
     // card and accentTint), and `accentForeground` (dark plum) on rose fills.
-    static let accent = adaptive(hex: 0xE491A6, 0xE491A6)
+    static let accent = themed(.accent, 0xE491A6, 0xE491A6)
     /// Rose-family text/icon/stroke color: #72455A on light (7.2:1 on background), #F2B0C2 on dark.
-    static let accentDeep = adaptive(hex: 0x72455A, 0xF2B0C2)
+    static let accentDeep = themed(.accentDeep, 0x72455A, 0xF2B0C2)
     /// Same value as `accentDeep`; kept so existing call sites keep working.
     static let accentSecondary = accentDeep
     /// Soft rose wash for selected chips / selected tab: #FBE3EA / #4A2A36.
-    static let accentTint = adaptive(hex: 0xFBE3EA, 0x4A2A36)
+    static let accentTint = themed(.accentTint, 0xFBE3EA, 0x4A2A36)
     /// Positive / success (mint family): #1B7F5C (4.6:1 on background) / #7FE0B8.
     static let win = adaptive(hex: 0x1B7F5C, 0x7FE0B8)
 
@@ -24,22 +24,22 @@ enum Theme {
     static let iconPlum = adaptive(hex: 0x845763, 0xD9A0B5)
     static let iconSage = adaptive(hex: 0x2A8F6C, 0x7FE0B8)
     /// Text/icons on top of `accent` (rose) fills: dark plum in both modes (6.6:1).
-    static let accentForeground = adaptive(hex: 0x3A1A26, 0x3A1A26)
+    static let accentForeground = themed(.accentForeground, 0x3A1A26, 0x3A1A26)
 
-    static let background = adaptive(hex: 0xFCF6F8, 0x1D1216)
-    static let card = adaptive(hex: 0xFFFFFF, 0x2A1A21)
+    static let background = themed(.background, 0xFCF6F8, 0x1D1216)
+    static let card = themed(.card, 0xFFFFFF, 0x2A1A21)
     /// Surface for floating things (tab bar, sheets, popovers).
-    static let cardElevated = adaptive(hex: 0xFFFFFF, 0x35222B)
-    static let muted = adaptive(hex: 0xF5EBEE, 0x3A2830)
-    static let mutedForeground = adaptive(hex: 0x6E555E, 0xCDB4BC)
+    static let cardElevated = themed(.cardElevated, 0xFFFFFF, 0x35222B)
+    static let muted = themed(.muted, 0xF5EBEE, 0x3A2830)
+    static let mutedForeground = themed(.mutedForeground, 0x6E555E, 0xCDB4BC)
     static let line = adaptive(hex: 0x3A2029, 0xF8EEF1)
-    static let ink = adaptive(hex: 0x3A2029, 0xF8EEF1)
+    static let ink = themed(.ink, 0x3A2029, 0xF8EEF1)
     static let inverseText = adaptive(hex: 0xFFFFFF, 0x1D1216)
 
     /// Destructive / error text and icons; adapts for contrast in dark mode.
     static let danger = adaptive((0.75, 0.15, 0.13), (1.0, 0.45, 0.42))
     /// Solid primary fill (mauve light / rose dark). Prefer `heroGradient` for CTAs.
-    static let primaryButtonFill = adaptive(hex: 0x845763, 0xE491A6)
+    static let primaryButtonFill = themed(.primaryButtonFill, 0x845763, 0xE491A6)
     /// Text on `primaryButtonFill` (6.0:1 light, 6.6:1 dark).
     static let primaryButtonText = adaptive(hex: 0xFFFFFF, 0x3A1A26)
     /// Legacy opaque tab bar surface.
@@ -50,9 +50,9 @@ enum Theme {
     static var heroGradient: LinearGradient {
         LinearGradient(
             colors: [
-                adaptive(hex: 0x4A2634, 0x2A1620),
-                adaptive(hex: 0x845763, 0x4A2634),
-                adaptive(hex: 0xA04E6B, 0x6B3A52)
+                themed(.heroStart, 0x4A2634, 0x2A1620),
+                themed(.heroMid, 0x845763, 0x4A2634),
+                themed(.heroEnd, 0xA04E6B, 0x6B3A52)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -135,6 +135,8 @@ enum Theme {
     /// Named springs. Always apply through `Theme.animation(_:reduceMotion:)` or `motionSafeAnimation`.
     static let press = Animation.spring(response: 0.24, dampingFraction: 0.82)
     static let snap = Animation.snappy(duration: 0.28)
+    /// Quick feedback for chip and segment selection.
+    static let quick = Animation.snappy(duration: 0.16)
     static let bounce = Animation.spring(response: 0.45, dampingFraction: 0.6)
     static let hero = Animation.spring(response: 0.55, dampingFraction: 0.85)
     static let settle = Animation.smooth(duration: 0.4)
@@ -158,6 +160,18 @@ enum Theme {
     }
 
     // MARK: Color builders
+    /// Palette-aware color: the default Rose palette uses the hand-tuned hex
+    /// pair; any other palette generates the role from its hue. Re-resolves
+    /// live when the palette trait changes.
+    static func themed(_ role: PaletteRole, _ light: UInt32, _ dark: UInt32) -> Color {
+        Color(UIColor { trait in
+            let isDark = trait.userInterfaceStyle == .dark
+            let id = trait[PaletteTrait.self]
+            if id == ThemePalette.rose.id { return uiColor(hex: isDark ? dark : light) }
+            return ThemePalette.resolve(id).color(role, dark: isDark)
+        })
+    }
+
     static func adaptive(hex light: UInt32, _ dark: UInt32) -> Color {
         Color(UIColor { trait in
             uiColor(hex: trait.userInterfaceStyle == .dark ? dark : light)

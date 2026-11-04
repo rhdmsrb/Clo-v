@@ -150,6 +150,9 @@ struct AccountView: View {
             profileShortcut(title: "Privacy", subtitle: "Data & controls", icon: "lock.shield", tint: Theme.iconPlum) {
                 PrivacyView()
             }
+            profileShortcut(title: "Appearance", subtitle: "Colors & theme", icon: "paintpalette", tint: Theme.iconCoral) {
+                AppearanceView()
+            }
         }
     }
 
