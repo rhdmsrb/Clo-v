@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// Plain button style that acknowledges a touch immediately.
+struct InstantPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .motionSafeAnimation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
 /// Circular header icon button: 44pt `cardElevated` container with a soft shadow.
 struct FeedIconButton: View {
     let systemImage: String
@@ -12,7 +22,7 @@ struct FeedIconButton: View {
         Button(action: action) {
             FeedIconBadge(systemImage: systemImage, tint: tint)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(InstantPressStyle())
         .accessibilityLabel(accessibilityLabel)
         .modifier(OptionalIdentifier(identifier: accessibilityIdentifier))
     }
@@ -106,7 +116,7 @@ struct FeedModeChip: View {
             }
             .contentShape(Capsule(style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(InstantPressStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("feedMode_\(label.replacingOccurrences(of: " ", with: ""))")
     }
@@ -126,6 +136,7 @@ struct FeedModeSegments: View {
         }
         .padding(3)
         .background(Theme.muted, in: Capsule(style: .continuous))
+        .motionSafeAnimation(Theme.quick, value: mode)
         .sensoryFeedback(.selection, trigger: mode)
     }
 }
@@ -163,8 +174,9 @@ struct FeedOccasionChip: View {
             }
             .contentShape(Capsule(style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(InstantPressStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .motionSafeAnimation(Theme.quick, value: isSelected)
         .sensoryFeedback(.selection, trigger: isSelected)
     }
 }

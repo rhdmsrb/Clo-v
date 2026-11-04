@@ -6,7 +6,6 @@ struct MainTabView: View {
     /// Tabs are mounted lazily on first visit so hidden tabs never load data
     /// the user hasn't asked for; once mounted they keep their state.
     @State private var mountedTabs: Set<MainTab> = [.feed]
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Measured height of the floating bar (including its outer padding), so
     /// content is inset by the real size rather than a fixed guess.
@@ -114,6 +113,7 @@ struct MainTabView: View {
             mountedTabs.insert(newTab)
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
+        .task { await premountRemainingTabs() }
         .sensoryFeedback(.selection, trigger: tab)
         .sensoryFeedback(.impact(weight: .medium), trigger: showCreate) { _, new in new }
     }
@@ -122,7 +122,18 @@ struct MainTabView: View {
         if tab == target {
             resetNavigation(for: target)
         } else {
-            withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { tab = target }
+            tab = target
+        }
+    }
+
+    /// Builds the other tabs shortly after launch so the first tap on one
+    /// doesn't pay for constructing its view tree. Inactive tabs skip data
+    /// loading (see `revisionTask`), so this adds no network work.
+    private func premountRemainingTabs() async {
+        for target in [MainTab.search, .activity, .account] {
+            try? await Task.sleep(for: .milliseconds(400))
+            if Task.isCancelled { return }
+            mountedTabs.insert(target)
         }
     }
 

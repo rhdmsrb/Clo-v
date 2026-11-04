@@ -6,11 +6,15 @@ struct CLOVApp: App {
     @UIApplicationDelegateAdaptor(CLOVAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasAskedForPush = false
+    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.rose.id
+    @AppStorage(AppearanceKey.colorScheme) private var colorSchemeRaw = AppearanceMode.system.rawValue
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
+                .environment(\.paletteID, paletteID)
+                .preferredColorScheme(AppearanceMode(rawValue: colorSchemeRaw)?.colorScheme)
                 .tint(Theme.accentSecondary)
                 .font(Theme.body)
                 .onOpenURL { url in handle(url) }

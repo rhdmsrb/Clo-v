@@ -38,6 +38,7 @@ struct FloatingTabBar: View {
             tabButton(.account, systemImage: "person.crop.circle", activeSystemImage: "person.crop.circle.fill", label: "Profile")
                 .accessibilityIdentifier("accountTab")
         }
+        .motionSafeAnimation(Theme.quick, value: selection)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Main navigation")
         .padding(.horizontal, 8)
@@ -107,7 +108,7 @@ struct FloatingTabBar: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TabPressStyle())
         .frame(maxWidth: .infinity)
         // `.combine` alone would fold the SF Symbol's own auto-generated
         // description into the label too (e.g. "two people, Groups")
@@ -128,5 +129,14 @@ private struct PostPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .motionSafeAnimation(value: configuration.isPressed)
+    }
+}
+
+/// Acknowledges a tab touch immediately, before the selection pill moves.
+private struct TabPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.6 : 1)
+            .motionSafeAnimation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
