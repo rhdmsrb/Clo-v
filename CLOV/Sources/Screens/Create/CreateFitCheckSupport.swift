@@ -5,6 +5,13 @@ struct PhotoSlotState: Identifiable {
     let id = UUID()
     var item: PhotosPickerItem?
     var image: UIImage?
+    /// The uncropped photo, kept so the crop can be adjusted again.
+    var original: UIImage?
+}
+
+private struct CropRequest: Identifiable {
+    let id = UUID()
+    let image: UIImage
 }
 
 enum FitCheckAudience: String, CaseIterable, Identifiable {
@@ -66,6 +73,7 @@ struct PhotoSlotView: View {
     let label: String
 
     @State private var pickError: String?
+    @State private var cropRequest: CropRequest?
 
     private static let tileRadius: CGFloat = Theme.tileRadius
     private static let dashLength: CGFloat = 7
@@ -74,6 +82,7 @@ struct PhotoSlotView: View {
         VStack(spacing: 6) {
             picker
                 .overlay(alignment: .topTrailing) { removeButton }
+                .overlay(alignment: .bottomTrailing) { cropButton }
             if let pickError {
                 Label(pickError, systemImage: "exclamationmark.circle.fill")
                     .font(Theme.caption)
@@ -88,6 +97,7 @@ struct PhotoSlotView: View {
         if state.image != nil {
             Button {
                 state.image = nil
+                state.original = nil
                 state.item = nil
             } label: {
                 Image(systemName: "xmark")
@@ -101,6 +111,25 @@ struct PhotoSlotView: View {
             .buttonStyle(.plain)
             .padding(2)
             .accessibilityLabel("Remove \(label)")
+        }
+    }
+
+    @ViewBuilder
+    private var cropButton: some View {
+        if let source = state.original ?? state.image {
+            Button { cropRequest = CropRequest(image: source) } label: {
+                Image(systemName: "crop")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color.black.opacity(0.7), in: Circle())
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(2)
+            .accessibilityLabel("Crop \(label)")
+            .accessibilityHint("Choose which part of the photo to keep")
         }
     }
 
@@ -121,12 +150,25 @@ struct PhotoSlotView: View {
         .buttonStyle(TileButtonStyle())
         .accessibilityLabel(state.image == nil ? "Add \(label)" : "Change \(label)")
         .accessibilityHint(state.image == nil ? "Opens your photo library" : "Replaces the selected photo")
+        .fullScreenCover(item: $cropRequest) { request in
+            PhotoCropView(image: request.image) {
+                // Cancelled: keep whatever was there before.
+                state.item = nil
+                cropRequest = nil
+            } onDone: { cropped in
+                state.original = request.image
+                state.image = cropped
+                state.item = nil
+                cropRequest = nil
+            }
+        }
         .onChange(of: state.item) { _, newItem in
             Task {
                 pickError = nil
                 guard let newItem else { return }
                 do {
-                    state.image = try await newItem.loadImage()
+                    let loaded = try await newItem.loadImage().normalizedOrientation()
+                    cropRequest = CropRequest(image: loaded)
                 } catch {
                     Log.app.error("Photo pick failed: \(error.localizedDescription)")
                     pickError = error.localizedDescription

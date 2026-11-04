@@ -25,6 +25,21 @@ extension UIImage {
         }
     }
 
+    /// Crops to `rect`, given in points of the upright image. Returns self if
+    /// the rect is empty or the pixel buffer can't be cropped.
+    func cropped(toPoints rect: CGRect) -> UIImage {
+        let normalized = normalizedOrientation()
+        guard let cgImage = normalized.cgImage else { return normalized }
+        let bounds = CGRect(origin: .zero, size: normalized.size)
+        let clipped = rect.intersection(bounds)
+        guard !clipped.isNull, clipped.width >= 1, clipped.height >= 1 else { return normalized }
+        let scale = normalized.scale
+        let pixelRect = CGRect(x: clipped.minX * scale, y: clipped.minY * scale,
+                               width: clipped.width * scale, height: clipped.height * scale).integral
+        guard let result = cgImage.cropping(to: pixelRect) else { return normalized }
+        return UIImage(cgImage: result, scale: scale, orientation: .up)
+    }
+
     /// Center-crops to exactly `targetRatio` (width / height) — this is
     /// what makes the uploaded photo match the grid cell it's shown in,
     /// instead of uploading the original (often differently-shaped) photo

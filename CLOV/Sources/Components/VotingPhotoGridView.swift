@@ -19,6 +19,7 @@ struct VotingPhotoGridView: View {
     @State private var myVote: UUID?
     @State private var error: String?
     @State private var isVoting = false
+    @State private var isRetracting = false
     @State private var isSendingReaction = false
     @State private var commentPhotoId: UUID?
     @State private var expandedPhoto: FitCheckPhoto?
@@ -263,11 +264,25 @@ struct VotingPhotoGridView: View {
                     .background(Theme.muted.opacity(0.65), in: Capsule())
             }
             .accessibilityHint("Add a comment and what stood out")
+            if canVote { changeVoteButton }
             quickReactionBar
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .softCard(padding: 14)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
+
+    private var changeVoteButton: some View {
+        Button { retractVote() } label: {
+            Label("Change vote", systemImage: "arrow.uturn.backward")
+                .font(Theme.caption)
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 12)
+                .frame(minHeight: Theme.minTapSize)
+                .background(Theme.muted.opacity(0.65), in: Capsule())
+        }
+        .disabled(isRetracting || isVoting)
+        .accessibilityHint("Cancels your vote so you can pick again while voting is open")
     }
 
     private var quickReactionBar: some View {
@@ -363,8 +378,34 @@ struct VotingPhotoGridView: View {
         }
     }
 
+    private func retractVote() {
+        guard let previous = myVote, canVote, !isRetracting, !isVoting else { return }
+        error = nil
+        isRetracting = true
+        Haptics.impact(.light)
+        myVote = nil // optimistic
+        counts[previous, default: 1] -= 1
+        total -= 1
+
+        Task {
+            defer { isRetracting = false }
+            do {
+                try await API.retractVote(fitCheckId: fitCheckId, voterId: voterId, status: status, expiresAt: expiresAt)
+                streak = VoteStreakStore.unrecordVote(for: voterId)
+                AccessibilityNotification.Announcement("Vote cancelled. Pick again.").post()
+                appState.contentDidChange()
+            } catch {
+                Haptics.error()
+                setError(friendlyMessage(for: error, fallback: "Couldn’t cancel your vote. Please try again."))
+                myVote = previous
+                counts[previous, default: 0] += 1
+                total += 1
+            }
+        }
+    }
+
     private func syncVotes() {
-        guard !isVoting else { return }
+        guard !isVoting, !isRetracting else { return }
         counts = incomingCounts
         total = incomingTotal
         myVote = incomingVote

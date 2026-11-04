@@ -454,6 +454,23 @@ enum API {
         // second write from here.
     }
 
+    /// Cancels the signed-in user's vote so they can pick again. Allowed only
+    /// while the post is live (enforced by RLS too, see 20261104000100_retract_vote.sql).
+    static func retractVote(fitCheckId: UUID, voterId: UUID, status: String, expiresAt: Date? = nil) async throws {
+#if DEBUG
+        if SampleData.isActive { return }
+#endif
+        if status != "live" || isExpired(expiresAt) {
+            throw APIError.message("Voting has ended, so your vote can't be changed.")
+        }
+        try await client
+            .from("fit_check_votes")
+            .delete()
+            .eq("fit_check_id", value: fitCheckId)
+            .eq("voter_id", value: voterId)
+            .execute()
+    }
+
     static func saveVoteReason(fitCheckId: UUID, photoId: UUID, tags: [String], comment: String) async throws {
 #if DEBUG
         if SampleData.isActive { return }

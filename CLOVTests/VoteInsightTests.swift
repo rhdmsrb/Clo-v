@@ -64,6 +64,18 @@ final class VoteStreakTests: XCTestCase {
         XCTAssertEqual(streak.days, 2)
     }
 
+    func testCancellingAVoteLowersTodaysCountButKeepsStreak() {
+        let streak = VoteStreak().recording(on: day(0), calendar: calendar)
+            .recording(on: day(1), calendar: calendar).unrecording()
+        XCTAssertEqual(streak.votesToday, 0)
+        XCTAssertEqual(streak.days, 2)
+        XCTAssertNil(streak.summary(on: day(1), calendar: calendar))
+    }
+
+    func testCancellingNeverGoesBelowZero() {
+        XCTAssertEqual(VoteStreak().unrecording().votesToday, 0)
+    }
+
     func testMissedDayResetsStreak() {
         let streak = VoteStreak().recording(on: day(0), calendar: calendar)
             .recording(on: day(1), calendar: calendar).recording(on: day(3), calendar: calendar)
