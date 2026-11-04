@@ -5,20 +5,40 @@ enum SkeletonStyle {
     case spinner, cards, grid, rows
 }
 
+/// Sweeping highlight over the placeholder shapes. Static under Reduce Motion.
 private struct Shimmer: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isBright = false
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var phase: CGFloat = 0
+
+    private static let sweepWidthFraction: CGFloat = 0.6
 
     func body(content: Content) -> some View {
         content
-            .opacity(reduceMotion || isBright ? 1 : 0.55)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: isBright)
-            .onAppear { isBright = true }
+            .overlay { if !reduceMotion { sweep.mask(content) } }
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) { phase = 1 }
+            }
+    }
+
+    private var sweep: some View {
+        GeometryReader { geo in
+            let width = geo.size.width * Self.sweepWidthFraction
+            LinearGradient(
+                colors: [.clear, Color.white.opacity(colorScheme == .dark ? 0.10 : 0.6), .clear],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: width)
+            .offset(x: -width + phase * (geo.size.width + width))
+        }
+        .allowsHitTesting(false)
     }
 }
 
 private struct SkeletonBlock: View {
-    var cornerRadius: CGFloat = Theme.controlRadius
+    var cornerRadius: CGFloat = Theme.cardRadius
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(Theme.muted)

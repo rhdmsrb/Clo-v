@@ -45,14 +45,14 @@ extension SampleData {
                         createdAt: createdAt, expiresAt: expiresAt, fitCheckPhotos: photos,
                         fitCheckVotes: votes,
                         fitCheckComments: (0..<commentCount).map { CommentRef(id: SampleData.uuid(5_000 + number * 10 + $0)) },
-                        profiles: creator.info)
+                        profiles: creator.info, isPublic: isPublic)
         }
 
         var detail: FitCheckDetailDTO {
             FitCheckDetailDTO(id: id, caption: caption, occasion: occasion,
                               audience: isPublic ? "public" : "group", votePrompt: votePrompt,
                               status: status, creatorId: creator.id, expiresAt: expiresAt,
-                              fitCheckPhotos: photos, profiles: creator.info)
+                              fitCheckPhotos: photos, profiles: creator.info, isPublic: isPublic)
         }
     }
 

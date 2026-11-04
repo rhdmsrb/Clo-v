@@ -18,11 +18,17 @@ targets:
     sources:
       - path: CLOV/Sources
       - path: CLOV/Assets.xcassets
+      - path: CLOV/Resources
       - path: CLOV/PrivacyInfo.xcprivacy
     info:
       path: CLOV/Info.plist
       properties:
         UILaunchScreen: {}
+        UIAppFonts:
+          - OpenSans-Regular.ttf
+          - OpenSans-SemiBold.ttf
+          - OpenSans-Bold.ttf
+          - OpenSans-ExtraBold.ttf
         CFBundleDisplayName: "CLO-V"
         CLOVShareBaseURL: ""
         NSPhotoLibraryUsageDescription: "CLO-V needs access to your photos so you can post a Fit-Check."

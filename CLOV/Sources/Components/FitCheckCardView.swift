@@ -26,7 +26,7 @@ struct FitCheckCardView: View {
     private var showsFollow: Bool { item.creatorId != voterId && onToggleFollow != nil }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             header
             // One timeline per card, ticking once at expiry. The grid stays
             // mounted (and renders the ended state itself) so a comment sheet
@@ -35,7 +35,7 @@ struct FitCheckCardView: View {
                 cardContent(clock: context.date)
             }
         }
-        .softCard()
+        .elevatedCard(radius: Theme.cardRadius, padding: 14)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(posterName)’s Fit-Check")
     }
@@ -59,10 +59,27 @@ struct FitCheckCardView: View {
 
     private func identity(lineLimit: Int) -> some View {
         HStack(spacing: 10) {
-            AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 36)
-            Text(posterName)
-                .font(.system(.subheadline, design: .default).weight(.bold))
-                .lineLimit(lineLimit)
+            AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 40)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(posterName)
+                    .font(Theme.headline.weight(.bold))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(lineLimit)
+                occasionCapsule
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var occasionCapsule: some View {
+        if let occasion = item.occasion, !occasion.isEmpty {
+            Text(occasion)
+                .font(Theme.micro)
+                .foregroundStyle(Theme.accentDeep)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(Theme.accentTint, in: Capsule(style: .continuous))
         }
     }
 
@@ -81,14 +98,22 @@ struct FitCheckCardView: View {
 
     private func followButton(_ onToggleFollow: @escaping (Bool) -> Void) -> some View {
         Button { onToggleFollow(!isFollowing) } label: {
-            Text(isFollowing ? "Following" : "Follow")
-                .font(.system(.caption, design: .default).weight(.bold))
-                .foregroundStyle(isFollowing ? Theme.mutedForeground : Theme.accentSecondary)
-                .padding(.horizontal, 8)
+            Label(isFollowing ? "Following" : "Follow", systemImage: isFollowing ? "checkmark" : "plus")
+                .font(Theme.caption)
+                .foregroundStyle(isFollowing ? Theme.accentDeep : Theme.ink)
+                .lineLimit(1)
+                .contentTransition(.symbolEffect(.replace))
+                .padding(.horizontal, 12)
+                .frame(minHeight: 32)
+                .background(isFollowing ? Theme.accentTint : Color.clear, in: Capsule(style: .continuous))
+                .overlay(Capsule(style: .continuous)
+                    .stroke(isFollowing ? Theme.accentDeep : Theme.controlBorder, lineWidth: 1))
                 .frame(minHeight: Theme.minTapSize)
-                .contentShape(Rectangle())
+                .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
+        .motionSafeAnimation(Theme.snap, value: isFollowing)
+        .sensoryFeedback(.selection, trigger: isFollowing)
         .accessibilityLabel("Follow \(posterName)")
         .accessibilityValue(isFollowing ? "Following" : "Not following")
         .accessibilityAddTraits(.isToggle)
@@ -96,7 +121,7 @@ struct FitCheckCardView: View {
 
     private func cardContent(clock: Date) -> some View {
         let expired = isExpired(item.expiresAt)
-        return VStack(alignment: .leading, spacing: 16) {
+        return VStack(alignment: .leading, spacing: 12) {
             VotingPhotoGridView(
                 fitCheckId: item.id,
                 creatorId: item.creatorId,
@@ -109,7 +134,8 @@ struct FitCheckCardView: View {
                 expiresAt: item.expiresAt,
                 prompt: item.votePrompt,
                 clock: clock,
-                showsEndedStateWhenExpired: true
+                showsEndedStateWhenExpired: true,
+                isPublicPost: item.isPublic == true
             )
             if !expired { details }
         }
@@ -119,27 +145,27 @@ struct FitCheckCardView: View {
     private var details: some View {
         if let caption = item.caption, !caption.isEmpty {
             Text(caption)
-                .font(.system(.subheadline, design: .default))
+                .font(Theme.font(.subheadline))
                 .foregroundStyle(Theme.ink)
         }
 
-        if let occasion = item.occasion, !occasion.isEmpty {
-            Text(occasion)
-                .font(.system(.caption, design: .default).weight(.medium))
-                .foregroundStyle(Theme.accentSecondary)
-        }
-
         NavigationLink(value: FitCheckRoute(id: item.id)) {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 Image(systemName: "bubble.left.fill")
-                    .font(.caption2)
+                    .font(.caption)
                     .accessibilityHidden(true)
                 Text(commentLabel)
-                    .font(.system(.caption, design: .default).weight(.semibold))
+                    .font(Theme.label)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .accessibilityHidden(true)
             }
             .foregroundStyle(Theme.mutedForeground)
-            .frame(minHeight: Theme.minTapSize, alignment: .leading)
-            .contentShape(Rectangle())
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTapSize, alignment: .leading)
+            .background(Theme.muted, in: Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
         }
     }
 

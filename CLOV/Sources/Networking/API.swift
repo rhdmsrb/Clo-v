@@ -611,12 +611,16 @@ enum API {
     }
 
     static func discardDraft(fitCheckId: UUID, creatorId: UUID, uploadedPaths: [String]) async {
-        if !uploadedPaths.isEmpty {
-            do { _ = try await client.storage.from("fit-check-photos").remove(paths: uploadedPaths) }
-            catch { Log.storage.error("Draft photo cleanup failed: \(error.localizedDescription)") }
-        }
-        do { try await deleteFitCheck(id: fitCheckId, creatorId: creatorId) }
-        catch { Log.app.error("Draft cleanup failed: \(error.localizedDescription)") }
+        // Detached so cleanup still runs when the caller was cancelled
+        // (e.g. the create sheet was dismissed mid-upload).
+        await Task.detached {
+            if !uploadedPaths.isEmpty {
+                do { _ = try await client.storage.from("fit-check-photos").remove(paths: uploadedPaths) }
+                catch { Log.storage.error("Draft photo cleanup failed: \(error.localizedDescription)") }
+            }
+            do { try await deleteFitCheck(id: fitCheckId, creatorId: creatorId) }
+            catch { Log.app.error("Draft cleanup failed: \(error.localizedDescription)") }
+        }.value
     }
 
 

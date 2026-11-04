@@ -1,18 +1,5 @@
 import SwiftUI
 
-/// Small uppercase heading used above each form section.
-struct SectionLabel: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text)
-            .font(Theme.microMedium)
-            .foregroundStyle(.secondary)
-            .accessibilityAddTraits(.isHeader)
-    }
-}
-
 struct PhotoCountSection: View {
     let photoCount: Int
     let onSelect: (Int) -> Void
@@ -21,15 +8,13 @@ struct PhotoCountSection: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            SectionLabel("PHOTOS")
+            SectionHeader(title: "Photos")
             Spacer()
             ForEach(Self.options, id: \.self) { count in
                 Button { onSelect(count) } label: { Text("\(count) photos") }
                     .buttonStyle(ChipButtonStyle(
                         isSelected: photoCount == count,
-                        font: Theme.microMedium,
-                        unselectedFill: Theme.card,
-                        unselectedForeground: Theme.mutedForeground
+                        font: Theme.caption
                     ))
                     .accessibilityAddTraits(photoCount == count ? .isSelected : [])
             }
@@ -50,9 +35,10 @@ struct PhotoGridSection: View {
                     PhotoSlotView(state: $slot, label: "Photo \(number)")
                     Button { onPickWardrobe(slot.id) } label: {
                         Label("My Wardrobe", systemImage: "hanger")
-                            .font(Theme.microMedium)
-                            .foregroundStyle(Theme.accentSecondary)
-                            .frame(minHeight: 44)
+                            .font(Theme.caption)
+                            .foregroundStyle(Theme.accentDeep)
+                            .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+                            .contentShape(Rectangle())
                     }
                     .disabled(!canUseWardrobe)
                 }
@@ -68,7 +54,7 @@ struct NoteSection: View {
     private static let placeholder = "Add context about where you're going or what matters to you."
 
     var body: some View {
-        LabeledField(label: "ADD A NOTE (OPTIONAL)", padding: 8) {
+        LabeledField(label: "Add a note (optional)", padding: 8) {
             TextEditor(text: $caption)
                 .frame(minHeight: noteMinHeight)
                 .accessibilityLabel("Note, optional")
@@ -76,7 +62,7 @@ struct NoteSection: View {
                 .overlay(alignment: .topLeading) {
                     if caption.isEmpty {
                         Text(Self.placeholder)
-                            .font(.subheadline)
+                            .font(Theme.body)
                             .foregroundStyle(Theme.mutedForeground)
                             .padding(.top, 8)
                             .allowsHitTesting(false)
@@ -99,14 +85,11 @@ struct PromptSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            SectionLabel("WHAT SHOULD PEOPLE HELP YOU DECIDE?")
-            TextField("e.g. Which shoes finish this look?", text: clampedPrompt, axis: .vertical)
-                .lineLimit(1...2)
-                .font(.subheadline)
-                .padding(12)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous)
-                    .stroke(Theme.controlBorder, lineWidth: 1))
+            SectionHeader(title: "What should people help you decide?")
+            LabeledField(padding: 12) {
+                TextField("e.g. Which shoes finish this look?", text: clampedPrompt, axis: .vertical)
+                    .lineLimit(1...2)
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
                     ForEach(suggestions, id: \.self) { suggestion in
@@ -117,11 +100,14 @@ struct PromptSection: View {
                                 unselectedForeground: Theme.ink,
                                 horizontalPadding: 10
                             ))
+                            // Size to the full text inside the horizontal scroll
+                            // instead of truncating.
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                 }
             }
             Text("Optional. A specific question gets more useful feedback.")
-                .font(.caption2).foregroundStyle(Theme.mutedForeground)
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         }
     }
 }
@@ -132,7 +118,7 @@ struct OccasionSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("WHAT'S THE OCCASION?")
+            SectionHeader(title: "What's the occasion?")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(options, id: \.self) { option in
@@ -149,7 +135,7 @@ struct VotingWindowSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("VOTING WINDOW")
+            SectionHeader(title: "Voting window")
             HStack(spacing: 8) {
                 ForEach(VotingDuration.allCases) { duration in
                     ChipToggle(label: duration.label, selected: votingDuration == duration) {
@@ -158,7 +144,7 @@ struct VotingWindowSection: View {
                 }
             }
             Text("Voting closes after this. Results remain available to you in Me; the post leaves everyone else's feed.")
-                .font(.caption2)
+                .font(Theme.caption)
                 .foregroundStyle(Theme.mutedForeground)
         }
     }
@@ -172,13 +158,13 @@ struct AudienceSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            SectionLabel("WHO CAN SEE THIS?")
+            SectionHeader(title: "Who can see this?")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(FitCheckAudience.allCases) { option in audienceButton(option) }
             }
             if selectedAudience == .group { groupChooser }
             Text(selectedAudience.description)
-                .font(.caption).foregroundStyle(Theme.mutedForeground)
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         }
     }
 
@@ -195,11 +181,11 @@ struct AudienceSection: View {
                 Spacer(minLength: 0)
                 if isSelected { Image(systemName: "checkmark.circle.fill").accessibilityHidden(true) }
             }
-            .foregroundStyle(isSelected ? Theme.ink : Theme.mutedForeground)
+            .foregroundStyle(isSelected ? Theme.accentDeep : Theme.ink)
             .padding(11)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(isSelected ? Theme.accent.opacity(0.12) : Theme.card, in: shape)
-            .overlay(shape.stroke(isSelected ? Theme.accentSecondary.opacity(0.9) : Theme.controlBorder, lineWidth: 1))
+            .background(isSelected ? Theme.accentTint : Theme.muted, in: shape)
+            .overlay(shape.stroke(isSelected ? Theme.accentDeep : Theme.controlBorder, lineWidth: isSelected ? 1.5 : 1))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -209,14 +195,14 @@ struct AudienceSection: View {
     private var groupChooser: some View {
         if myGroups.isEmpty {
             Text("Create or join a group first to share privately with its members.")
-                .font(.caption).foregroundStyle(Theme.mutedForeground)
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         } else {
             Picker("Choose group", selection: $selectedGroupId) {
                 ForEach(myGroups) { group in Text(group.name).tag(Optional(group.id)) }
             }
             .pickerStyle(.menu)
             .padding(.horizontal, 12)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.controlRadius))
+            .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
         }
     }
 }

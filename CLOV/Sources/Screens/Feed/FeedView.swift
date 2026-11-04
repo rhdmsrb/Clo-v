@@ -35,10 +35,17 @@ struct FeedView: View {
     @State private var pendingFollowIDs: Set<UUID> = []
     @State private var searchTask: Task<Void, Never>?
     @State private var loadID = UUID()
+    @Namespace private var occasionIndicator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private static let pagePadding: CGFloat = 20
     private static let pageSize = 24
     private static let searchDebounce: Duration = .milliseconds(300)
-    private static let occasionOptions = ["Everyday", "Work", "Date", "Interview", "Party", "Travel", "Wedding"]
+    private static let cardSpacing: CGFloat = 16
+    private static let occasionOptions: [(label: String, symbol: String)] = [
+        ("Everyday", "sun.max"), ("Work", "briefcase"), ("Date", "heart"), ("Interview", "person.text.rectangle"),
+        ("Party", "party.popper"), ("Travel", "airplane"), ("Wedding", "sparkles")
+    ]
 
     /// Everything that requires re-fetching the item list. The social graph
     /// is only re-fetched when `revision` changes.
@@ -102,8 +109,8 @@ struct FeedView: View {
             hasLoaded: hasLoaded,
             error: error,
             onModeChange: { following in mode = following ? .following : .forYou },
-            onBrowse: { withAnimation(.easeInOut(duration: 0.2)) { showSwipeFeed = false } },
-            onClose: { withAnimation(.easeInOut(duration: 0.2)) { showSwipeFeed = false } },
+            onBrowse: { withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = false } },
+            onClose: { withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = false } },
             onToggleFollow: { creatorId, follow in toggleFollow(creatorId, follow: follow) },
             onEvent: { item, event in logEvent(item, event: event) },
             onImpression: { item in logImpression(for: item) },
@@ -119,7 +126,7 @@ struct FeedView: View {
 
     private var editorialFeed: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: Self.cardSpacing) {
                 headerRow
                 DailyChallengeCard(
                     challenge: localWeather.conditions.map(DailyChallenge.forWeather) ?? .today,
@@ -130,16 +137,14 @@ struct FeedView: View {
                     onUseWeather: { localWeather.requestWeather() },
                     onJoin: { showChallenge = true }
                 )
-                modeRow
-                if isSearchExpanded { FeedSearchField(text: $searchText) }
-                occasionRow
                 feedList
                 olderFitChecksButton
             }
-            .padding(20)
+            .padding(.horizontal, Self.pagePadding)
+            .padding(.vertical, Self.cardSpacing)
         }
         .background(Theme.background)
-        .statusBarBackdrop()
+        .safeAreaInset(edge: .top, spacing: 0) { pinnedFilters }
         .refreshable { await load(refreshGraph: true) }
         .onDisappear { flushImpressions() }
         .sheet(isPresented: $showChallenge) {
@@ -150,9 +155,12 @@ struct FeedView: View {
     private var headerRow: some View {
         HStack(spacing: 10) {
             Text("Discover")
-                .font(Theme.editorialFont(size: 40))
+                .font(Theme.displayFont)
+                .foregroundStyle(Theme.ink)
                 .lineLimit(1)
-                .minimumScaleFactor(0.5)
+                .minimumScaleFactor(0.7)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .accessibilityAddTraits(.isHeader)
                 .layoutPriority(1)
             Spacer(minLength: 0)
             headerButtons
@@ -161,65 +169,83 @@ struct FeedView: View {
 
     /// Icon buttons stop growing past `xxxLarge` so they never crowd the title.
     private var headerButtons: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             FeedIconButton(
                 systemImage: "play.rectangle",
                 accessibilityLabel: "Watch Fit-Checks",
                 accessibilityIdentifier: "watchFeedButton"
             ) {
-                withAnimation(.easeInOut(duration: 0.2)) { showSwipeFeed = true }
+                withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = true }
             }
             FeedIconButton(
                 systemImage: isSearchExpanded ? "xmark" : "magnifyingglass",
                 accessibilityLabel: isSearchExpanded ? "Close search" : "Search Fit-Checks"
             ) {
                 if isSearchExpanded { searchText = "" }
-                isSearchExpanded.toggle()
+                withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { isSearchExpanded.toggle() }
             }
             NavigationLink {
                 NotificationsView(onRead: { Task { await loadUnreadCount() } })
             } label: {
                 FeedBellIcon(unreadCount: unreadCount)
             }
+            .buttonStyle(.plain)
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .fixedSize()
     }
 
-    private var modeRow: some View {
-        ViewThatFits(in: .horizontal) {
-            modeRowContent
-            ScrollView(.horizontal, showsIndicators: false) { modeRowContent }
+    /// Filters stay visible while the feed scrolls; opaque so text never
+    /// sits on a blur.
+    private var pinnedFilters: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            modeRow.padding(.horizontal, Self.pagePadding)
+            if isSearchExpanded {
+                FeedSearchField(text: $searchText).padding(.horizontal, Self.pagePadding)
+            }
+            occasionRow
         }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.background.ignoresSafeArea(edges: .top))
     }
 
-    private var modeRowContent: some View {
-        HStack(spacing: 8) {
-            FeedModeChip(label: "For You", isSelected: mode == .forYou) { select(.forYou) }
-            FeedModeChip(label: "Following", isSelected: mode == .following) { select(.following) }
-            Spacer(minLength: 4)
-            if mode == .forYou { FeedSortMenu(sort: $sort) }
+    private var modeRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                FeedModeSegments(mode: $mode) { select($0) }
+                if mode == .forYou { FeedSortMenu(sort: $sort) }
+            }
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
     }
 
     private var occasionRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                FeedOccasionChip(label: "All", isSelected: selectedOccasion == nil) { select(occasion: nil) }
-                ForEach(Self.occasionOptions, id: \.self) { occasion in
-                    FeedOccasionChip(label: occasion, isSelected: selectedOccasion == occasion) {
-                        select(occasion: occasion)
+                FeedOccasionChip(label: "All", symbol: "square.grid.2x2", isSelected: selectedOccasion == nil,
+                                 namespace: occasionIndicator) { select(occasion: nil) }
+                ForEach(Self.occasionOptions, id: \.label) { option in
+                    FeedOccasionChip(label: option.label, symbol: option.symbol,
+                                     isSelected: selectedOccasion == option.label,
+                                     namespace: occasionIndicator) {
+                        select(occasion: option.label)
                     }
                 }
             }
         }
+        // Run the chip row edge to edge so the last visible chip is clearly
+        // cut by the screen, not by the page padding.
+        .contentMargins(.horizontal, Self.pagePadding, for: .scrollContent)
     }
 
     private var feedList: some View {
         AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
                        emptyText: emptyFeedText, topPadding: 40, hasLoaded: hasLoaded,
-                       retry: { await load(refreshGraph: true) }, skeleton: .cards) {
-            LazyVStack(spacing: 20) {
+                       retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
+                       emptyTitle: "No Fit-Checks yet", emptyActionTitle: "Post a Fit-Check",
+                       emptyAction: { showChallenge = true }, skeleton: .cards) {
+            LazyVStack(spacing: Self.cardSpacing) {
                 ForEach(visibleItems) { item in
                     FitCheckCardView(
                         item: item,
@@ -227,6 +253,11 @@ struct FeedView: View {
                         isFollowing: followingIDs.contains(item.creatorId),
                         onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) }
                     )
+                    .scrollTransition(.animated(Theme.settle), axis: .vertical) { view, phase in
+                        view
+                            .opacity(reduceMotion || phase.isIdentity ? 1 : 0.6)
+                            .scaleEffect(reduceMotion || phase.isIdentity ? 1 : 0.97)
+                    }
                     .onAppear { logImpression(for: item) }
                 }
                 loadMoreFooter
@@ -246,10 +277,11 @@ struct FeedView: View {
         } else if loadMoreFailed {
             HStack {
                 Text("Couldn’t load more.")
-                    .font(.subheadline)
+                    .font(Theme.body)
                     .foregroundStyle(Theme.mutedForeground)
                 Button("Retry") { Task { await loadMoreIfNeeded() } }
-                    .font(.subheadline.weight(.bold))
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.accentDeep)
                     .frame(minHeight: FeedLayout.minHitSize)
             }
             .frame(maxWidth: .infinity)
@@ -273,11 +305,11 @@ struct FeedView: View {
 
     private func select(_ newMode: FeedMode) {
         guard mode != newMode else { return }
-        withAnimation(Theme.press) { mode = newMode }
+        withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { mode = newMode }
     }
 
     private func select(occasion: String?) {
-        withAnimation(Theme.press) { selectedOccasion = occasion }
+        withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { selectedOccasion = occasion }
     }
 
     private func refreshVisibleItems() {

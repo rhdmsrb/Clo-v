@@ -61,11 +61,19 @@ struct CreateFitCheckView: View {
                     VotingWindowSection(votingDuration: $votingDuration)
                     AudienceSection(selectedAudience: $selectedAudience, selectedGroupId: $selectedGroupId, myGroups: myGroups)
                     messages
-                    postButton
                 }
                 .padding(20)
             }
             .background(Theme.background)
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 6) {
+                    if isPosting { ProgressView(value: nil as Double?).progressViewStyle(.linear).tint(Theme.accentDeep) }
+                    postButton
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Theme.background.opacity(0.96))
+            }
             .sheet(isPresented: wardrobeSheetBinding) { wardrobeSheet }
             .confirmationDialog("Remove photos 3 and 4?", isPresented: $showDropPhotosConfirmation, titleVisibility: .visible) {
                 Button("Use 2 photos", role: .destructive) { applyPhotoCount(2) }
@@ -92,11 +100,15 @@ struct CreateFitCheckView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Post a Fit-Check")
-                .font(Theme.editorialFont(size: 38))
+                .font(Theme.editorialFont(size: 34, relativeTo: .largeTitle))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .accessibilityIdentifier("createFitCheckTitle")
                 .accessibilityAddTraits(.isHeader)
             Text("Upload 2 or 4 photos and ask people to pick their favorite.")
-                .font(.subheadline)
+                .font(Theme.body)
                 .foregroundStyle(Theme.mutedForeground)
         }
     }
@@ -104,25 +116,36 @@ struct CreateFitCheckView: View {
     @ViewBuilder
     private var messages: some View {
         if isLoadingOptions {
-            ProgressView("Loading your groups and wardrobe…").font(.footnote)
+            ProgressView("Loading your groups and wardrobe…").font(Theme.caption)
         }
         if let loadError {
             VStack(alignment: .leading, spacing: 4) {
-                Text(loadError).font(.footnote).foregroundStyle(Theme.danger)
+                Label(loadError, systemImage: "exclamationmark.circle.fill")
+                    .font(Theme.caption).foregroundStyle(Theme.danger)
                 Button("Retry") { Task { await loadOptions() } }
-                    .frame(minHeight: 44)
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.accentDeep)
+                    .frame(minHeight: Theme.minTapSize)
                     .disabled(isLoadingOptions)
             }
         }
         if let submitError {
-            Text(submitError).font(.footnote).foregroundStyle(Theme.danger)
+            Label(submitError, systemImage: "exclamationmark.circle.fill")
+                .font(Theme.caption).foregroundStyle(Theme.danger)
         }
     }
 
     private var postButton: some View {
-        Button(isPosting ? "Posting…" : "Post it") { Task { await submit() } }
-            .buttonStyle(PrimaryButtonStyle(isDisabled: !canPost))
-            .disabled(!canPost)
+        Button { Task { await submit() } } label: {
+            if isPosting {
+                HStack(spacing: 8) { ProgressView(); Text("Posting…") }
+            } else {
+                Text("Post it")
+            }
+        }
+        .buttonStyle(PrimaryButtonStyle(isDisabled: !canPost))
+        .disabled(!canPost)
+        .accessibilityHint(canPost ? "" : "Add all photos to enable posting")
     }
 
     private var wardrobeSheetBinding: Binding<Bool> {
@@ -220,8 +243,14 @@ struct CreateFitCheckView: View {
     // Note for backend owner: this downloads the wardrobe image with
     // URLSession.shared directly rather than through an API method.
     private func chooseWardrobeItem(_ item: WardrobeItem, forSlot slotId: UUID) async {
-        guard let url = URL(string: item.imageUrl) else { return }
         wardrobeError = nil
+        // imageUrl is owner-writable, so only fetch from our own storage host over https.
+        guard let url = URL(string: item.imageUrl),
+              url.scheme?.lowercased() == "https",
+              url.host == AppConfig.supabaseURL.host else {
+            wardrobeError = "Couldn't load that wardrobe photo. Please try again."
+            return
+        }
         isLoadingWardrobe = true
         defer { isLoadingWardrobe = false }
         do {

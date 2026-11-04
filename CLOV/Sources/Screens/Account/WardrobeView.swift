@@ -26,7 +26,7 @@ struct WardrobeView: View {
     }
 
     private var searchAndFilterBar: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
                     .accessibilityHidden(true)
@@ -42,15 +42,17 @@ struct WardrobeView: View {
                 }
             }
             .padding(.horizontal, 13).frame(minHeight: 44)
-            .background(Theme.muted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: 10))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ChipToggle(label: "All", selected: filter.category == nil) { filter.category = nil }
+                    categoryChip("All", isSelected: filter.category == nil) { filter.category = nil }
                     ForEach(WardrobeCategory.allCases) { category in
-                        ChipToggle(label: category.label, selected: filter.category == category) { filter.category = category }
+                        categoryChip(category.label, isSelected: filter.category == category) { filter.category = category }
                     }
                 }
+                .padding(.vertical, 2)
             }
 
             HStack(spacing: 10) {
@@ -73,100 +75,135 @@ struct WardrobeView: View {
                 .accessibilityLabel("Sort: \(filter.sort.label)")
                 Spacer()
                 Text("\(visibleItems.count) \(visibleItems.count == 1 ? "piece" : "pieces")")
-                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.mutedForeground)
+                    .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
                 if filter.isActive {
                     Button("Clear") { filter = WardrobeFilter(sort: filter.sort) }
-                        .font(.caption.weight(.semibold)).tint(Theme.accentSecondary)
-                        .frame(minHeight: 44)
+                        .font(Theme.label).tint(Theme.accentDeep)
+                        .frame(minHeight: Theme.minTapSize)
                 }
             }
         }
     }
 
+    private func categoryChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(ChipButtonStyle(isSelected: isSelected, font: Theme.label, horizontalPadding: 16))
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .motionSafeAnimation(Theme.snap, value: isSelected)
+    }
+
     private func menuLabel(icon: String, title: String, highlighted: Bool) -> some View {
-        Label(title, systemImage: icon)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(highlighted ? Theme.inverseText : Theme.ink)
-            .padding(.horizontal, 12).frame(minHeight: 36)
-            .background(highlighted ? Theme.ink : Theme.muted.opacity(0.65), in: Capsule())
+        HStack(spacing: 6) {
+            Image(systemName: highlighted ? "checkmark" : icon).accessibilityHidden(true)
+            Text(title)
+        }
+        .font(Theme.label)
+        .foregroundStyle(highlighted ? Theme.accentDeep : Theme.ink)
+        .padding(.horizontal, 14).frame(minHeight: Theme.minTapSize)
+        .background(highlighted ? Theme.accentTint : Theme.muted, in: Capsule(style: .continuous))
+        .overlay(Capsule(style: .continuous).stroke(highlighted ? Theme.accentDeep : Theme.controlBorder, lineWidth: highlighted ? 1.5 : 1))
+        .contentShape(Capsule(style: .continuous))
+    }
+
+    private var header: some View {
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("PERSONAL CATALOG").font(Theme.micro).tracking(1.4).foregroundStyle(Theme.accentDeep)
+                Text("My Wardrobe")
+                    .font(Theme.editorialFont(size: 42))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            Spacer()
+            NavigationLink {
+                ClothingCatalogView()
+            } label: {
+                Image(systemName: "square.grid.2x2")
+                    .font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .background(Theme.muted, in: Circle())
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel("Browse clothing catalog")
+            Button { showAdd = true } label: {
+                Image(systemName: "plus").font(Theme.headline).foregroundStyle(Color.white)
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .background(Theme.heroGradient, in: Circle())
+                    .contentShape(Circle())
+            }.accessibilityLabel("Add wardrobe item")
+        }
+    }
+
+    private var planLookLink: some View {
+        NavigationLink {
+            OutfitPlannerView(wardrobeItems: items)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "hanger")
+                    .font(Theme.headline)
+                    .foregroundStyle(Theme.accentDeep)
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .background(Theme.accentTint, in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Plan a look").font(Theme.headline)
+                        .foregroundStyle(Theme.ink)
+                    Text("Put pieces together for what’s coming up")
+                        .font(Theme.label).foregroundStyle(Theme.mutedForeground)
+                }
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(Theme.label).foregroundStyle(Theme.ink)
+                    .accessibilityHidden(true)
+            }
+            .accessibilityElement(children: .combine)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+            .elevatedCard(radius: Theme.tileRadius, padding: 14)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("wardrobe.planLook")
+    }
+
+    private var itemSections: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            ForEach(sections, id: \.0) { category, categoryItems in
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        SectionHeader(title: category.label)
+                        Text("\(categoryItems.count)").font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+                    }
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
+                        ForEach(categoryItems) { item in
+                            WardrobeItemCard(item: item,
+                                             onEdit: { editTarget = item },
+                                             onDelete: { deleteTarget = item },
+                                             onWorn: { Task { await logWear(item) } })
+                        }
+                    }
+                }
+            }
+        }
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("PERSONAL CATALOG").font(.system(.caption2, design: .default).weight(.black)).tracking(1.4).foregroundStyle(Theme.accentSecondary)
-                        Text("My Wardrobe").font(Theme.editorialFont(size: 42))
-                    }
-                    Spacer()
-                    NavigationLink {
-                        ClothingCatalogView()
-                    } label: {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.ink)
-                            .frame(width: 44, height: 44).background(Theme.muted.opacity(0.65))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .accessibilityLabel("Browse clothing catalog")
-                    Button { showAdd = true } label: {
-                        Image(systemName: "plus").font(.system(size: 18, weight: .black)).foregroundStyle(Theme.inverseText)
-                            .frame(width: 44, height: 44).background(Theme.ink)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }.accessibilityLabel("Add wardrobe item")
-                }
-
-                NavigationLink {
-                    OutfitPlannerView(wardrobeItems: items)
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "hanger")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(Theme.accentSecondary)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Plan a look").font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Theme.ink)
-                            Text("Put pieces together for what’s coming up")
-                                .font(.system(size: 13)).foregroundStyle(Theme.mutedForeground)
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.ink)
-                            .accessibilityHidden(true)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .padding(.vertical, 14).padding(.horizontal, 15)
-                    .background(Theme.muted.opacity(0.55))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("wardrobe.planLook")
-
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                planLookLink
                 if !items.isEmpty { searchAndFilterBar }
 
                 AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
                                emptyText: emptyText, topPadding: 36,
-                               hasLoaded: hasLoaded, retry: { await load() }, skeleton: .grid) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        ForEach(sections, id: \.0) { category, categoryItems in
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text(category.label.uppercased()).font(.system(.caption2, design: .default).weight(.black)).tracking(1.2)
-                                        .accessibilityAddTraits(.isHeader)
-                                    Spacer(); Text("\(categoryItems.count)").font(.caption2.weight(.bold)).foregroundStyle(Theme.mutedForeground)
-                                }
-                                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 12) {
-                                    ForEach(categoryItems) { item in
-                                        WardrobeItemCard(item: item,
-                                                         onEdit: { editTarget = item },
-                                                         onDelete: { deleteTarget = item },
-                                                         onWorn: { Task { await logWear(item) } })
-                                    }
-                                }
-                            }
-                        }
-                    }
+                               hasLoaded: hasLoaded, retry: { await load() },
+                               emptyIcon: "hanger",
+                               emptyTitle: filter.isActive ? "No matches" : "Your wardrobe is empty",
+                               emptyActionTitle: filter.isActive ? nil : "Add a piece",
+                               emptyAction: filter.isActive ? nil : { showAdd = true },
+                               skeleton: .grid) {
+                    itemSections
                 }
             }.padding(20)
         }
@@ -237,7 +274,7 @@ private struct WardrobeItemCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                AspectFitTile(cornerRadius: 8, shadow: false) {
+                AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
                     WardrobePhoto(url: item.imageUrl)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Photo of \(item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category)")
@@ -248,23 +285,23 @@ private struct WardrobeItemCard: View {
                     Button("Edit", action: onEdit)
                     Button("Remove", role: .destructive, action: onDelete)
                 } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 14, weight: .black)).foregroundStyle(Theme.inverseText)
-                        .frame(width: 30, height: 30).background(Theme.ink.opacity(0.9)).clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                    Image(systemName: "ellipsis").font(Theme.label).foregroundStyle(Theme.inverseText)
+                        .frame(width: 30, height: 30).background(Theme.ink.opacity(0.9), in: Circle())
+                        .frame(width: Theme.minTapSize, height: Theme.minTapSize).contentShape(Circle())
                 }.padding(1).accessibilityLabel("More actions for \(item.name ?? "item")")
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.line.opacity(0.25), lineWidth: 1))
-            Text((item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category).uppercased())
-                .font(.system(.caption, design: .default).weight(.black)).lineLimit(1)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+            .elevatedShadow()
+            Text(item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category)
+                .font(Theme.bodyEmphasis).foregroundStyle(Theme.ink).lineLimit(1)
             if let wearSummary = item.wearSummary {
                 Text(wearSummary)
-                    .font(.system(.caption2, design: .default).weight(.semibold)).foregroundStyle(Theme.accentSecondary)
+                    .font(Theme.micro).foregroundStyle(Theme.accentDeep)
             }
             HStack(spacing: 4) {
                 if let color = item.color, !color.isEmpty { Text(color) }
                 if let brand = item.brand, !brand.isEmpty { Text("· \(brand)") }
-            }.font(.system(.caption2, design: .default).weight(.medium)).foregroundStyle(Theme.mutedForeground)
+            }.font(Theme.microMedium).foregroundStyle(Theme.mutedForeground)
             if let tags = item.tags, !tags.isEmpty {
                 let credits = tags.filter { $0.hasPrefix("Photo credit:") }
                 let styles = tags.filter { !$0.hasPrefix("Photo credit:") }
@@ -272,21 +309,21 @@ private struct WardrobeItemCard: View {
                     let details = credits[0].replacingOccurrences(of: "Photo credit: ", with: "").components(separatedBy: "|")
                     HStack(spacing: 7) {
                         Text("Photo · \(details.first ?? "Creator")")
-                            .font(.system(size: 10)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
+                            .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground).lineLimit(1)
                         Spacer(minLength: 2)
                         if details.count > 2, let license = SafeLink.httpsURL(details[2]) {
                             Link(details.count > 1 ? details[1] : "License", destination: license)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(Theme.font(.caption2, weight: .medium))
                         }
                         if details.count > 3, let source = SafeLink.httpsURL(details[3]) {
-                            Link("Source", destination: source).font(.system(size: 10, weight: .medium))
+                            Link("Source", destination: source).font(Theme.font(.caption2, weight: .medium))
                         }
                     }
                 }
                 if !styles.isEmpty {
                     Text(styles.prefix(2).map { "#\($0)" }.joined(separator: "  "))
-                    .font(.system(.caption2, design: .default).weight(.semibold))
-                    .foregroundStyle(Theme.accentSecondary)
+                    .font(Theme.micro)
+                    .foregroundStyle(Theme.accentDeep)
                     .lineLimit(1)
                 }
             }
@@ -389,7 +426,7 @@ struct AddWardrobeItemView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(item == nil ? "ADD TO WARDROBE" : "EDIT WARDROBE ITEM")
-                        .font(.system(.caption2, design: .default).weight(.black)).tracking(1.5).foregroundStyle(Theme.accentSecondary)
+                        .font(Theme.micro).tracking(1.5).foregroundStyle(Theme.accentDeep)
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         ZStack {
                             if let image {
@@ -397,14 +434,14 @@ struct AddWardrobeItemView: View {
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
                             else if let item { WardrobePhoto(url: item.imageUrl) }
-                            else { VStack(spacing: 8) { Image(systemName: "camera.fill").font(.title2); Text("ADD A PHOTO").font(.system(.caption, design: .default).weight(.black)).tracking(1) }.foregroundStyle(Theme.mutedForeground) }
+                            else { VStack(spacing: 8) { Image(systemName: "camera.fill").font(.title2); Text("ADD A PHOTO").font(Theme.caption).tracking(1) }.foregroundStyle(Theme.mutedForeground) }
                         }.frame(maxWidth: .infinity).aspectRatio(3.0 / 4.0, contentMode: .fit).background(Theme.muted)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.line.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: image == nil ? [6] : [])))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous).stroke(Theme.controlBorder, style: StrokeStyle(lineWidth: 1, dash: image == nil ? [6] : [])))
                     }.buttonStyle(TileButtonStyle()).accessibilityLabel(image == nil ? "Add clothing photo" : "Change clothing photo")
                     if tags.contains(where: { $0.hasPrefix("Photo credit:") }) {
                         Label("Creator and license details will stay with this item.", systemImage: "checkmark.seal")
-                            .font(.system(size: 12)).foregroundStyle(Theme.mutedForeground)
+                            .font(Theme.font(.caption)).foregroundStyle(Theme.mutedForeground)
                     }
                     LabeledField(label: "NAME (OPTIONAL)", padding: 12) { TextField("Black hoodie", text: $name) }
                     LabeledField(label: "CATEGORY", padding: 12) { Picker("Category", selection: $category) { ForEach(WardrobeCategory.allCases) { Text($0.label).tag($0) } }.pickerStyle(.menu) }
@@ -420,22 +457,15 @@ struct AddWardrobeItemView: View {
                     LabeledField(label: "STYLE TAGS", padding: 10) {
                         FlowLayout(spacing: 7) {
                             ForEach(Self.styleTags, id: \.self) { tag in
-                                Button {
+                                Button(tag) {
                                     if tags.contains(tag) { tags.remove(tag) } else { tags.insert(tag) }
-                                } label: {
-                                    Text(tag)
-                                        .font(.system(.caption2, design: .default).weight(.bold))
-                                        .foregroundStyle(tags.contains(tag) ? Theme.inverseText : Theme.mutedForeground)
-                                        .padding(.horizontal, 10).padding(.vertical, 7)
-                                        .background(tags.contains(tag) ? Theme.ink : Theme.muted)
-                                        .clipShape(Capsule())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(ChipButtonStyle(isSelected: tags.contains(tag)))
                                 .accessibilityAddTraits(tags.contains(tag) ? .isSelected : [])
                             }
                         }
                     }
-                    if let error { Text(error).font(.footnote).foregroundStyle(.red) }
+                    if let error { Text(error).font(Theme.label).foregroundStyle(Theme.danger) }
                     Button(isSaving ? "Saving…" : (item == nil ? "Save item" : "Save changes")) { Task { await save() } }
                         .buttonStyle(PrimaryButtonStyle(isDisabled: isSaving)).disabled(isSaving)
                 }.padding(20)

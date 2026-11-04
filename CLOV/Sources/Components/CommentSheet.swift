@@ -44,15 +44,17 @@ struct CommentSheet: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
-        .presentationCornerRadius(12)
-        .presentationBackground(Theme.card)
+        .presentationCornerRadius(32)
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Theme.cardElevated)
         .interactiveDismissDisabled(isCommenting)
         .sensoryFeedback(.success, trigger: commentPosted) { _, new in new }
     }
 
     private var postedConfirmation: some View {
         Text(Self.postedMessage)
-            .font(.headline)
+            .font(Theme.headline)
+            .foregroundStyle(Theme.ink)
             .frame(maxWidth: .infinity)
             .padding(24)
             .padding(.vertical, 20)
@@ -62,19 +64,25 @@ struct CommentSheet: View {
     private var form: some View {
         Text("WHY DID YOU VOTE THIS WAY?")
             .font(Theme.displayFont)
+            .foregroundStyle(Theme.ink)
+            .lineLimit(4)
+            .minimumScaleFactor(0.7)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .accessibilityAddTraits(.isHeader)
         Text("Tell the poster what stood out to you (optional).")
-            .font(.subheadline)
+            .font(Theme.body)
             .foregroundStyle(Theme.mutedForeground)
         Text("People see overall results. If you leave a note, it will show your name.")
-            .font(.caption)
+            .font(Theme.caption)
             .foregroundStyle(Theme.mutedForeground)
         TextEditor(text: $commentBody)
             .frame(minHeight: editorMinHeight)
-            .padding(8)
+            .font(Theme.body)
+            .scrollContentBackground(.hidden)
+            .padding(10)
             .background(Theme.muted)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
                 .stroke(Theme.controlBorder, lineWidth: 1))
             .accessibilityLabel("Comment")
             .accessibilityHint("Optional note for the poster, up to \(Self.maxCommentLength) characters")
@@ -84,12 +92,12 @@ struct CommentSheet: View {
                 }
             }
         Text("\(commentBody.count)/\(Self.maxCommentLength)")
-            .font(.caption2)
-            .foregroundStyle(commentBody.count == Self.maxCommentLength ? Theme.accentSecondary : Theme.mutedForeground)
+            .font(Theme.micro)
+            .foregroundStyle(commentBody.count == Self.maxCommentLength ? Theme.accentDeep : Theme.mutedForeground)
             .frame(maxWidth: .infinity, alignment: .trailing)
         Text("WHAT STOOD OUT?")
-            .font(Theme.micro)
-            .foregroundStyle(.secondary)
+            .font(Theme.label)
+            .foregroundStyle(Theme.mutedForeground)
             .accessibilityAddTraits(.isHeader)
         tagGrid
     }
@@ -99,7 +107,7 @@ struct CommentSheet: View {
     private var pinnedActions: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let commentError {
-                Text(commentError).font(.caption).foregroundStyle(Theme.danger)
+                Text(commentError).font(Theme.caption).foregroundStyle(Theme.danger)
             }
             actions
         }
@@ -107,7 +115,7 @@ struct CommentSheet: View {
         .padding(.top, 12)
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card)
+        .background(Theme.cardElevated)
         .overlay(alignment: .top) { Divider() }
     }
 

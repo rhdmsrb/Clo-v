@@ -1,15 +1,11 @@
 import SwiftUI
 
-private enum Tab: Hashable {
-    case feed, search, activity, account
-}
-
 struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var tab: Tab = .feed
+    @State private var tab: MainTab = .feed
     /// Tabs are mounted lazily on first visit so hidden tabs never load data
     /// the user hasn't asked for; once mounted they keep their state.
-    @State private var mountedTabs: Set<Tab> = [.feed]
+    @State private var mountedTabs: Set<MainTab> = [.feed]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Measured height of the floating bar (including its outer padding), so
@@ -19,6 +15,8 @@ struct MainTabView: View {
     /// Extra scroll room so the last row clears the bar's shadow.
     private static let contentClearance: CGFloat = 12
     @State private var showCreate = false
+    /// The bar would otherwise ride above the keyboard and cover results.
+    @State private var isKeyboardVisible = false
     @State private var feedPath = NavigationPath()
     @State private var accountPath = NavigationPath()
 
@@ -53,12 +51,27 @@ struct MainTabView: View {
                 onSelect: select,
                 onCreate: { showCreate = true }
             )
-            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            // Tab labels are caption-sized and share a row of five items, so
+            // they collide past xxxLarge; everything else keeps scaling.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .opacity(isKeyboardVisible ? 0 : 1)
+            .allowsHitTesting(!isKeyboardVisible)
+            .accessibilityHidden(isKeyboardVisible)
             .padding(.horizontal, 20)
             .padding(.bottom, Self.barBottomPadding)
             .background(GeometryReader { proxy in
                 Color.clear.preference(key: BarHeightKey.self, value: proxy.size.height)
             })
+        }
+        // Track the keyboard's real frame: it is on screen while its top edge
+        // is above the bottom of the screen, whatever sequence of
+        // show/hide/change notifications got it there.
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard let endFrame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
+            isKeyboardVisible = endFrame.minY < UIScreen.main.bounds.height
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardVisible = false
         }
         // A `clov://vote/<id>` link (see ShareLinkButton / .onOpenURL in
         // CLOVApp) opens here regardless of which tab is active, and
@@ -105,15 +118,15 @@ struct MainTabView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: showCreate) { _, new in new }
     }
 
-    private func select(_ target: Tab) {
+    private func select(_ target: MainTab) {
         if tab == target {
             resetNavigation(for: target)
         } else {
-            withAnimation(Theme.animation(Theme.press, reduceMotion: reduceMotion)) { tab = target }
+            withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { tab = target }
         }
     }
 
-    private func resetNavigation(for target: Tab) {
+    private func resetNavigation(for target: MainTab) {
         switch target {
         case .feed: feedPath = NavigationPath()
         case .account: accountPath = NavigationPath()
@@ -123,7 +136,7 @@ struct MainTabView: View {
 
     /// Mounts a tab on first visit and toggles its visibility afterwards.
     @ViewBuilder
-    private func tabRoot<Content: View>(_ target: Tab, @ViewBuilder content: () -> Content) -> some View {
+    private func tabRoot<Content: View>(_ target: MainTab, @ViewBuilder content: () -> Content) -> some View {
         if mountedTabs.contains(target) {
             content()
                 .environment(\.isTabActive, tab == target)
@@ -144,111 +157,6 @@ private struct BarHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
-    }
-}
-
-/// Keep the core loops visible in one thumb-reachable navigation bar.
-private struct FloatingTabBar: View {
-    let selection: Tab
-    let onSelect: (Tab) -> Void
-    let onCreate: () -> Void
-
-    @ScaledMetric(relativeTo: .body) private var tabIconWidth: CGFloat = 36
-    @ScaledMetric(relativeTo: .body) private var tabIconHeight: CGFloat = 34
-    @ScaledMetric(relativeTo: .body) private var tabHitHeight: CGFloat = 56
-    @ScaledMetric(relativeTo: .body) private var createIconWidth: CGFloat = 46
-    @ScaledMetric(relativeTo: .body) private var createIconHeight: CGFloat = 40
-
-    private static let inactiveTabLabelOpacity = 0.75
-    private static let labelMinScale: CGFloat = 0.7
-
-    var body: some View {
-        HStack(spacing: 0) {
-            tabButton(.feed, systemImage: "house", activeSystemImage: "house.fill", label: "For You")
-                .accessibilityIdentifier("feedTab")
-            tabButton(.search, systemImage: "magnifyingglass", activeSystemImage: "magnifyingglass", label: "Search")
-                .accessibilityIdentifier("searchTab")
-
-            createButton
-
-            tabButton(.activity, systemImage: "bell", activeSystemImage: "bell.fill", label: "Activity")
-                .accessibilityIdentifier("activityTab")
-
-            tabButton(.account, systemImage: "person.crop.circle", activeSystemImage: "person.crop.circle.fill", label: "Profile")
-                .accessibilityIdentifier("accountTab")
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Main navigation")
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(Theme.tabBarSurface, in: RoundedRectangle(cornerRadius: Theme.barRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: Theme.barRadius, style: .continuous)
-                .strokeBorder(Theme.controlBorder, lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
-    }
-
-    private var createButton: some View {
-        Button(action: onCreate) {
-            VStack(spacing: 3) {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Theme.accentForeground)
-                    .frame(width: createIconWidth, height: createIconHeight)
-                    .background(Theme.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                    .shadow(color: .white.opacity(0.18), radius: 8, y: 4)
-                Text("Post")
-                    .font(.caption2.weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(Self.labelMinScale)
-                    .foregroundStyle(.white)
-            }
-            .frame(maxWidth: .infinity, minHeight: tabHitHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        .accessibilityIdentifier("tabPlusButton")
-        .accessibilityLabel("Post a Fit-Check")
-        .accessibilityShowsLargeContentViewer {
-            Label("Post a Fit-Check", systemImage: "plus")
-        }
-    }
-
-    @ViewBuilder
-    private func tabButton(_ target: Tab, systemImage: String, activeSystemImage: String, label: String) -> some View {
-        let isSelected = selection == target
-        Button { onSelect(target) } label: {
-            VStack(spacing: 3) {
-                Image(systemName: isSelected ? activeSystemImage : systemImage)
-                    .font(.system(size: 22, weight: .regular))
-                    .frame(width: tabIconWidth, height: tabIconHeight)
-                    .foregroundStyle(isSelected ? Theme.accentForeground : .white.opacity(Self.inactiveTabLabelOpacity))
-                    .background(isSelected ? Theme.accent : .clear, in: Circle())
-                Text(label)
-                    .font(.caption2.weight(isSelected ? .bold : .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(Self.labelMinScale)
-            }
-            .foregroundStyle(.white.opacity(isSelected ? 1 : Self.inactiveTabLabelOpacity))
-            .frame(maxWidth: .infinity, minHeight: tabHitHeight)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        // `.combine` alone would fold the SF Symbol's own auto-generated
-        // description into the label too (e.g. "two people, Groups")
-        // instead of leaving it exactly `label` — pin it explicitly so
-        // VoiceOver reads just the tab name, and so tests/automation
-        // that look up this button by its plain label keep working.
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(label)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityShowsLargeContentViewer {
-            Label(label, systemImage: isSelected ? activeSystemImage : systemImage)
-        }
     }
 }
 

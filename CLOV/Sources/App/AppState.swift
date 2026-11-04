@@ -143,6 +143,12 @@ final class AppState: ObservableObject {
             // A stale foreground check must not clear a newer sign-in for
             // the same account after the user logs in while refresh is pending.
             guard session?.refreshToken == current.refreshToken else { return }
+            // Offline or cancelled checks say nothing about session validity;
+            // keep the stored session so the user isn't logged out on reconnect.
+            if error is URLError || error is CancellationError {
+                Log.app.error("Session check skipped: \(error.localizedDescription)")
+                return
+            }
             await signOut()
         }
     }

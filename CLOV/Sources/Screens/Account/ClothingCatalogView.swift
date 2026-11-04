@@ -14,18 +14,23 @@ struct ClothingCatalogView: View {
     @State private var isPreparingImage = false
     @State private var selectedCategory: WardrobeCategory = .top
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("A LITTLE MORE TO WEAR")
-                        .font(.system(.caption2, design: .default).weight(.black)).tracking(1.3).foregroundStyle(Theme.accentSecondary)
+                        .font(Theme.micro).tracking(1.3).foregroundStyle(Theme.accentDeep)
                     Text("Clothing catalog")
                         .font(Theme.editorialFont(size: 34))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        .accessibilityAddTraits(.isHeader)
                     Text("Find a piece and add it to your wardrobe. Photos are credited to their original creators.")
-                        .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground)
+                        .font(Theme.bodyEmphasis).foregroundStyle(Theme.mutedForeground)
                 }
 
                 HStack(spacing: 10) {
@@ -34,42 +39,43 @@ struct ClothingCatalogView: View {
                     TextField("Try linen, blazer, sneakers…", text: $query)
                         .submitLabel(.search).onSubmit { selectedCategory = .other; Task { await search() } }
                     Button { Task { await search() } } label: {
-                        Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Theme.inverseText).frame(width: 36, height: 36).background(Theme.ink)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius))
-                            .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                        Image(systemName: "arrow.right").font(Theme.label)
+                            .foregroundStyle(Color.white).frame(width: 36, height: 36).background(Theme.heroGradient, in: Circle())
+                            .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize).contentShape(Circle())
                     }.accessibilityLabel("Search clothing catalog")
                 }
                 .padding(.leading, 13).padding(.trailing, 6).padding(.vertical, 6)
-                .background(Theme.muted.opacity(0.55)).clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(CatalogCategory.allCases) { choice in
+                            let isSelected = selectedCategory == choice.category && query == choice.query
                             Button(choice.label) {
                                 query = choice.query
                                 selectedCategory = choice.category
                                 Task { await search() }
                             }
-                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink)
-                            .padding(.horizontal, 12).padding(.vertical, 8)
-                            .background(Theme.muted.opacity(0.65)).clipShape(RoundedRectangle(cornerRadius: Theme.chipRadius))
+                            .buttonStyle(ChipButtonStyle(isSelected: isSelected, font: Theme.label, horizontalPadding: 16))
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
                         }
                     }
+                    .padding(.vertical, 2)
                 }
 
                 if isLoading && results.isEmpty {
                     ProgressView().frame(maxWidth: .infinity).padding(.vertical, 44)
                 } else if let error {
-                    VStack(spacing: 10) {
-                        Text(error).font(.system(size: 14)).foregroundStyle(Theme.mutedForeground).multilineTextAlignment(.center)
-                        Button("Try again") { Task { await search() } }.buttonStyle(PrimaryButtonStyle())
-                    }.frame(maxWidth: .infinity).padding(.vertical, 30)
+                    EmptyStateView(icon: "wifi.exclamationmark", title: "Catalog unavailable", message: error,
+                                   actionTitle: "Try again", tint: Theme.danger) { Task { await search() } }
+                        .padding(.vertical, 24)
                 } else if hasSearched && results.isEmpty {
-                    Text("No clothing photos found. Try another search.")
-                        .font(.system(size: 14)).foregroundStyle(Theme.mutedForeground).frame(maxWidth: .infinity).padding(.vertical, 36)
+                    EmptyStateView(icon: "magnifyingglass", title: "No photos found",
+                                   message: "No clothing photos found. Try another search.")
+                        .padding(.vertical, 24)
                 } else {
-                    LazyVGrid(columns: columns, spacing: 18) {
+                    LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(results) { result in
                             Button { Task { await prepare(result) } } label: {
                                 CatalogImageCard(result: result, isPreparing: isPreparingImage && selected?.id == result.id)
@@ -83,7 +89,7 @@ struct ClothingCatalogView: View {
                 }
 
                 Text("Images from Openverse · Filtered to CC0, public domain, CC BY, and CC BY-SA. Check each source page for its license details.")
-                    .font(.system(size: 11)).foregroundStyle(Theme.mutedForeground).padding(.top, 4)
+                    .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground).padding(.top, 4)
             }.padding(20)
         }
         .background(Theme.background)
@@ -163,23 +169,24 @@ private struct CatalogImageCard: View {
                         HStack {
                             Spacer()
                             Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.inverseText)
-                                .frame(width: 32, height: 32).background(Theme.ink.opacity(0.9)).clipShape(RoundedRectangle(cornerRadius: Theme.avatarRadius))
+                                .font(Theme.label).foregroundStyle(Theme.inverseText)
+                                .frame(width: 32, height: 32).background(Theme.ink.opacity(0.9), in: Circle())
                                 .accessibilityHidden(true)
                         }.padding(9)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
             }
             // Fix the card's width-to-height ratio before the remote image is
             // laid out. Openverse thumbnails have mixed intrinsic dimensions.
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
+            .elevatedShadow()
             Text(result.titleText.isEmpty ? "Untitled clothing photo" : result.titleText)
-                .font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.ink).lineLimit(2)
+                .font(Theme.caption).foregroundStyle(Theme.ink).lineLimit(2)
             Text("\(result.creatorText.isEmpty ? "Creator unknown" : result.creatorText) · \(result.license.uppercased())")
-                .font(.system(size: 10)).foregroundStyle(Theme.mutedForeground).lineLimit(1)
+                .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground).lineLimit(1)
             if let url = SafeLink.httpsURL(result.licenseURL) {
-                Link("License details", destination: url).font(.system(size: 10, weight: .medium))
+                Link("License details", destination: url).font(Theme.micro).foregroundStyle(Theme.accentDeep)
             }
         }
         .contentShape(Rectangle())

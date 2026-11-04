@@ -68,27 +68,45 @@ struct PhotoSlotView: View {
     @State private var pickError: String?
 
     private static let tileRadius: CGFloat = Theme.tileRadius
+    private static let dashLength: CGFloat = 7
 
     var body: some View {
         VStack(spacing: 6) {
             picker
+                .overlay(alignment: .topTrailing) { removeButton }
             if let pickError {
-                Text(pickError)
-                    .font(.caption2)
+                Label(pickError, systemImage: "exclamationmark.circle.fill")
+                    .font(Theme.caption)
                     .foregroundStyle(Theme.danger)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var removeButton: some View {
+        if state.image != nil {
+            Button {
+                state.image = nil
+                state.item = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 28, height: 28)
+                    .background(Color.black.opacity(0.7), in: Circle())
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(2)
+            .accessibilityLabel("Remove \(label)")
         }
     }
 
     private var picker: some View {
         PhotosPicker(selection: $state.item, matching: .images) {
             AspectFitTile(cornerRadius: Self.tileRadius, shadow: state.image != nil) {
-                if state.image == nil {
-                    RoundedRectangle(cornerRadius: Self.tileRadius)
-                        .strokeBorder(Theme.line, style: StrokeStyle(lineWidth: 2, dash: [6]))
-                        .background(Theme.card.clipShape(RoundedRectangle(cornerRadius: Self.tileRadius)))
-                }
                 if let image = state.image {
                     Image(uiImage: image)
                         .resizable()
@@ -96,10 +114,7 @@ struct PhotoSlotView: View {
                         .clipped()
                         .accessibilityHidden(true)
                 } else {
-                    Text("+ \(label)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Theme.mutedForeground)
-                        .multilineTextAlignment(.center)
+                    emptyTile
                 }
             }
         }
@@ -119,6 +134,25 @@ struct PhotoSlotView: View {
             }
         }
     }
+
+    private var emptyTile: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.tileRadius, style: .continuous)
+        return VStack(spacing: 8) {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(Theme.accentForeground)
+                .frame(width: 48, height: 48)
+                .background(Theme.accent, in: Circle())
+                .accessibilityHidden(true)
+            Text(label)
+                .font(Theme.label)
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.muted, in: shape)
+        .overlay(shape.strokeBorder(Theme.controlBorder, style: StrokeStyle(lineWidth: 1.5, dash: [Self.dashLength])))
+    }
 }
 
 struct WardrobePickerView: View {
@@ -133,7 +167,7 @@ struct WardrobePickerView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     if let errorMessage {
-                        Text(errorMessage).font(.footnote).foregroundStyle(Theme.danger)
+                        Text(errorMessage).font(Theme.font(.footnote)).foregroundStyle(Theme.danger)
                     }
                     grid
                 }

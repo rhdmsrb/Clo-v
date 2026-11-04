@@ -157,12 +157,12 @@ struct SwipeFitCheckPage: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 9) {
                 Text("@\(nickname)")
-                    .font(.subheadline.weight(.bold))
+                    .font(Theme.font(.subheadline, weight: .bold))
                 if canFollow { followPill }
             }
             if let caption = item.caption, !caption.isEmpty {
                 Text(caption)
-                    .font(.subheadline.weight(.medium))
+                    .font(Theme.font(.subheadline, weight: .medium))
                     .lineLimit(3)
             }
             voteStatus
@@ -182,19 +182,19 @@ struct SwipeFitCheckPage: View {
         if let myVote = model.myVote, let insight = model.insight {
             VStack(alignment: .leading, spacing: 4) {
                 Text("You picked look \(model.photos.first { $0.id == myVote }?.position ?? 1) · \(model.percent(for: myVote))%")
-                    .font(.footnote.weight(.black))
-                Text(insight).font(.caption.weight(.medium))
+                    .font(Theme.font(.footnote, weight: .black))
+                Text(insight).font(Theme.font(.caption, weight: .medium))
                 if let summary = model.streak.summary() {
                     Label(summary, systemImage: "flame.fill").font(.caption.weight(.bold)).foregroundStyle(Theme.accent)
                 }
                 Text("Swipe up for the next look").font(.caption2).foregroundStyle(.white.opacity(0.7))
             }
             .padding(10)
-            .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
             .transition(.opacity.combined(with: .move(edge: .bottom)))
             .accessibilityElement(children: .combine)
         } else if let error = model.error {
-            Text(error).font(.caption.weight(.semibold)).foregroundStyle(Theme.danger)
+            Text(error).font(Theme.font(.caption, weight: .semibold)).foregroundStyle(Theme.danger)
         } else if model.canVote {
             swipeHint
         }
@@ -215,7 +215,7 @@ struct SwipeFitCheckPage: View {
         Button(isFollowing ? "Following" : "+ Follow") {
             onToggleFollow(!isFollowing)
         }
-        .font(.caption.weight(.bold))
+        .font(Theme.font(.caption, weight: .bold))
         .foregroundStyle(isFollowing ? Color.white : Theme.accentForeground)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -284,7 +284,7 @@ struct SwipeFitCheckPage: View {
                 .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
             if let count {
                 Text("\(count)")
-                    .font(.caption2.weight(.bold))
+                    .font(Theme.font(.caption2, weight: .bold))
             }
         }
         .frame(minWidth: 48, minHeight: 46)

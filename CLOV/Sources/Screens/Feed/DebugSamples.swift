@@ -20,10 +20,10 @@ struct SampleVotingSessionCard: View {
                 AvatarView(url: nil, nickname: "Maya", size: 36)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Maya Chen")
-                        .font(.system(.subheadline, design: .default).weight(.semibold))
+                        .font(Theme.font(.subheadline, weight: .semibold))
                         .foregroundStyle(Theme.ink)
                     Text("Sample Fit-Check")
-                        .font(.caption)
+                        .font(Theme.font(.caption))
                         .foregroundStyle(Theme.mutedForeground)
                 }
                 Spacer()
@@ -36,7 +36,7 @@ struct SampleVotingSessionCard: View {
             }
 
             Text("Which look works for a coffee date?")
-                .font(.system(.subheadline, design: .default).weight(.semibold))
+                .font(Theme.font(.subheadline, weight: .semibold))
                 .foregroundStyle(Theme.ink)
 
             HStack(spacing: 9) {
@@ -66,9 +66,9 @@ struct SampleVotingSessionCard: View {
                                 .foregroundStyle(.white)
                                 .padding(9)
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
                             .overlay {
-                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous)
                                     .stroke(selectedLook == look.id ? Theme.accentSecondary : Theme.line.opacity(0.10), lineWidth: selectedLook == look.id ? 2 : 1)
                             }
 
@@ -105,12 +105,12 @@ struct SampleVotingSessionCard: View {
                 }
                 .buttonStyle(.plain)
             }
-            .font(.system(.caption, design: .default).weight(.medium))
+            .font(Theme.font(.caption, weight: .medium))
             .foregroundStyle(Theme.mutedForeground)
         }
         .padding(14)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(Theme.line.opacity(0.1), lineWidth: 1))
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous).stroke(Theme.line.opacity(0.1), lineWidth: 1))
         .sheet(isPresented: $showingDetails) {
             SampleFitCheckDetailView()
         }
@@ -142,23 +142,23 @@ private struct SampleFitCheckDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text("LIVE FIT-CHECK · SAMPLE")
-                        .font(.system(.caption2, design: .default).weight(.black))
+                        .font(Theme.font(.caption2, weight: .black))
                         .tracking(1.3)
                         .foregroundStyle(Theme.accentSecondary)
 
                     HStack(spacing: 10) {
                         AvatarView(url: nil, nickname: "Maya", size: 40)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Maya Chen").font(.system(.subheadline, design: .default).weight(.semibold))
+                            Text("Maya Chen").font(Theme.font(.subheadline, weight: .semibold))
                             Text("4 hours left · Coffee date")
-                                .font(.caption)
+                                .font(Theme.font(.caption))
                                 .foregroundStyle(Theme.mutedForeground)
                         }
                         Spacer()
                     }
 
                     Text("Which look works for a coffee date?")
-                        .font(Theme.editorialFont(size: 26, relativeTo: .title2))
+                        .font(Theme.title)
                         .foregroundStyle(Theme.ink)
 
                     HStack(spacing: 10) {
@@ -168,7 +168,7 @@ private struct SampleFitCheckDetailView: View {
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 250)
                                     .clipped()
-                                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
                                 Text(index == 0 ? "LOOK A · SOFT LAYERS" : "LOOK B · COOL CLASSIC")
                                     .font(.system(size: 10, weight: .bold))
                                     .tracking(0.3)
@@ -192,11 +192,11 @@ private struct SampleFitCheckDetailView: View {
 
                     HStack(alignment: .firstTextBaseline) {
                         Text("Notes from the circle")
-                            .font(Theme.editorialFont(size: 23, relativeTo: .title3))
+                            .font(Theme.title)
                             .foregroundStyle(Theme.ink)
                         Spacer()
                         Text("\(comments.count)")
-                            .font(.system(.caption, design: .default).weight(.semibold))
+                            .font(Theme.font(.caption, weight: .semibold))
                             .foregroundStyle(Theme.mutedForeground)
                     }
 
@@ -205,17 +205,17 @@ private struct SampleFitCheckDetailView: View {
                             AvatarView(url: nil, nickname: comment.author, size: 34)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(comment.author)
-                                    .font(.system(.subheadline, design: .default).weight(.semibold))
+                                    .font(Theme.font(.subheadline, weight: .semibold))
                                     .foregroundStyle(Theme.ink)
                                 Text(comment.message)
-                                    .font(.system(.subheadline, design: .default))
+                                    .font(Theme.font(.subheadline))
                                     .foregroundStyle(Theme.mutedForeground)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
-                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
                     }
                 }
                 .padding(20)

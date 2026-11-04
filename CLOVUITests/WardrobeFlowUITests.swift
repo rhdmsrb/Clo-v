@@ -12,7 +12,8 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(accountTab.waitForExistence(timeout: 15))
         accountTab.tap()
 
-        let wardrobeButton = app.buttons["MY WARDROBE"]
+        // The Account shortcut row is titled "Wardrobe" ("Wardrobe, Your pieces" once combined).
+        let wardrobeButton = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Wardrobe'")).firstMatch
         XCTAssertTrue(wardrobeButton.waitForExistence(timeout: 10))
         wardrobeButton.tap()
 

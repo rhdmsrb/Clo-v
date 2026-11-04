@@ -66,7 +66,8 @@ struct NotificationsView: View {
             if hasUnread {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Mark all read") { Task { await markAllRead() } }
-                        .font(.footnote.weight(.bold))
+                        .font(Theme.label)
+                        .foregroundStyle(Theme.accentDeep)
                 }
             }
         }
@@ -77,12 +78,7 @@ struct NotificationsView: View {
 
     private func sectionView(_ section: ActivitySection) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text(section.period.title)
-                .font(Theme.micro)
-                .tracking(1.2)
-                .foregroundStyle(Theme.mutedForeground)
-                .padding(.top, 2)
-                .accessibilityAddTraits(.isHeader)
+            SectionHeader(title: section.period.title)
             ForEach(section.items) { notification in row(for: notification) }
         }
     }
@@ -90,14 +86,18 @@ struct NotificationsView: View {
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text("Activity")
-                .font(Theme.editorialFont(size: 34))
+                .font(Theme.editorialFont(size: 34, relativeTo: .largeTitle))
                 .foregroundStyle(Theme.ink)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .accessibilityAddTraits(.isHeader)
             Text("YOUR CIRCLE")
                 .font(Theme.micro)
                 .tracking(1.4)
-                .foregroundStyle(Theme.accentSecondary)
+                .foregroundStyle(Theme.accentDeep)
             Text(hasUnread ? "\(unreadCount) new update\(unreadCount == 1 ? "" : "s")" : "Votes, comments, and friend updates in one place.")
-                .font(.system(.subheadline, design: .default))
+                .font(Theme.body)
                 .foregroundStyle(Theme.mutedForeground)
         }
     }
@@ -109,21 +109,22 @@ struct NotificationsView: View {
             HStack(spacing: 12) {
                 Image(systemName: "person.2.fill")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(Theme.accentSecondary)
+                    .foregroundStyle(Theme.accentDeep)
                     .frame(width: iconButtonSize, height: iconButtonSize)
+                    .background(Theme.accentTint, in: Circle())
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Friend requests")
                         .font(Theme.bodyEmphasis)
                         .foregroundStyle(Theme.ink)
                     Text(incomingRequestCount == 0 ? "Find and manage your circle" : "\(incomingRequestCount) waiting for your reply")
-                        .font(.caption)
+                        .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
                 }
                 Spacer()
                 if incomingRequestCount > 0 {
                     Text("\(incomingRequestCount)")
-                        .font(.caption.weight(.bold))
+                        .font(Theme.font(.caption, weight: .bold))
                         .foregroundStyle(Theme.inverseText)
                         .frame(minWidth: 24, minHeight: 24)
                         .background(Theme.ink, in: RoundedRectangle(cornerRadius: Theme.chipRadius))
@@ -134,10 +135,7 @@ struct NotificationsView: View {
                     .accessibilityHidden(true)
             }
             .accessibilityElement(children: .combine)
-            .padding(13)
-            .background(Theme.card)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).stroke(Theme.line.opacity(0.10), lineWidth: 1))
+            .softCard(padding: 13)
         }
         .buttonStyle(.plain)
     }
@@ -177,7 +175,7 @@ struct NotificationsView: View {
                 Button { Task { await markRead(notification) } } label: {
                     Image(systemName: "checkmark.circle")
                         .font(.title3)
-                        .foregroundStyle(Theme.accentSecondary)
+                        .foregroundStyle(Theme.accentDeep)
                         .frame(minWidth: Self.minTapSize, minHeight: Self.minTapSize)
                         .contentShape(Rectangle())
                 }
@@ -186,21 +184,34 @@ struct NotificationsView: View {
             }
         }
         .padding(12)
-        .background(notification.isRead ? Theme.card : Theme.accent.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).stroke(Theme.line.opacity(0.08), lineWidth: 1))
+        .background(notification.isRead ? Theme.card : Theme.accentTint,
+                    in: RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
+            .stroke(notification.isRead ? Color.clear : Theme.accentDeep.opacity(0.35), lineWidth: 1))
     }
 
     private func notificationContent(_ notification: NotificationDTO) -> some View {
-        HStack(alignment: .top, spacing: 11) {
-            AvatarView(url: notification.actor?.avatarUrl, nickname: notification.actor?.nickname, size: 40)
+        let style = NotificationStyle(type: notification.type)
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: style.icon)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(style.tint)
+                .frame(width: iconButtonSize, height: iconButtonSize)
+                .background(style.tint.opacity(0.14), in: Circle())
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 5) {
-                (Text(notification.actor?.nickname ?? "Someone").fontWeight(.semibold)
-                    + Text(" \(notificationText(for: notification.type))"))
-                .font(.subheadline)
-                .foregroundStyle(Theme.ink)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if !notification.isRead {
+                        Circle().fill(Theme.accentDeep).frame(width: 8, height: 8).accessibilityHidden(true)
+                    }
+                    (Text(notification.actor?.nickname ?? "Someone").fontWeight(.bold)
+                        + Text(" \(notificationText(for: notification.type))"))
+                        .font(Theme.bodyEmphasis)
+                        .fontWeight(notification.isRead ? .regular : .semibold)
+                        .foregroundStyle(Theme.ink)
+                }
                 Text(notification.createdAt.formatted(.relative(presentation: .named)))
-                    .font(.caption)
+                    .font(Theme.caption)
                     .foregroundStyle(Theme.mutedForeground)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -292,9 +303,9 @@ private enum ActivityPeriod: CaseIterable, Hashable {
 
     var title: String {
         switch self {
-        case .today: "TODAY"
-        case .thisWeek: "THIS WEEK"
-        case .earlier: "EARLIER"
+        case .today: "Today"
+        case .thisWeek: "This week"
+        case .earlier: "Earlier"
         }
     }
 }
@@ -308,5 +319,21 @@ private struct ActivitySection: Identifiable {
 private extension NotificationDTO {
     var markedRead: NotificationDTO {
         NotificationDTO(id: id, type: type, isRead: true, createdAt: createdAt, fitCheckId: fitCheckId, actor: actor)
+    }
+}
+
+/// Leading icon and tint per notification type (tint is decorative; the text states the meaning).
+private struct NotificationStyle {
+    let icon: String
+    let tint: Color
+
+    init(type: String) {
+        switch type {
+        case "vote": (icon, tint) = ("hand.thumbsup.fill", Theme.accentDeep)
+        case "comment": (icon, tint) = ("bubble.left.fill", Theme.iconPlum)
+        case "friend_request": (icon, tint) = ("person.badge.plus", Theme.iconSage)
+        case "friend_accepted": (icon, tint) = ("person.2.fill", Theme.win)
+        default: (icon, tint) = ("bell.fill", Theme.mutedForeground)
+        }
     }
 }

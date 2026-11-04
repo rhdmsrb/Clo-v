@@ -7,60 +7,56 @@ struct NewPasswordView: View {
     @State private var password = ""
     @State private var error: String?
     @State private var isSaving = false
+    @FocusState private var passwordFocused: Bool
 
     private var canSave: Bool { password.count >= 6 }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                Text("CLO·V")
-                    .font(.system(.title3, weight: .heavy))
+            VStack(alignment: .leading, spacing: 0) {
+                AuthHeroBlock(title: "New password", subtitle: "Choose a new password for your account.")
+                VStack(alignment: .leading, spacing: 20) {
+                    LabeledField(
+                        label: "New password",
+                        isFocused: passwordFocused,
+                        errorMessage: !password.isEmpty && !canSave ? "Use at least 6 characters." : nil
+                    ) {
+                        SecureField("", text: $password)
+                            .textContentType(.newPassword)
+                            .focused($passwordFocused)
+                            .submitLabel(.go)
+                            .onSubmit {
+                                guard canSave else { return }
+                                Task { await save() }
+                            }
+                    }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("New password")
-                        .font(Theme.editorialFont(size: 38))
-                    Text("Choose a new password for your account.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.mutedForeground)
-                }
+                    if let error {
+                        Label(error, systemImage: "exclamationmark.circle.fill")
+                            .font(Theme.caption)
+                            .foregroundStyle(Theme.danger)
+                    }
 
-                LabeledField(label: "NEW PASSWORD") {
-                    SecureField("", text: $password)
-                        .textContentType(.newPassword)
-                        .submitLabel(.go)
-                        .onSubmit {
-                            guard canSave else { return }
-                            Task { await save() }
-                        }
-                }
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        Text(isSaving ? "Please wait…" : "Save password")
+                    }
+                    .buttonStyle(PrimaryButtonStyle(isDisabled: isSaving || !canSave))
+                    .disabled(isSaving || !canSave)
 
-                if !password.isEmpty && !canSave {
-                    Text("Use at least 6 characters.")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.mutedForeground)
+                    Button("Cancel") {
+                        Task { await appState.signOut() }
+                    }
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.accentDeep)
+                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
                 }
-
-                if let error {
-                    Text(error).font(.footnote).foregroundStyle(Theme.danger)
-                }
-
-                Button {
-                    Task { await save() }
-                } label: {
-                    Text(isSaving ? "Please wait…" : "Save password")
-                }
-                .buttonStyle(PrimaryButtonStyle(isDisabled: isSaving || !canSave))
-                .disabled(isSaving || !canSave)
-
-                Button("Cancel") {
-                    Task { await appState.signOut() }
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.accentSecondary)
-                .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+                .padding(24)
             }
-            .padding(24)
         }
+        .ignoresSafeArea(edges: .top)
+        .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
     }
 

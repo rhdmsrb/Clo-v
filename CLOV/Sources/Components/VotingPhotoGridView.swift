@@ -24,6 +24,7 @@ struct VotingPhotoGridView: View {
     @State private var expandedPhoto: FitCheckPhoto?
     @State private var reactionMessage: String?
     @State private var streak = VoteStreak()
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// When the parent card owns the expiry clock it passes the current tick
     /// here; otherwise the grid runs its own timeline.
@@ -31,10 +32,14 @@ struct VotingPhotoGridView: View {
     /// Swap the grid for `VotingEndedView` once `expiresAt` passes. The grid
     /// (and the sheet/cover attached to it) stays mounted across the swap.
     let showsEndedStateWhenExpired: Bool
+    /// Only a public post's result may be exported by someone other than its
+    /// creator. Defaults to false so an unknown audience fails closed.
+    let isPublicPost: Bool
 
     init(fitCheckId: UUID, creatorId: UUID, status: String, photos: [FitCheckPhoto],
          voteCounts: [UUID: Int], totalVotes: Int, myVote: UUID?, voterId: UUID, expiresAt: Date? = nil, prompt: String? = nil,
-         clock: Date? = nil, showsEndedStateWhenExpired: Bool = false) {
+         clock: Date? = nil, showsEndedStateWhenExpired: Bool = false, isPublicPost: Bool = false) {
+        self.isPublicPost = isPublicPost
         self.fitCheckId = fitCheckId
         self.creatorId = creatorId
         self.status = status
@@ -98,11 +103,12 @@ struct VotingPhotoGridView: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
             Text(revealed ? "THE RESULT" : "MAKE YOUR PICK")
                 .font(Theme.micro)
                 .tracking(1.4)
-                .foregroundStyle(Theme.accentSecondary)
+                .foregroundStyle(Theme.accentDeep)
+                .accessibilityAddTraits(.isHeader)
 
             if let prompt, !prompt.isEmpty {
                 Text(prompt)
@@ -111,17 +117,89 @@ struct VotingPhotoGridView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 6) {
-                ForEach(photos) { photo in tile(for: photo) }
-            }
+            tileLayout
             if let error {
-                Text(error).font(.caption2).foregroundStyle(Theme.danger)
+                Text(error).font(Theme.font(.caption)).foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if myVote != nil, creatorId != voterId {
                 resultCard
             }
             voteSummary
+            shareResultButton
         }
+    }
+
+    private static let sectionSpacing: CGFloat = 12
+    private static let tileSpacing: CGFloat = 10
+
+    /// Side by side normally; stacked at accessibility Dynamic Type sizes so
+    /// badges and result text keep room to grow.
+    @ViewBuilder
+    private var tileLayout: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: Self.tileSpacing) {
+                ForEach(photos) { photo in tile(for: photo) }
+            }
+        } else {
+            HStack(spacing: Self.tileSpacing) {
+                ForEach(photos) { photo in tile(for: photo) }
+            }
+        }
+    }
+
+    /// Offered only once the result is visible (after voting, or for the
+    /// creator), so it never spoils an undecided vote. Only the creator's own
+    /// photos are included in the picture; voters share a bars-only card.
+    @ViewBuilder
+    private var shareResultButton: some View {
+        if revealed && total > 0 && canShareResult {
+            ShareLink(item: shareImage,
+                      message: Text(shareMessage),
+                      preview: SharePreview("Fit-Check result")) {
+                Label("Share result", systemImage: "square.and.arrow.up")
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+                    .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            }
+            .accessibilityHint("Shares a picture of the result")
+        }
+    }
+
+    /// The creator may always export their own result; anyone else only for a
+    /// public post, so a group-only or friends-only result never leaves its audience.
+    private var canShareResult: Bool { creatorId == voterId || isPublicPost }
+
+    /// Photos are fetched for the picture only from our own storage over https.
+    private static func trustedPhotoURL(_ raw: String) -> URL? {
+        guard let url = SafeLink.httpsURL(raw), url.host == AppConfig.supabaseURL.host else { return nil }
+        return url
+    }
+
+    private var shareImage: ResultShareImage {
+        ResultShareImage(
+            prompt: prompt,
+            totalVotes: total,
+            rows: photos.map { photo in
+                let count = counts[photo.id] ?? 0
+                return ResultShareImage.Row(
+                    id: photo.id,
+                    position: photo.position,
+                    percent: total > 0 ? Int((Double(count) / Double(total) * 100).rounded()) : 0,
+                    imageURL: Self.trustedPhotoURL(photo.imageUrl),
+                    isLeading: count == leadingCount,
+                    isMine: myVote == photo.id
+                )
+            },
+            showsPhotos: creatorId == voterId
+        )
+    }
+
+    private var shareMessage: String {
+        if let url = ShareURL.make(fitCheckId: fitCheckId) { return "Vote on CLO·V: \(url.absoluteString)" }
+        return "Made with CLO·V"
     }
 
     private var voteSummary: some View {
@@ -132,11 +210,12 @@ struct VotingPhotoGridView: View {
             Text("\(total) \(total == 1 ? "vote" : "votes")")
                 .font(Theme.microMedium)
         }
-        .foregroundStyle(Theme.inverseText)
+        .foregroundStyle(Theme.ink)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(Theme.ink)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private func tile(for photo: FitCheckPhoto) -> some View {
@@ -151,7 +230,8 @@ struct VotingPhotoGridView: View {
             canVote: canVote,
             isDisabled: isVoting,
             onVote: { vote(on: photo.id) },
-            onZoom: { expandedPhoto = photo }
+            onZoom: { expandedPhoto = photo },
+            hasMyVote: myVote != nil
         )
     }
 
@@ -172,7 +252,7 @@ struct VotingPhotoGridView: View {
             if let summary = streak.summary() {
                 Label(summary, systemImage: "flame.fill")
                     .font(Theme.caption)
-                    .foregroundStyle(Theme.accentSecondary)
+                    .foregroundStyle(Theme.accentDeep)
             }
             Button { commentPhotoId = myVote } label: {
                 Label("Tell them why", systemImage: "text.bubble")
@@ -185,10 +265,8 @@ struct VotingPhotoGridView: View {
             .accessibilityHint("Add a comment and what stood out")
             quickReactionBar
         }
-        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous).stroke(Theme.controlBorder.opacity(0.5), lineWidth: 1))
+        .softCard(padding: 14)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
@@ -216,8 +294,8 @@ struct VotingPhotoGridView: View {
             }
             if let reactionMessage {
                 Text(reactionMessage)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.accentSecondary)
+                    .font(Theme.micro)
+                    .foregroundStyle(Theme.accentDeep)
             }
         }
         .opacity(isSendingReaction ? 0.6 : 1)
@@ -268,6 +346,7 @@ struct VotingPhotoGridView: View {
                 try await API.castVote(fitCheckId: fitCheckId, photoId: photoId, voterId: voterId, creatorId: creatorId, status: status, expiresAt: expiresAt)
                 Haptics.success()
                 streak = VoteStreakStore.recordVote(for: voterId)
+                AccessibilityNotification.Announcement("Vote recorded, results shown").post()
                 appState.contentDidChange()
             } catch APIError.alreadyVoted {
                 // The vote exists on the server (another device, or a retry

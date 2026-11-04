@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Plain header icon button (44x44 tap area) used in the Discover header.
+/// Circular header icon button: 44pt `cardElevated` container with a soft shadow.
 struct FeedIconButton: View {
     let systemImage: String
     var tint: Color = Theme.ink
@@ -12,8 +12,21 @@ struct FeedIconButton: View {
         Button(action: action) {
             FeedIconBadge(systemImage: systemImage, tint: tint)
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityIdentifier(accessibilityIdentifier ?? "")
+        .modifier(OptionalIdentifier(identifier: accessibilityIdentifier))
+    }
+}
+
+private struct OptionalIdentifier: ViewModifier {
+    let identifier: String?
+
+    func body(content: Content) -> some View {
+        if let identifier {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
     }
 }
 
@@ -21,14 +34,17 @@ struct FeedIconBadge: View {
     let systemImage: String
     var tint: Color = Theme.ink
 
-    private static let tapSize: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 17
 
     var body: some View {
         Image(systemName: systemImage)
-            .font(.system(size: 18, weight: .medium))
+            .font(.system(size: iconSize, weight: .semibold, design: .rounded))
             .foregroundStyle(tint)
-            .frame(width: Self.tapSize, height: Self.tapSize)
-            .contentShape(Rectangle())
+            .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+            .background(Theme.cardElevated, in: Circle())
+            .overlay(Circle().stroke(Theme.controlBorder.opacity(0.5), lineWidth: 1))
+            .layeredShadow()
+            .contentShape(Circle())
     }
 }
 
@@ -43,14 +59,14 @@ struct FeedBellIcon: View {
             FeedIconBadge(systemImage: "bell")
             if unreadCount > 0 {
                 Text(unreadCount > Self.maxBadgeCount ? "\(Self.maxBadgeCount)+" : "\(unreadCount)")
-                    .font(.caption2.weight(.bold))
+                    .font(Theme.font(.caption2, weight: .bold))
                     .foregroundStyle(Theme.accentForeground)
                     .lineLimit(1)
                     .padding(4)
                     .frame(minWidth: Self.badgeMinSize, minHeight: Self.badgeMinSize)
                     .background(Theme.accent)
                     .clipShape(Circle())
-                    .offset(x: -4, y: 4)
+                    .offset(x: 2, y: -2)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -58,27 +74,37 @@ struct FeedBellIcon: View {
     }
 }
 
+/// One segment of the For You / Following capsule. The selected pill slides
+/// between segments through the shared matched-geometry namespace.
 struct FeedModeChip: View {
     let label: String
     let isSelected: Bool
+    var namespace: Namespace.ID
     let action: () -> Void
+
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiate
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                .lineLimit(1)
-                .fixedSize()
-                .foregroundStyle(isSelected ? Theme.ink : Theme.mutedForeground)
-                .padding(.horizontal, 4)
-                .frame(minHeight: FeedLayout.minHitSize)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(isSelected ? Theme.ink : .clear)
-                        .frame(height: 2)
-                        .accessibilityHidden(true)
+            HStack(spacing: 6) {
+                if isSelected && differentiate {
+                    Image(systemName: "checkmark").font(.caption.weight(.bold)).accessibilityHidden(true)
                 }
-                .contentShape(Rectangle())
+                Text(label).lineLimit(1)
+            }
+            .font(Theme.bodyEmphasis)
+            .foregroundStyle(isSelected ? Theme.accentDeep : Theme.mutedForeground)
+            .padding(.horizontal, 16)
+            .frame(minHeight: Theme.minTapSize)
+            .background {
+                if isSelected {
+                    Capsule(style: .continuous)
+                        .fill(Theme.accentTint)
+                        .overlay(Capsule(style: .continuous).stroke(Theme.accentDeep, lineWidth: 1.5))
+                        .matchedGeometryEffect(id: "feedModeIndicator", in: namespace)
+                }
+            }
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -86,35 +112,64 @@ struct FeedModeChip: View {
     }
 }
 
-struct FeedOccasionChip: View {
-    let label: String
-    let isSelected: Bool
-    let action: () -> Void
+/// Segmented capsule holding the mode chips.
+struct FeedModeSegments: View {
+    @Binding var mode: FeedMode
+    let onSelect: (FeedMode) -> Void
 
-    private static let underlineOpacity = 0.7
+    @Namespace private var indicator
 
     var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(.caption.weight(isSelected ? .semibold : .regular))
-                .lineLimit(1)
-                .fixedSize()
-                .foregroundStyle(isSelected ? Theme.accentSecondary : Theme.mutedForeground)
-                .padding(.horizontal, 6)
-                .frame(minHeight: FeedLayout.minHitSize)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(isSelected ? Theme.accentSecondary.opacity(Self.underlineOpacity) : .clear)
-                        .frame(height: 1)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
+        HStack(spacing: 2) {
+            FeedModeChip(label: "For You", isSelected: mode == .forYou, namespace: indicator) { onSelect(.forYou) }
+            FeedModeChip(label: "Following", isSelected: mode == .following, namespace: indicator) { onSelect(.following) }
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .padding(3)
+        .background(Theme.muted, in: Capsule(style: .continuous))
+        .sensoryFeedback(.selection, trigger: mode)
     }
 }
 
+struct FeedOccasionChip: View {
+    let label: String
+    let symbol: String
+    let isSelected: Bool
+    var namespace: Namespace.ID
+    let action: () -> Void
+
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiate
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: isSelected && differentiate ? "checkmark" : symbol)
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
+                Text(label).lineLimit(1)
+            }
+            .font(Theme.label)
+            .foregroundStyle(isSelected ? Theme.accentDeep : Theme.ink)
+            .padding(.horizontal, 14)
+            .frame(minHeight: Theme.minTapSize)
+            .background {
+                Capsule(style: .continuous).fill(Theme.muted)
+                    .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+                if isSelected {
+                    Capsule(style: .continuous)
+                        .fill(Theme.accentTint)
+                        .overlay(Capsule(style: .continuous).stroke(Theme.accentDeep, lineWidth: 1.5))
+                        .matchedGeometryEffect(id: "feedOccasionIndicator", in: namespace)
+                }
+            }
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .sensoryFeedback(.selection, trigger: isSelected)
+    }
+}
+
+/// Sort control: circular icon button that opens the sort menu.
 struct FeedSortMenu: View {
     @Binding var sort: FeedSortOption
 
@@ -124,38 +179,38 @@ struct FeedSortMenu: View {
             Button("Newest", systemImage: "clock") { sort = .newest }
             Button("Most voted", systemImage: "chart.bar.fill") { sort = .votes }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "slider.horizontal.3")
-                    .foregroundStyle(Theme.iconPlum)
-                    .accessibilityHidden(true)
-                Text(sort.title).lineLimit(1)
-            }
-            .fixedSize()
-            .font(.caption.weight(.bold))
-            .foregroundStyle(Theme.ink)
-            .frame(minHeight: FeedLayout.minHitSize)
-            .contentShape(Rectangle())
+            FeedIconBadge(systemImage: "slider.horizontal.3")
         }
         .accessibilityLabel("Sort: \(sort.title)")
     }
 }
 
+/// Search field with a visible, high-contrast label above it.
 struct FeedSearchField: View {
     @Binding var text: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
-                .accessibilityHidden(true)
-            TextField("Search people, looks, occasions", text: $text)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Search Fit-Checks")
+                .font(Theme.label)
+                .foregroundStyle(Theme.ink)
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
+                    .accessibilityHidden(true)
+                TextField("Search people, looks, occasions", text: $text, prompt:
+                            Text("People, looks, occasions").foregroundStyle(Theme.mutedForeground))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .foregroundStyle(Theme.ink)
+            }
+            .font(Theme.body)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 48)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous)
+                .stroke(Theme.controlBorder, lineWidth: 1))
         }
-        .font(.subheadline)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 46)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }

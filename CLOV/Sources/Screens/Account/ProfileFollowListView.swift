@@ -45,39 +45,22 @@ struct ProfileFollowListView: View {
                 if isLoading {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error {
-                    VStack(spacing: 12) {
-                        Text(error)
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.mutedForeground)
-                            .multilineTextAlignment(.center)
-                        Button("Try again") { Task { await load() } }
-                            .buttonStyle(OutlineButtonStyle())
+                    EmptyStateView(icon: "exclamationmark.triangle", title: "Couldn’t load people",
+                                   message: error, actionTitle: "Try again", tint: Theme.danger) {
+                        Task { await load() }
                     }
-                    .padding(24)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if people.isEmpty {
-                    Text(selectedList == .followers ? "No followers yet." : "You’re not following anyone yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.mutedForeground)
+                    EmptyStateView(icon: "person.2",
+                                   title: selectedList == .followers ? "No followers yet" : "Not following anyone",
+                                   message: selectedList == .followers ? "When people follow you, they’ll show up here."
+                                       : "Follow people to see their fits in your feed.")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(people) { person in
-                        HStack(spacing: 12) {
-                            AvatarView(url: person.avatarUrl, nickname: person.nickname, size: 44)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(person.nickname ?? "Style lover")
-                                    .font(.system(.subheadline, design: .default).weight(.semibold))
-                                    .foregroundStyle(Theme.ink)
-                                Text(person.accountCode)
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.mutedForeground)
-                            }
-                            .accessibilityElement(children: .combine)
-                            Spacer(minLength: 8)
-                            followButton(for: person)
-                        }
-                        .listRowBackground(Theme.background)
-                        .listRowSeparatorTint(Theme.line.opacity(0.1))
+                        personRow(person)
+                            .listRowBackground(Theme.background)
+                            .listRowSeparator(.hidden)
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
@@ -89,12 +72,30 @@ struct ProfileFollowListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(Theme.accentSecondary)
+                        .foregroundStyle(Theme.accentDeep)
                 }
             }
             .task { await load() }
             .refreshable { await load() }
         }
+    }
+
+    private func personRow(_ person: AuthorInfoWithId) -> some View {
+        HStack(spacing: 12) {
+            AvatarView(url: person.avatarUrl, nickname: person.nickname, size: 48)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(person.nickname ?? "Style lover")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.ink)
+                Text(person.accountCode)
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.mutedForeground)
+            }
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 8)
+            followButton(for: person)
+        }
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder
@@ -105,18 +106,28 @@ struct ProfileFollowListView: View {
         } label: {
             HStack(spacing: 5) {
                 if updatingIDs.contains(person.id) { ProgressView().controlSize(.mini) }
+                if isFollowing {
+                    Image(systemName: "checkmark").font(.caption.weight(.bold)).accessibilityHidden(true)
+                }
                 Text(isFollowing ? "Following" : "Follow")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(Theme.label)
             }
-            .foregroundStyle(isFollowing ? Theme.ink : Theme.inverseText)
-            .padding(.horizontal, 13)
-            .frame(minHeight: 32)
-            .background(isFollowing ? Theme.muted : Theme.ink, in: RoundedRectangle(cornerRadius: Theme.chipRadius))
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            .foregroundStyle(isFollowing ? Theme.ink : Color.white)
+            .padding(.horizontal, 16)
+            .frame(minHeight: Theme.minTapSize)
+            .background {
+                if isFollowing {
+                    Capsule(style: .continuous).fill(Theme.muted)
+                        .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+                } else {
+                    Capsule(style: .continuous).fill(Theme.heroGradient)
+                }
+            }
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(updatingIDs.contains(person.id))
+        .motionSafeAnimation(Theme.snap, value: isFollowing)
         .accessibilityLabel(isFollowing ? "Following \(person.nickname ?? "user")" : "Follow \(person.nickname ?? "user")")
         .accessibilityHint(isFollowing ? "Double tap to unfollow" : "Double tap to follow")
     }

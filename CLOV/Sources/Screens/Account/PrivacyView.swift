@@ -9,7 +9,7 @@ struct PrivacyView: View {
         List {
             Section {
                 Text("CLO-V uses your information to let you create Fit-Checks, vote on outfits, manage your wardrobe, and connect with friends.")
-                    .font(.body)
+                    .font(Theme.font(.body))
                     .foregroundStyle(Theme.mutedForeground)
             }
 
@@ -23,7 +23,7 @@ struct PrivacyView: View {
 
             Section("Your choices") {
                 Text("You can update your profile, delete your Fit-Checks, remove wardrobe items, or permanently delete your account from the Account screen. Account deletion removes your profile and the content associated with it.")
-                    .font(.subheadline)
+                    .font(Theme.font(.subheadline))
                     .foregroundStyle(Theme.mutedForeground)
             }
 
@@ -39,8 +39,8 @@ struct PrivacyView: View {
 
     private func privacyRow(_ title: String, _ detail: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.subheadline.weight(.semibold))
-            Text(detail).font(.caption).foregroundStyle(Theme.mutedForeground)
+            Text(title).font(Theme.font(.subheadline, weight: .semibold))
+            Text(detail).font(Theme.font(.caption)).foregroundStyle(Theme.mutedForeground)
         }
         .padding(.vertical, 3)
     }

@@ -5,9 +5,9 @@ enum FeedSortOption: Equatable {
 
     var title: String {
         switch self {
-        case .forYou: "For you"
+        case .forYou: "Recommended"
         case .newest: "Newest"
-        case .votes: "Top voted"
+        case .votes: "Most voted"
         }
     }
 }
@@ -32,7 +32,10 @@ enum FeedRanking {
         signalScores: [UUID: Int],
         now: Date = Date()
     ) -> [FeedItemDTO] {
-        let filtered = filter(items, searchText: searchText, occasion: occasion)
+        // Ended Fit-Checks only render a "Voting has ended" placeholder, so keep
+        // them out of the discovery feed; results stay reachable from Profile.
+        let live = items.filter { !($0.expiresAt.map { $0 <= now } ?? false) }
+        let filtered = filter(live, searchText: searchText, occasion: occasion)
         if mode == .following { return filtered.sorted { $0.createdAt > $1.createdAt } }
         switch sort {
         case .forYou:

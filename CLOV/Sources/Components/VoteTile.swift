@@ -12,34 +12,48 @@ struct VoteTile: View {
     let onVote: () -> Void
     let onZoom: () -> Void
 
+    /// True once the viewer has picked a look, so the others can dim.
+    var hasMyVote = false
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static let zoomTapSize: CGFloat = 44
     private static let zoomVisualSize: CGFloat = 28
-    private static let footerMinHeight: CGFloat = 36
-    private static let footerMinScale: CGFloat = 0.6
+    private static let badgeSize: CGFloat = 28
+    private static let chosenScale: CGFloat = 1.03
+    private static let dimmedOpacity: Double = 0.9
+    private static let percentMinScale: CGFloat = 0.7
+    private static let edgeInset: CGFloat = 8
+    private static let myVoteRingWidth: CGFloat = 3
+    /// Fixed light track so navy text keeps >= 4.5:1 over both the track and the pink fill in dark mode.
+    private static let trackColor = Color.white
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             voteButton
             zoomButton
         }
-        .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.75), value: revealed)
+        .scaleEffect(isMine && revealed ? Self.chosenScale : 1)
+        .opacity(revealed && hasMyVote && !isMine ? Self.dimmedOpacity : 1)
+        .motionSafeAnimation(Theme.bounce, value: revealed)
         .accessibilityElement(children: .contain)
     }
 
     private var voteButton: some View {
         Button(action: onVote) {
-            AspectFitTile(cornerRadius: Theme.smallRadius, shadow: false) {
+            AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
                 RemoteImage(url: photo.imageUrl)
                     .clipped()
+                    .overlay(alignment: .bottom) { Theme.photoScrim }
                     .overlay(alignment: .topLeading) { positionBadge }
                     .overlay(alignment: .bottom) { footer }
             }
             .overlay {
-                RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous)
-                    .stroke(isMine ? Theme.accentSecondary : Theme.ink, lineWidth: isMine ? 3 : 1)
+                if isMine {
+                    RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
+                        .strokeBorder(Theme.accent, lineWidth: Self.myVoteRingWidth)
+                }
             }
         }
         .buttonStyle(TileButtonStyle())
@@ -56,59 +70,108 @@ struct VoteTile: View {
     private var positionBadge: some View {
         Text(String(format: "%02d", photo.position))
             .font(Theme.micro)
-            .foregroundStyle(Theme.inverseText)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 5)
-            .background(Theme.ink)
+            .foregroundStyle(Theme.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(Self.percentMinScale)
+            .frame(minWidth: Self.badgeSize, minHeight: Self.badgeSize)
+            .background(Theme.card, in: Circle())
+            .padding(Self.edgeInset)
+            .accessibilityHidden(true)
     }
 
     private var footer: some View {
         Group {
             if revealed {
-                // Drops the "LEADS" word before it would wrap; the percent
-                // always stays on one line. Full wording lives in the
-                // tile's accessibilityValue.
-                ViewThatFits(in: .horizontal) {
-                    resultRow(showsLeadLabel: true)
-                    resultRow(showsLeadLabel: false)
+                VStack(alignment: .leading, spacing: 6) {
+                    statusBadges
+                    resultPill
                 }
             } else {
-                Text("VOTE").font(Theme.micro).lineLimit(1)
+                tapToVotePill
             }
         }
-        .foregroundStyle(Theme.inverseText)
-        .padding(.horizontal, 8)
+        .padding(Self.edgeInset)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: Self.footerMinHeight)
-        // The bar goes first so the ink fill (added last) sits behind it.
-        .background(alignment: .leading) { if revealed { ResultBar(percent: percent, isMine: isMine) } }
-        .background(Theme.ink)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
-    private func resultRow(showsLeadLabel: Bool) -> some View {
+    private var tapToVotePill: some View {
+        Label("Tap to vote", systemImage: "hand.tap.fill")
+            .font(Theme.micro)
+            .foregroundStyle(Theme.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(Self.percentMinScale)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Theme.card, in: Capsule())
+            .frame(maxWidth: .infinity)
+            .accessibilityHidden(true)
+    }
+
+    /// Crown for the leader and a check for your vote. Each pairs an icon
+    /// with text so state never relies on color alone.
+    private var statusBadges: some View {
         HStack(spacing: 4) {
-            Text("\(percent)%")
-                .font(.headline.weight(.black))
-                .contentTransition(.numericText(value: Double(percent)))
-                .animation(reduceMotion ? nil : .snappy, value: percent)
-                .lineLimit(1)
-                .minimumScaleFactor(Self.footerMinScale)
             if isLeading {
-                if showsLeadLabel && !dynamicTypeSize.isAccessibilitySize {
-                    Label("LEADS", systemImage: "star.fill")
-                        .font(Theme.micro)
-                        .lineLimit(1)
-                        .fixedSize()
-                } else {
-                    Image(systemName: "star.fill").font(Theme.micro)
+                ViewThatFits(in: .horizontal) {
+                    leadingBadge(showsText: true)
+                    leadingBadge(showsText: false)
                 }
             }
             if isMine {
-                Image(systemName: "checkmark").font(Theme.micro)
+                ViewThatFits(in: .horizontal) {
+                    mineBadge(showsText: true)
+                    mineBadge(showsText: false)
+                }
             }
         }
         .accessibilityHidden(true)
+    }
+
+    private func leadingBadge(showsText: Bool) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: "crown.fill").foregroundStyle(Theme.win)
+            if showsText { Text("Leading").lineLimit(1) }
+        }
+        .font(Theme.micro)
+        .foregroundStyle(Theme.accentForeground)
+        .fixedSize()
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(Self.trackColor, in: Capsule())
+    }
+
+    private func mineBadge(showsText: Bool) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Theme.accentForeground, Theme.accent)
+                .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? false : revealed)
+            if showsText { Text("Your vote").lineLimit(1) }
+        }
+        .font(Theme.micro)
+        .foregroundStyle(Theme.accentForeground)
+        .fixedSize()
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(Self.trackColor, in: Capsule())
+    }
+
+    /// Opaque capsule whose accent fill grows from the leading edge to the look's share.
+    private var resultPill: some View {
+        Text("\(percent)%")
+            .font(Theme.font(.title3, weight: .heavy))
+            .foregroundStyle(Theme.accentForeground)
+            .contentTransition(.numericText(value: Double(percent)))
+            .animation(Theme.animation(.snappy, reduceMotion: reduceMotion), value: percent)
+            .lineLimit(1)
+            .minimumScaleFactor(Self.percentMinScale)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(alignment: .leading) { ResultBar(percent: percent) }
+            .background(Self.trackColor)
+            .clipShape(Capsule())
+            .accessibilityHidden(true)
     }
 
     // Zoom is its own control: a double-tap gesture on the tile would also
@@ -117,10 +180,9 @@ struct VoteTile: View {
         Button(action: onZoom) {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(Theme.inverseText)
+                .foregroundStyle(Theme.ink)
                 .frame(width: Self.zoomVisualSize, height: Self.zoomVisualSize)
-                .background(Theme.ink.opacity(0.75))
-                .clipShape(Circle())
+                .background(Theme.card, in: Circle())
                 .frame(width: Self.zoomTapSize, height: Self.zoomTapSize)
                 .contentShape(Rectangle())
         }
@@ -129,24 +191,23 @@ struct VoteTile: View {
     }
 }
 
-/// Accent fill behind the result footer that grows to the look's share of votes.
+/// Accent fill behind the result pill that grows from the leading edge to the look's share of votes.
 private struct ResultBar: View {
     let percent: Int
-    let isMine: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var filled = false
 
     var body: some View {
         GeometryReader { proxy in
-            Rectangle()
-                .fill(Theme.accent.opacity(isMine ? 0.45 : 0.3))
+            Capsule()
+                .fill(Theme.accent)
                 .frame(width: proxy.size.width * (filled ? CGFloat(percent) / 100 : 0))
         }
         .allowsHitTesting(false)
         .onAppear {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.8)) { filled = true }
+            withAnimation(Theme.animation(Theme.hero, reduceMotion: reduceMotion)) { filled = true }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: percent)
+        .animation(Theme.animation(Theme.settle, reduceMotion: reduceMotion), value: percent)
         .accessibilityHidden(true)
     }
 }

@@ -96,12 +96,12 @@ struct SwipeFeedView: View {
     private func errorState(_ message: String) -> some View {
         VStack(spacing: 14) {
             Text(message)
-                .font(.subheadline)
+                .font(Theme.font(.subheadline))
                 .foregroundStyle(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             Button("Try again") { Task { await onRetry() } }
-                .font(.subheadline.weight(.bold))
+                .font(Theme.font(.subheadline, weight: .bold))
                 .foregroundStyle(.black)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
@@ -118,10 +118,10 @@ struct SwipeFeedView: View {
                 .foregroundStyle(Theme.accent)
                 .accessibilityHidden(true)
             Text(isFollowingMode ? "Your people are getting dressed." : "Your next favorite look is out there.")
-                .font(.title3.weight(.bold))
+                .font(Theme.font(.title3, weight: .bold))
                 .multilineTextAlignment(.center)
             Text(isFollowingMode ? "Follow a few creators to fill this feed." : "Be the first to post a Fit-Check and get the conversation started.")
-                .font(.subheadline)
+                .font(Theme.font(.subheadline))
                 .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -141,7 +141,7 @@ struct SwipeFeedView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 0) {
             Text("CLO·V")
-                .font(.headline.weight(.black))
+                .font(Theme.font(.headline, weight: .black))
                 .foregroundStyle(.white)
                 .padding(.leading, Self.logoLeadingInset)
             Spacer(minLength: 8)
@@ -179,7 +179,7 @@ struct SwipeFeedView: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Text(title)
-                    .font(.subheadline.weight(selected ? .bold : .medium))
+                    .font(Theme.font(.subheadline, weight: selected ? .bold : .medium))
                     .foregroundStyle(.white.opacity(selected ? 1 : 0.72))
                 Capsule()
                     .fill(selected ? Theme.accent : .clear)

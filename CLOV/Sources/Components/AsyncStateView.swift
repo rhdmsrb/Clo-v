@@ -45,69 +45,57 @@ struct AsyncStateView<Content: View>: View {
         }
     }
 
+    @ViewBuilder
     private func errorBlock(_ message: String, centered: Bool) -> some View {
-        VStack(spacing: 10) {
-            if let errorIcon {
-                Image(systemName: errorIcon)
-                    .font(.title2)
-                    .foregroundStyle(Theme.danger)
-                    .accessibilityHidden(true)
-            }
+        if centered {
+            EmptyStateView(
+                icon: errorIcon ?? "exclamationmark.triangle",
+                title: errorTitle ?? "Something went wrong",
+                message: message,
+                actionTitle: retry == nil ? nil : retryTitle,
+                isActionDisabled: isLoading,
+                tint: Theme.danger,
+                action: retry.map { retry in { Task { await retry() } } }
+            )
+            .padding(.top, topPadding)
+        } else {
+            inlineError(message)
+        }
+    }
+
+    private func inlineError(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             if let errorTitle {
                 Text(errorTitle).font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
                     .accessibilityAddTraits(.isHeader)
             }
             Text(message)
-                .font(.footnote)
+                .font(Theme.font(.footnote))
                 .foregroundStyle(Theme.danger)
-                .multilineTextAlignment(centered ? .center : .leading)
             if let retry {
-                retryButton(retry, centered: centered)
+                Button { Task { await retry() } } label: { tapTarget(retryTitle) }
+                    .disabled(isLoading)
             }
         }
-        .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
-        .padding(.top, centered ? topPadding : 0)
-    }
-
-    @ViewBuilder
-    private func retryButton(_ retry: @escaping () async -> Void, centered: Bool) -> some View {
-        if centered {
-            Button(retryTitle) { Task { await retry() } }
-                .buttonStyle(OutlineButtonStyle())
-                .disabled(isLoading)
-        } else {
-            Button { Task { await retry() } } label: { tapTarget(retryTitle) }
-                .disabled(isLoading)
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var emptyBlock: some View {
-        VStack(spacing: 10) {
-            if let emptyIcon {
-                Image(systemName: emptyIcon)
-                    .font(.system(size: 28, weight: .regular))
-                    .foregroundStyle(Theme.accentSecondary)
-                    .accessibilityHidden(true)
-            }
-            if let emptyTitle {
-                Text(emptyTitle).font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
-                    .accessibilityAddTraits(.isHeader)
-            }
-            Text(emptyText)
-                .font(.subheadline)
-                .foregroundStyle(Theme.mutedForeground)
-                .multilineTextAlignment(.center)
-            if let emptyActionTitle, let emptyAction {
-                Button(action: emptyAction) { tapTarget(emptyActionTitle) }
-            }
-        }
-        .frame(maxWidth: .infinity)
+        EmptyStateView(
+            icon: emptyIcon ?? "sparkles",
+            title: emptyTitle ?? emptyText,
+            message: emptyTitle == nil ? nil : emptyText,
+            actionTitle: emptyActionTitle,
+            action: emptyAction
+        )
         .padding(.vertical, topPadding)
     }
 
     /// Padding and hit shape live inside the label so the whole area is tappable.
     private func tapTarget(_ title: String) -> some View {
         Text(title)
+            .font(Theme.label)
+            .foregroundStyle(Theme.accentDeep)
             .padding(.horizontal, 12)
             .frame(minHeight: Theme.minTapSize)
             .contentShape(Rectangle())
