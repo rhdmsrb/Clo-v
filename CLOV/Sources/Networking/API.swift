@@ -589,7 +589,10 @@ enum API {
                 .eq("group_id", value: groupId).eq("profile_id", value: creatorId).execute().value
             guard !memberships.isEmpty else { throw APIError.message("You're not a member of that group.") }
         }
-        guard ["public", "friends", "group", "private"].contains(audience),
+        // The live create_fit_check_draft RPC only understands public vs group
+        // (is_public = group_id is null). Friends/private would be stored as
+        // public, so reject them until the server supports them.
+        guard ["public", "group"].contains(audience),
               (audience == "group") == (groupId != nil) else {
             throw APIError.message("Choose a valid audience for this Fit-Check.")
         }
@@ -598,11 +601,9 @@ enum API {
             let caption: String?
             let groupId: UUID?
             let occasion: String?
-            let audience: String
-            let votePrompt: String?
-            enum CodingKeys: String, CodingKey { case id = "p_id"; case caption = "p_caption"; case groupId = "p_group_id"; case occasion = "p_occasion"; case audience = "p_audience"; case votePrompt = "p_vote_prompt" }
+            enum CodingKeys: String, CodingKey { case id = "p_id"; case caption = "p_caption"; case groupId = "p_group_id"; case occasion = "p_occasion" }
         }
-        let fitCheckId: UUID = try await client.rpc("create_fit_check_draft", params: DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion, audience: audience, votePrompt: votePrompt)).execute().value
+        let fitCheckId: UUID = try await client.rpc("create_fit_check_draft", params: DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion)).execute().value
         // The draft and each photo are separate writes. If any later step
         // fails, remove what was already created so no orphan draft or
         // unreferenced photo stays behind.

@@ -160,7 +160,7 @@ struct AudienceSection: View {
         VStack(alignment: .leading, spacing: 9) {
             SectionHeader(title: "Who can see this?")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(FitCheckAudience.allCases) { option in audienceButton(option) }
+                ForEach([FitCheckAudience.everyone, .group]) { option in audienceButton(option) }
             }
             if selectedAudience == .group { groupChooser }
             Text(selectedAudience.description)
