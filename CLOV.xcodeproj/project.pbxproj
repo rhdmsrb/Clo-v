@@ -35,6 +35,7 @@
 		33942948C31AD52CCD81E3A1 /* CreateFitCheckSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DB570949EB22B37FB00BAC /* CreateFitCheckSupport.swift */; };
 		3402B13CE40156DC01C5E3A7 /* ResultReveal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166779DC847C59D3246383CC /* ResultReveal.swift */; };
 		3832269CCEB0F789D963BF20 /* DailyChallengeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE65CD9665D00EAC4966222C /* DailyChallengeTests.swift */; };
+		396FE9C0207BEA97CDC3B210 /* API+Blocked.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED596BAA144439896A986409 /* API+Blocked.swift */; };
 		3C7AF0405A0AB005D9C2781D /* UIImage+CLOV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C81E751494D3DA615A360CB /* UIImage+CLOV.swift */; };
 		3D9DCAB29A00D71CE16AE798 /* VotingEndedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFA6728CE76690AA838208CB /* VotingEndedView.swift */; };
 		3DA05612AA4D9690526D3DDD /* FitCheckContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = C431AB5C4B76841E0673187A /* FitCheckContextMenu.swift */; };
@@ -61,6 +62,7 @@
 		5B453FC1ECF3572CEE599529 /* RecentSearches.swift in Sources */ = {isa = PBXBuildFile; fileRef = F694B4E3E4119C3A1DD3FBCD /* RecentSearches.swift */; };
 		5C6F7459F79DB3E9F806E80A /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = F54177AC62EB6C84A6A098C9 /* Log.swift */; };
 		5E9FD349A0A84B5D2166D74B /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = C7C282C41D33150223469B12 /* OFL.txt */; };
+		5EF7BD1FAA8984E40388FCFF /* BlockedUsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DE4BC265191A76DFE1EE2A1 /* BlockedUsersView.swift */; };
 		60925CC20F1FE81EDC33AA06 /* SwipeVoteGestureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7833DCD57D9234B368A46D66 /* SwipeVoteGestureTests.swift */; };
 		61B5D57E0D832C9E60B5CF18 /* FriendlyError.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA493FE2055F95CCB5D5CC39 /* FriendlyError.swift */; };
 		66DC8DAB374ACF2DB7985363 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B47B1ADAFAD28CC8BD517460 /* Models.swift */; };
@@ -223,6 +225,7 @@
 		8BA4CE9F954577415FCFE861 /* AspectFitTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AspectFitTile.swift; sourceTree = "<group>"; };
 		8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotifications.swift; sourceTree = "<group>"; };
 		8D986CB6B10E878FD1779E6A /* ExpiryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpiryTests.swift; sourceTree = "<group>"; };
+		8DE4BC265191A76DFE1EE2A1 /* BlockedUsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockedUsersView.swift; sourceTree = "<group>"; };
 		8E9705A62A0FCC5CB4282968 /* ResultShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultShareCard.swift; sourceTree = "<group>"; };
 		9204CB72B4895178303DE6AE /* CreateFitCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFitCheckView.swift; sourceTree = "<group>"; };
 		92D4347DD67119C8228CD512 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -275,6 +278,7 @@
 		E39132D95D941DF9565339A9 /* CommentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentSheet.swift; sourceTree = "<group>"; };
 		E55A52F004841DF4492C0A6F /* GroupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupDetailView.swift; sourceTree = "<group>"; };
 		E87638F180C4D1A84F619433 /* WeatherOutfitSuggester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherOutfitSuggester.swift; sourceTree = "<group>"; };
+		ED596BAA144439896A986409 /* API+Blocked.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "API+Blocked.swift"; sourceTree = "<group>"; };
 		EE3B73DE16BAEC943388DDF4 /* VoteTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoteTile.swift; sourceTree = "<group>"; };
 		EE65CD9665D00EAC4966222C /* DailyChallengeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeTests.swift; sourceTree = "<group>"; };
 		F4B5BC0D0C82501089C0C4B3 /* SampleData+Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SampleData+Images.swift"; sourceTree = "<group>"; };
@@ -347,6 +351,7 @@
 			children = (
 				A179DB5BF042952B11B0E146 /* AccountView.swift */,
 				FA143C0CF4F6CF7ADAC4A742 /* AppearanceView.swift */,
+				8DE4BC265191A76DFE1EE2A1 /* BlockedUsersView.swift */,
 				AE6D0487022AFC6F52EF8CA6 /* ClothingCatalogView.swift */,
 				2BEF6EF3AFAAFC3E3ECA0374 /* OutfitPlannerView.swift */,
 				498AA8ADCF0DED34AED4A919 /* PrivacyView.swift */,
@@ -438,6 +443,7 @@
 			isa = PBXGroup;
 			children = (
 				CF00F4FB8D2CDE6BF26B7960 /* API.swift */,
+				ED596BAA144439896A986409 /* API+Blocked.swift */,
 				1C983FAF6FB705D63412DA18 /* API+Friends.swift */,
 				22DBF0EE6CAA178EFCE60306 /* API+Groups.swift */,
 				C0000AB9B734F44FF15DC1B6 /* API+Insights.swift */,
@@ -754,6 +760,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				396FE9C0207BEA97CDC3B210 /* API+Blocked.swift in Sources */,
 				B9EC2ECAC19AC41912A21285 /* API+Friends.swift in Sources */,
 				C5FAF65A548ACE2E8DEF19EC /* API+Groups.swift in Sources */,
 				B36784BAD5A4E52E628287EB /* API+Insights.swift in Sources */,
@@ -770,6 +777,7 @@
 				417994268B412F637833543A /* AsyncStateView.swift in Sources */,
 				247D6AA65E6F8F6FBF1A9D76 /* AuthCallbackGate.swift in Sources */,
 				06CB6BD290AD4EC6551B6D3A /* AuthView.swift in Sources */,
+				5EF7BD1FAA8984E40388FCFF /* BlockedUsersView.swift in Sources */,
 				467A992627B99EE77B99C1D4 /* CLOVApp.swift in Sources */,
 				E634AB83DCB429DF3296AB7A /* ClothingCatalogView.swift in Sources */,
 				6A41C035C5FB0AD3B81E4465 /* CommentSheet.swift in Sources */,
