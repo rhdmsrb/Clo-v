@@ -29,6 +29,7 @@ struct AccountView: View {
                 header
                 profileHero(avatarURL: avatarURL, nickname: nickname, uploadingAvatar: uploadingAvatar)
 
+                // The user's own posts come first: it is what they open Profile for.
                 SectionHeader(title: "Your Fit-Checks")
                     .overlay(alignment: .trailing) {
                         Text("\(liveVotes.count + archivedVotes.count) posts")

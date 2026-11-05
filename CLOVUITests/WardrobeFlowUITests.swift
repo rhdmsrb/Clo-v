@@ -49,8 +49,13 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(accountTab.waitForExistence(timeout: 15))
         accountTab.tap()
 
+        // The shortcut grid sits below "Your Fit-Checks", so it may need scrolling to.
         let weeklyReport = app.buttons["yourWeekButton"]
-        XCTAssertTrue(weeklyReport.waitForExistence(timeout: 10))
+        let visibleBottom = app.windows.firstMatch.frame.height * 0.8
+        for _ in 0..<6 where !(weeklyReport.exists && weeklyReport.frame.maxY < visibleBottom) {
+            app.swipeUp()
+        }
+        XCTAssertTrue(weeklyReport.exists, "Your week shortcut never appeared.")
         weeklyReport.tap()
 
         XCTAssertTrue(app.navigationBars["Your week"].waitForExistence(timeout: 5))

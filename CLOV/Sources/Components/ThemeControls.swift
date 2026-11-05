@@ -34,7 +34,7 @@ struct OutlineButtonStyle: ButtonStyle {
             .padding(.horizontal, 20)
             .background(configuration.isPressed ? Theme.muted : Theme.cardElevated, in: Capsule(style: .continuous))
             .foregroundStyle(Theme.ink)
-            .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+            .overlay(Capsule(style: .continuous).strokeBorder(Theme.controlBorder, lineWidth: 1))
             .contentShape(Capsule(style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .motionSafeAnimation(value: configuration.isPressed)
@@ -96,12 +96,15 @@ private struct ChipSurface: ViewModifier {
     @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous)
+        // A true capsule: a continuous rounded rectangle with a huge radius
+        // renders squarish at the ends. `strokeBorder` draws the outline inside
+        // the edge, so a scroll view around a chip row can't clip half of it.
+        let shape = Capsule(style: .continuous)
         let selectedWidth: CGFloat = contrast == .increased ? 2.5 : 1.5
         content
             .background(isSelected ? Theme.accentTint : unselectedFill, in: shape)
-            .overlay(shape.stroke(isSelected ? Theme.accentDeep : Theme.controlBorder,
-                                  lineWidth: isSelected ? selectedWidth : 1))
+            .overlay(shape.strokeBorder(isSelected ? Theme.accentDeep : Theme.controlBorder,
+                                        lineWidth: isSelected ? selectedWidth : 1))
             .contentShape(shape)
     }
 }

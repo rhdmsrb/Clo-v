@@ -220,6 +220,9 @@ struct FeedView: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        // The sort button's soft shadow would otherwise be cut off into a faint
+        // box at the scroll view's edge.
+        .scrollClipDisabled()
     }
 
     private var occasionRow: some View {
