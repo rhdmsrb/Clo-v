@@ -23,6 +23,8 @@ struct VotingPhotoGridView: View {
     @State private var isSendingReaction = false
     @State private var commentPhotoId: UUID?
     @State private var expandedPhoto: FitCheckPhoto?
+    /// A tapped photo waits here until the voter confirms, so a stray tap never casts a vote.
+    @State private var photoAwaitingConfirmation: FitCheckPhoto?
     @State private var reactionMessage: String?
     @State private var streak = VoteStreak()
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -78,6 +80,17 @@ struct VotingPhotoGridView: View {
         }
         .fullScreenCover(item: $expandedPhoto) { photo in
             PhotoZoomView(photo: photo)
+        }
+        .confirmationDialog(
+            photoAwaitingConfirmation.map { "Vote for Look \($0.position)?" } ?? "Confirm your vote",
+            isPresented: Binding(get: { photoAwaitingConfirmation != nil }, set: { if !$0 { photoAwaitingConfirmation = nil } }),
+            titleVisibility: .visible,
+            presenting: photoAwaitingConfirmation
+        ) { photo in
+            Button("Vote for Look \(photo.position)") { vote(on: photo.id) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("You can change your vote while voting is open.")
         }
         .task { streak = VoteStreakStore.load(for: voterId) }
         .sensoryFeedback(.impact(weight: .medium), trigger: myVote) { old, new in old == nil && new != nil }
@@ -208,7 +221,7 @@ struct VotingPhotoGridView: View {
             if !canVote {
                 Text("YOUR FIT-CHECK").font(Theme.micro)
             }
-            Text("\(total) \(total == 1 ? "vote" : "votes")")
+            Text(total == 1 ? "1 person has voted" : "\(total) people have voted")
                 .font(Theme.microMedium)
         }
         .foregroundStyle(Theme.ink)
@@ -230,7 +243,7 @@ struct VotingPhotoGridView: View {
             isMine: myVote == photo.id,
             canVote: canVote,
             isDisabled: isVoting,
-            onVote: { vote(on: photo.id) },
+            onVote: { photoAwaitingConfirmation = photo },
             onZoom: { expandedPhoto = photo },
             hasMyVote: myVote != nil
         )
