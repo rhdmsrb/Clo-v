@@ -432,6 +432,7 @@ struct AccountView: View {
 @MainActor
 struct StyleInsightsView: View {
     @EnvironmentObject private var appState: AppState
+    @ScaledMetric(relativeTo: .title2) private var streakIconSize: CGFloat = 28
     @State private var report: WeeklyStyleReport?
     @State private var isLoading = true
     @State private var hasLoaded = false
@@ -461,7 +462,7 @@ struct StyleInsightsView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack(spacing: 14) {
                                 Image(systemName: "flame.fill")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.system(size: streakIconSize, weight: .bold))
                                     .foregroundStyle(Theme.iconCoral)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 3) {

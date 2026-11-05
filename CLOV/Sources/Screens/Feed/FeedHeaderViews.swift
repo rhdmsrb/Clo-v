@@ -177,7 +177,7 @@ struct FeedOccasionChip: View {
         .buttonStyle(InstantPressStyle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .motionSafeAnimation(Theme.quick, value: isSelected)
-        .sensoryFeedback(.selection, trigger: isSelected)
+        .sensoryFeedback(.selection, trigger: isSelected) { _, nowSelected in nowSelected }
     }
 }
 
