@@ -56,6 +56,10 @@ struct NoteSection: View {
     var body: some View {
         LabeledField(label: "Add a note (optional)", padding: 8) {
             TextEditor(text: $caption)
+                // TextEditor paints its own opaque white; hide it so the
+                // field's tinted surface shows through instead of a white box.
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
                 .frame(minHeight: noteMinHeight)
                 .accessibilityLabel("Note, optional")
                 .accessibilityHint(Self.placeholder)
@@ -65,6 +69,7 @@ struct NoteSection: View {
                             .font(Theme.body)
                             .foregroundStyle(Theme.mutedForeground)
                             .padding(.top, 8)
+                            .padding(.leading, 5)
                             .allowsHitTesting(false)
                             .accessibilityHidden(true)
                     }
