@@ -12,8 +12,6 @@ struct AccountView: View {
     @State private var isUploadingAvatar = false
     @State private var terminateTarget: UUID?
     @State private var deleteTarget: UUID?
-    @State private var isDeletingAccount = false
-    @State private var showingDeleteAccountConfirmation = false
     @State private var showingEditProfile = false
     @State private var followerIDs: Set<UUID> = []
     @State private var followingIDs: Set<UUID> = []
@@ -45,8 +43,6 @@ struct AccountView: View {
                     votesSection(title: "LIVE", items: liveVotes, emptyText: "No live votes yet — post a Fit-Check to get started.")
                     votesSection(title: "ENDED", items: archivedVotes, emptyText: "Completed Fit-Checks will land here.")
                 }
-
-                accountFooter
             }
             .padding(20)
             // Leave room for the floating tab bar so the final section can
@@ -65,14 +61,6 @@ struct AccountView: View {
         .sheet(item: $selectedFollowList) { list in
             ProfileFollowListView(userId: appState.userId, initialList: list)
                 .environmentObject(appState)
-        }
-        .alert("Delete your account?", isPresented: $showingDeleteAccountConfirmation) {
-            Button("Delete account", role: .destructive) {
-                Task { await deleteAccount() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently deletes your profile, Fit-Checks, photos, votes, comments, friends, and wardrobe items. This can't be undone.")
         }
         .confirmationDialog(
             "End voting on this Fit-Check?",
@@ -130,6 +118,17 @@ struct AccountView: View {
                     .contentShape(Circle())
             }
             .accessibilityLabel("Edit profile")
+            NavigationLink(destination: SettingsView()) {
+                Image(systemName: "gearshape")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .background(Theme.muted, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(InstantPressStyle())
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("settingsButton")
         }
     }
 
@@ -147,38 +146,7 @@ struct AccountView: View {
             profileShortcut(title: "Your week", subtitle: "Style activity", icon: "chart.bar", tint: Theme.iconSage) {
                 StyleInsightsView()
             }
-            profileShortcut(title: "Privacy", subtitle: "Data & controls", icon: "lock.shield", tint: Theme.iconPlum) {
-                PrivacyView()
-            }
-            profileShortcut(title: "Appearance", subtitle: "Colors & theme", icon: "paintpalette", tint: Theme.iconCoral) {
-                AppearanceView()
-            }
         }
-    }
-
-    private var accountFooter: some View {
-        VStack(spacing: 4) {
-            Button { Task { await appState.signOut() } } label: {
-                Text("Log out")
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Theme.mutedForeground)
-                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Button(role: .destructive) {
-                showingDeleteAccountConfirmation = true
-            } label: {
-                Text("Delete account")
-                    .font(Theme.label)
-                    .foregroundStyle(Theme.danger)
-                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isDeletingAccount)
-        }
-        .padding(.top, 8)
     }
 
     private func profileHero(avatarURL: String?, nickname: String?, uploadingAvatar: Bool) -> some View {
@@ -401,18 +369,6 @@ struct AccountView: View {
         }
     }
 
-    private func deleteAccount() async {
-        isDeletingAccount = true
-        error = nil
-        do {
-            try await API.deleteAccount()
-            appState.accountDeleted()
-        } catch {
-            self.error = error.localizedDescription
-        }
-        isDeletingAccount = false
-    }
-
     private func uploadAvatar(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         isUploadingAvatar = true
@@ -551,7 +507,7 @@ struct MyFitCheck: Identifiable {
 }
 
 @MainActor
-private struct EditProfileView: View {
+struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
 
