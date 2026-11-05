@@ -14,6 +14,7 @@ struct FitCheckRoute: Hashable {
 struct FitCheckDetailView: View {
     let fitCheckId: UUID
     @EnvironmentObject private var appState: AppState
+    @Environment(\.tabBarClearance) private var tabBarClearance
 
     @State private var detail: FitCheckDetailDTO?
     @State private var votes: [VoteRef] = []
@@ -46,6 +47,7 @@ struct FitCheckDetailView: View {
             }
             .padding(Self.pagePadding)
         }
+        .safeAreaPadding(.bottom, tabBarClearance)
         .background(Theme.background)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)

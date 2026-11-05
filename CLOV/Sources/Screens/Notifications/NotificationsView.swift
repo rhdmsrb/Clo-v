@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotificationsView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.tabBarClearance) private var tabBarClearance
     let onRead: () -> Void
 
     @State private var notifications: [NotificationDTO] = []
@@ -59,6 +60,7 @@ struct NotificationsView: View {
             }
             .padding(20)
         }
+        .safeAreaPadding(.bottom, tabBarClearance)
         .background(Theme.background)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)

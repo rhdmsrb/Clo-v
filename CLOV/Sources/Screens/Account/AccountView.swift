@@ -29,9 +29,6 @@ struct AccountView: View {
                 header
                 profileHero(avatarURL: avatarURL, nickname: nickname, uploadingAvatar: uploadingAvatar)
 
-                SectionHeader(title: "Wardrobe & circle")
-                shortcutGrid
-
                 SectionHeader(title: "Your Fit-Checks")
                     .overlay(alignment: .trailing) {
                         Text("\(liveVotes.count + archivedVotes.count) posts")
@@ -43,6 +40,9 @@ struct AccountView: View {
                     votesSection(title: "LIVE", items: liveVotes, emptyText: "No live votes yet — post a Fit-Check to get started.")
                     votesSection(title: "ENDED", items: archivedVotes, emptyText: "Completed Fit-Checks will land here.")
                 }
+
+                SectionHeader(title: "Wardrobe & circle")
+                shortcutGrid
             }
             .padding(20)
             // Leave room for the floating tab bar so the final section can

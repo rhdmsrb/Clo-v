@@ -151,6 +151,7 @@ struct MainTabView: View {
         if mountedTabs.contains(target) {
             content()
                 .environment(\.isTabActive, tab == target)
+                .environment(\.tabBarClearance, barHeight + Self.contentClearance)
                 .tabVisibility(isVisible: tab == target)
         }
     }
@@ -162,6 +163,12 @@ private extension View {
             .allowsHitTesting(isVisible)
             .accessibilityHidden(!isVisible)
     }
+}
+
+extension EnvironmentValues {
+    /// Room a tab's scrolling screen must leave so its last row can clear the
+    /// floating tab bar. Zero outside the tabs (sheets and full-screen covers).
+    @Entry var tabBarClearance: CGFloat = 0
 }
 
 private struct BarHeightKey: PreferenceKey {
