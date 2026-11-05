@@ -176,7 +176,12 @@ final class DesignReviewUITests: XCTestCase {
         goBack(app)
         openShortcut(app, "Friends", shot: "\(prefix)-07-friends")
         goBack(app)
-        if tap(app.buttons["yourWeekButton"]) { settle(); attach(app, name: "\(prefix)-08-your-week"); goBack(app) }
+        if let yourWeek = scrollToVisible(app, app.buttons.matching(identifier: "yourWeekButton")) {
+            yourWeek.tap()
+            settle()
+            attach(app, name: "\(prefix)-08-your-week")
+            goBack(app)
+        }
     }
 
     private func walkCreate(_ app: XCUIApplication) {
@@ -202,9 +207,12 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     private func openShortcut(_ app: XCUIApplication, _ title: String, shot: String) {
-        let row = app.buttons["profileShortcut_\(title)"].firstMatch
-        let fallback = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", title)).firstMatch
-        if !tap(row) && !tap(fallback) { attach(app, name: "\(shot)-missing"); return }
+        // The shortcut grid sits below "Your Fit-Checks", so scroll a tile into view first.
+        guard let row = scrollToVisible(app, app.buttons.matching(identifier: "profileShortcut_\(title)")) else {
+            attach(app, name: "\(shot)-missing")
+            return
+        }
+        row.tap()
         settle()
         attach(app, name: shot)
     }
