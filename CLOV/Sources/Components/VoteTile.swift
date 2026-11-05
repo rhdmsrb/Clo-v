@@ -17,7 +17,12 @@ struct VoteTile: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// The number on screen; counts up to `percent` when the result is revealed.
+    @State private var shownPercent: Double = 0
 
+    private static let countUpDuration: Double = 0.9
+    /// Each look starts a beat after the one before, so the reveal reads left to right.
+    private static let staggerStep: Double = 0.12
     private static let zoomTapSize: CGFloat = 44
     private static let zoomVisualSize: CGFloat = 28
     private static let badgeSize: CGFloat = 28
@@ -130,7 +135,9 @@ struct VoteTile: View {
 
     private func leadingBadge(showsText: Bool) -> some View {
         HStack(spacing: 3) {
-            Image(systemName: "crown.fill").foregroundStyle(Theme.win)
+            Image(systemName: "crown.fill")
+                .foregroundStyle(Theme.win)
+                .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? false : revealed)
             if showsText { Text("Leading").lineLimit(1) }
         }
         .font(Theme.micro)
@@ -158,20 +165,34 @@ struct VoteTile: View {
 
     /// Opaque capsule whose accent fill grows from the leading edge to the look's share.
     private var resultPill: some View {
-        Text("\(percent)%")
+        CountingPercentText(value: shownPercent)
             .font(Theme.font(.title3, weight: .heavy))
             .foregroundStyle(Theme.accentForeground)
-            .contentTransition(.numericText(value: Double(percent)))
-            .animation(Theme.animation(.snappy, reduceMotion: reduceMotion), value: percent)
+            .onAppear { countUp(delay: revealDelay) }
+            .onChange(of: percent) { _, _ in countUp(delay: 0) }
             .lineLimit(1)
             .minimumScaleFactor(Self.percentMinScale)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(alignment: .leading) { ResultBar(percent: percent) }
+            .background(alignment: .leading) { ResultBar(percent: percent, delay: revealDelay) }
             .background(Self.trackColor)
             .clipShape(Capsule())
             .accessibilityHidden(true)
+    }
+
+    private var revealDelay: Double {
+        reduceMotion ? 0 : Double(max(photo.position - 1, 0)) * Self.staggerStep
+    }
+
+    private func countUp(delay: Double) {
+        guard !reduceMotion else {
+            shownPercent = Double(percent)
+            return
+        }
+        withAnimation(.easeOut(duration: Self.countUpDuration).delay(delay)) {
+            shownPercent = Double(percent)
+        }
     }
 
     // Zoom is its own control: a double-tap gesture on the tile would also
@@ -194,6 +215,7 @@ struct VoteTile: View {
 /// Accent fill behind the result pill that grows from the leading edge to the look's share of votes.
 private struct ResultBar: View {
     let percent: Int
+    var delay: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var filled = false
 
@@ -205,7 +227,7 @@ private struct ResultBar: View {
         }
         .allowsHitTesting(false)
         .onAppear {
-            withAnimation(Theme.animation(Theme.hero, reduceMotion: reduceMotion)) { filled = true }
+            withAnimation(Theme.animation(Theme.hero.delay(delay), reduceMotion: reduceMotion)) { filled = true }
         }
         .animation(Theme.animation(Theme.settle, reduceMotion: reduceMotion), value: percent)
         .accessibilityHidden(true)

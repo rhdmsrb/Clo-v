@@ -10,10 +10,14 @@ struct SearchExploreView: View {
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
+    @State private var recents = RecentSearches()
     @FocusState private var isSearchFocused: Bool
     @Environment(\.isTabActive) private var isTabActive
 
     private static let pagePadding: CGFloat = 20
+    private static let recentStore = RecentSearchStore()
+    /// Shown until the user has searches of their own.
+    private static let suggestions = ["Wedding guest", "Interview", "Date night", "Brunch", "Travel fit", "Streetwear"]
     private let occasions = ["Everyday", "Work", "Date", "Party", "Travel", "Wedding"]
     private var requestKey: String { "\(query.trimmingCharacters(in: .whitespacesAndNewlines))|\(occasion ?? "")" }
 
@@ -38,6 +42,7 @@ struct SearchExploreView: View {
                         .autocorrectionDisabled()
                         .submitLabel(.search)
                         .focused($isSearchFocused)
+                        .onSubmit { record(query) }
                         .accessibilityIdentifier("search.query")
                     if !query.isEmpty {
                         Button { query = "" } label: {
@@ -66,6 +71,8 @@ struct SearchExploreView: View {
                     .contentMargins(.horizontal, Self.pagePadding, for: .scrollContent)
                     .padding(.horizontal, -Self.pagePadding)
                 }
+
+                searchSuggestions
 
                 HStack(alignment: .firstTextBaseline) {
                     Text(query.isEmpty ? "Looks to explore" : "Search results")
@@ -106,10 +113,84 @@ struct SearchExploreView: View {
             }
             await load()
         }
+        .task { recents = Self.recentStore.load(for: appState.userId) }
         .refreshable { await load() }
         .navigationDestination(for: FitCheckRoute.self) { route in
             FitCheckDetailView(fitCheckId: route.id)
         }
+    }
+
+    // MARK: - Recent searches and suggestions
+
+    /// Recent searches when there are any, otherwise a few ideas to try. Hidden
+    /// once the user starts typing, so it never competes with live results.
+    @ViewBuilder
+    private var searchSuggestions: some View {
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if recents.terms.isEmpty {
+                suggestionGroup(title: "TRY SEARCHING", terms: Self.suggestions, icon: "magnifyingglass", isRecent: false)
+            } else {
+                suggestionGroup(title: "RECENT", terms: recents.terms, icon: "clock.arrow.circlepath", isRecent: true)
+            }
+        }
+    }
+
+    private func suggestionGroup(title: String, terms: [String], icon: String, isRecent: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title)
+                    .font(Theme.micro).tracking(1.1)
+                    .foregroundStyle(Theme.mutedForeground)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                if isRecent {
+                    Button("Clear") { clearRecents() }
+                        .font(Theme.label)
+                        .foregroundStyle(Theme.accentDeep)
+                        .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                        .contentShape(Rectangle())
+                        .accessibilityLabel("Clear recent searches")
+                        .accessibilityIdentifier("search.clearRecents")
+                }
+            }
+            FlowLayout(spacing: 8) {
+                ForEach(terms, id: \.self) { term in
+                    Button { applySearch(term) } label: {
+                        Label(term, systemImage: icon)
+                    }
+                    .buttonStyle(ChipButtonStyle(isSelected: false, font: Theme.label, horizontalPadding: 14))
+                    .contextMenu {
+                        if isRecent {
+                            Button("Remove", systemImage: "xmark", role: .destructive) { removeRecent(term) }
+                        }
+                    }
+                    .accessibilityIdentifier("\(isRecent ? "recent" : "suggestion")_\(term)")
+                }
+            }
+        }
+    }
+
+    private func applySearch(_ term: String) {
+        query = term
+        isSearchFocused = false
+        record(term)
+    }
+
+    private func record(_ term: String) {
+        update(recents.adding(term))
+    }
+
+    private func removeRecent(_ term: String) {
+        update(recents.removing(term))
+    }
+
+    private func clearRecents() {
+        update(recents.cleared())
+    }
+
+    private func update(_ updated: RecentSearches) {
+        recents = updated
+        Self.recentStore.save(updated, for: appState.userId)
     }
 
     private func occasionChip(_ title: String, value: String?) -> some View {
