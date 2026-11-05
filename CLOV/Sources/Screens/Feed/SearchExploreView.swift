@@ -13,6 +13,7 @@ struct SearchExploreView: View {
     @FocusState private var isSearchFocused: Bool
     @Environment(\.isTabActive) private var isTabActive
 
+    private static let pagePadding: CGFloat = 20
     private let occasions = ["Everyday", "Work", "Date", "Party", "Travel", "Wedding"]
     private var requestKey: String { "\(query.trimmingCharacters(in: .whitespacesAndNewlines))|\(occasion ?? "")" }
 
@@ -60,6 +61,10 @@ struct SearchExploreView: View {
                             ForEach(occasions, id: \.self) { value in occasionChip(value, value: value) }
                         }
                     }
+                    // Run the row edge to edge so chips scroll off the screen
+                    // edge instead of being sliced at the page padding.
+                    .contentMargins(.horizontal, Self.pagePadding, for: .scrollContent)
+                    .padding(.horizontal, -Self.pagePadding)
                 }
 
                 HStack(alignment: .firstTextBaseline) {
@@ -84,7 +89,7 @@ struct SearchExploreView: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(Self.pagePadding)
             .padding(.bottom, 90)
         }
         .scrollDismissesKeyboard(.interactively)
