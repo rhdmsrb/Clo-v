@@ -151,6 +151,12 @@ struct SettingsView: View {
         .buttonStyle(InstantPressStyle())
         .accessibilityIdentifier("settingsPrivacy")
         SettingsDivider()
+        NavigationLink(destination: BlockedUsersView()) {
+            SettingsRowLabel(icon: "person.slash", title: "Blocked people", detail: "Review and unblock", tint: Theme.iconCoral)
+        }
+        .buttonStyle(InstantPressStyle())
+        .accessibilityIdentifier("settingsBlocked")
+        SettingsDivider()
         Button { openURL(Self.policyURL) } label: {
             SettingsRowLabel(icon: "doc.text", title: "Privacy policy", detail: "Opens in your browser", tint: Theme.iconSage, isExternal: true)
         }

@@ -38,6 +38,35 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].exists)
     }
 
+    func testBlockedPeopleCanBeUnblocked() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uiTestSampleData"]
+        app.launch()
+        XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15))
+        app.buttons["accountTab"].tap()
+        app.buttons["settingsButton"].tap()
+
+        let blocked = app.buttons["settingsBlocked"]
+        for _ in 0..<4 where !blocked.isHittable { app.swipeUp() }
+        blocked.tap()
+        XCTAssertTrue(app.navigationBars["Blocked people"].waitForExistence(timeout: 5))
+
+        let unblock = app.buttons["unblock_trend.chaser"]
+        XCTAssertTrue(unblock.waitForExistence(timeout: 5), "Sample blocked person missing.")
+        XCTAssertTrue(app.buttons["unblock_fit.critic"].exists)
+        attach(app, "3-blocked")
+
+        unblock.tap()
+        // Unblocking asks first, then removes just that person.
+        let confirm = app.sheets.buttons["Unblock trend.chaser"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "No confirmation before unblocking.")
+        confirm.tap()
+        let gone = NSPredicate(format: "exists == false")
+        expectation(for: gone, evaluatedWith: unblock)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(app.buttons["unblock_fit.critic"].exists, "Unblocking removed the wrong person.")
+    }
+
     private func attach(_ app: XCUIApplication, _ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = name
