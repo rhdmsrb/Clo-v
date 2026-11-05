@@ -364,7 +364,7 @@ struct FeedView: View {
         let friends: Set<UUID>
         do { friends = try await friendsTask } catch {
             Log.app.error("Load friend IDs failed: \(error.localizedDescription)")
-            friends = []
+            friends = friendIDs // keep the last known list instead of hiding friends-only posts
         }
         return (following, friends)
     }

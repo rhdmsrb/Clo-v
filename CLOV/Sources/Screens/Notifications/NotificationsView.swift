@@ -241,7 +241,7 @@ struct NotificationsView: View {
             notifications = try await notificationTask
             do { incomingRequestCount = try await requestTask.count } catch {
                 Log.app.error("Load friend requests failed: \(error.localizedDescription)")
-                incomingRequestCount = 0
+                // keep the last known count; 0 would claim there are no requests
             }
             hasLoaded = true
         } catch is CancellationError {

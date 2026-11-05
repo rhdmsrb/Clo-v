@@ -463,12 +463,19 @@ enum API {
         if status != "live" || isExpired(expiresAt) {
             throw APIError.message("Voting has ended, so your vote can't be changed.")
         }
-        try await client
+        // RLS or a stale view can make a delete match zero rows without an
+        // error, so ask for the deleted rows back and treat none as a failure.
+        let removed: [VoteRef] = try await client
             .from("fit_check_votes")
             .delete()
             .eq("fit_check_id", value: fitCheckId)
             .eq("voter_id", value: voterId)
+            .select("photo_id, voter_id")
             .execute()
+            .value
+        guard !removed.isEmpty else {
+            throw APIError.message("Your vote couldn’t be cancelled. Voting may have just closed.")
+        }
     }
 
     static func saveVoteReason(fitCheckId: UUID, photoId: UUID, tags: [String], comment: String) async throws {
@@ -603,11 +610,20 @@ enum API {
             let occasion: String?
             enum CodingKeys: String, CodingKey { case id = "p_id"; case caption = "p_caption"; case groupId = "p_group_id"; case occasion = "p_occasion" }
         }
-        let fitCheckId: UUID = try await client.rpc("create_fit_check_draft", params: DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion)).execute().value
+        // The id is generated here so a draft whose response was lost can still be cleaned up.
+        let draftId = UUID()
+        let fitCheckId: UUID
+        do {
+            fitCheckId = try await client.rpc("create_fit_check_draft", params: DraftParams(id: draftId, caption: caption, groupId: groupId, occasion: occasion)).execute().value
+        } catch {
+            await discardDraft(fitCheckId: draftId, creatorId: creatorId, uploadedPaths: [])
+            throw error
+        }
         // The draft and each photo are separate writes. If any later step
         // fails, remove what was already created so no orphan draft or
         // unreferenced photo stays behind.
         var uploadedPaths: [String] = []
+        var publishStarted = false
         do {
             for (index, photo) in photos.enumerated() {
                 let path = try await uploadImage(photo, bucket: "fit-check-photos", pathPrefix: "\(creatorId.storagePathComponent)/\(fitCheckId.storagePathComponent)", aspectRatio: 3.0 / 4.0)
@@ -621,8 +637,15 @@ enum API {
                 let durationSeconds: Int
                 enum CodingKeys: String, CodingKey { case id = "p_id"; case durationSeconds = "p_duration_seconds" }
             }
+            publishStarted = true
             try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
         } catch {
+            // Cancelled while publishing: the server may already have made the post
+            // live. Deleting it would destroy a real post, so leave it alone.
+            if publishStarted, error is CancellationError {
+                Log.app.error("Post cancelled during publish; leaving \(fitCheckId.uuidString) untouched")
+                throw error
+            }
             await discardDraft(fitCheckId: fitCheckId, creatorId: creatorId, uploadedPaths: uploadedPaths)
             throw error
         }
