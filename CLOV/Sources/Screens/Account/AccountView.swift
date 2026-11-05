@@ -305,26 +305,37 @@ struct AccountView: View {
                             }
                             .buttonStyle(.plain)
                             Spacer()
-                            if item.status == "live" && !isExpired(item.expiresAt) {
-                                Button("Terminate") { terminateTarget = item.id }
-                                    .font(Theme.micro)
-                                    .foregroundStyle(Theme.accentDeep)
-                                    .frame(minWidth: 44, minHeight: 44)
+                            Menu {
+                                fitCheckActions(item)
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(Theme.headline)
+                                    .foregroundStyle(Theme.mutedForeground)
+                                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
                                     .contentShape(Rectangle())
-                                    .accessibilityLabel("Terminate \(item.caption ?? "Fit-Check")")
                             }
-                            Button("Delete") { deleteTarget = item.id }
-                                .font(Theme.micro)
-                                .foregroundStyle(Theme.danger)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                                .accessibilityLabel("Delete \(item.caption ?? "Fit-Check")")
+                            .accessibilityLabel("Actions for \(item.caption ?? "Fit-Check")")
+                            .accessibilityIdentifier("fitCheckActions")
                         }
                         .softCard(radius: Theme.tileRadius, padding: 12)
+                        .contextMenu { fitCheckActions(item) }
                     }
                 }
             }
         }
+    }
+
+    /// One menu instead of two cramped text buttons side by side, so a
+    /// destructive action can't be hit by accident. Also the long-press menu.
+    @ViewBuilder
+    private func fitCheckActions(_ item: MyFitCheck) -> some View {
+        if let url = ShareURL.make(fitCheckId: item.id) {
+            ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
+        }
+        if item.status == "live" && !isExpired(item.expiresAt) {
+            Button("End voting", systemImage: "stop.circle") { terminateTarget = item.id }
+        }
+        Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = item.id }
     }
 
     private func load() async {

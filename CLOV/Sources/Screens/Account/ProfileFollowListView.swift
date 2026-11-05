@@ -61,6 +61,9 @@ struct ProfileFollowListView: View {
                         personRow(person)
                             .listRowBackground(Theme.background)
                             .listRowSeparator(.hidden)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                swipeFollowAction(for: person)
+                            }
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
@@ -96,6 +99,19 @@ struct ProfileFollowListView: View {
             followButton(for: person)
         }
         .padding(.vertical, 4)
+    }
+
+    /// Same action as the row's button, one swipe away.
+    @ViewBuilder
+    private func swipeFollowAction(for person: AuthorInfoWithId) -> some View {
+        let isFollowing = followingIDs.contains(person.id)
+        Button {
+            Task { await setFollowing(!isFollowing, person: person) }
+        } label: {
+            Label(isFollowing ? "Unfollow" : "Follow", systemImage: isFollowing ? "person.badge.minus" : "person.badge.plus")
+        }
+        .tint(isFollowing ? Theme.mutedForeground : Theme.accentDeep)
+        .disabled(updatingIDs.contains(person.id))
     }
 
     @ViewBuilder
