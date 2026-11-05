@@ -1,5 +1,7 @@
 import SwiftUI
 import Supabase
+import AuthenticationServices
+import CryptoKit
 
 struct AuthView: View {
     @EnvironmentObject private var appState: AppState
@@ -45,6 +47,8 @@ struct AuthView: View {
                 AuthHeroBlock(title: mode.title, subtitle: mode.subtitle)
                 VStack(alignment: .leading, spacing: 20) {
                     if checkEmailNotice { checkEmailBanner }
+                    SocialSignInButtons(error: $error, isBusy: $isSubmitting)
+                    orDivider
                     fields
                     if let error {
                         Label(error, systemImage: "exclamationmark.circle.fill")
@@ -68,6 +72,18 @@ struct AuthView: View {
             }
         }
         .sheet(isPresented: $showingPasswordReset) { resetSheet }
+    }
+
+    private var orDivider: some View {
+        HStack(spacing: 12) {
+            Rectangle().fill(Theme.controlBorder).frame(height: 1)
+            Text("or use email")
+                .font(Theme.caption)
+                .foregroundStyle(Theme.mutedForeground)
+                .fixedSize()
+            Rectangle().fill(Theme.controlBorder).frame(height: 1)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var checkEmailBanner: some View {
@@ -292,5 +308,98 @@ struct AuthHeroBlock: View {
             UnevenRoundedRectangle(bottomLeadingRadius: Self.bottomRadius, bottomTrailingRadius: Self.bottomRadius, style: .continuous)
                 .fill(Theme.heroGradient)
         }
+    }
+}
+
+
+/// "Continue with Apple" (native, ID token -> Supabase) and "Continue with
+/// Google" (Supabase OAuth in a web auth session). Both end in the same
+/// session update the email flow uses, so AppState's auth listener routes on.
+/// Apple and Google must also be enabled under Supabase > Authentication >
+/// Providers, and `clov://auth-callback` listed as a Redirect URL.
+struct SocialSignInButtons: View {
+    @Binding var error: String?
+    @Binding var isBusy: Bool
+    @State private var rawNonce = ""
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 12) {
+            SignInWithAppleButton(.continue) { request in
+                rawNonce = Self.randomNonce()
+                request.requestedScopes = [.fullName, .email]
+                request.nonce = Self.sha256(rawNonce)
+            } onCompletion: { result in
+                Task { await handleApple(result) }
+            }
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(height: 50)
+            .disabled(isBusy)
+
+            Button { Task { await signInWithGoogle() } } label: {
+                HStack(spacing: 10) {
+                    Text("G").font(.system(size: 20, weight: .bold, design: .rounded))
+                        .accessibilityHidden(true)
+                    Text("Continue with Google").font(Theme.bodyEmphasis)
+                }
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(Theme.background, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(isBusy)
+        }
+    }
+
+    private func handleApple(_ result: Result<ASAuthorization, Error>) async {
+        switch result {
+        case .failure(let failure):
+            if (failure as? ASAuthorizationError)?.code == .canceled { return }
+            error = failure.localizedDescription
+        case .success(let authorization):
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let tokenData = credential.identityToken,
+                  let idToken = String(data: tokenData, encoding: .utf8) else {
+                error = "Apple sign-in didn't return a token. Please try again."
+                return
+            }
+            error = nil
+            isBusy = true
+            defer { isBusy = false }
+            do {
+                try await SupabaseManager.client.auth.signInWithIdToken(
+                    credentials: .init(provider: .apple, idToken: idToken, nonce: rawNonce)
+                )
+            } catch let failure {
+                error = failure.localizedDescription
+            }
+        }
+    }
+
+    private func signInWithGoogle() async {
+        error = nil
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await SupabaseManager.client.auth.signInWithOAuth(
+                provider: .google,
+                redirectTo: AppConfig.authCallbackURL
+            )
+        } catch let failure {
+            if (failure as? ASWebAuthenticationSessionError)?.code == .canceledLogin { return }
+            error = failure.localizedDescription
+        }
+    }
+
+    private static func randomNonce(length: Int = 32) -> String {
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var bytes = [UInt8](repeating: 0, count: length)
+        precondition(SecRandomCopyBytes(kSecRandomDefault, length, &bytes) == errSecSuccess)
+        return String(bytes.map { charset[Int($0) % charset.count] })
+    }
+
+    private static func sha256(_ input: String) -> String {
+        SHA256.hash(data: Data(input.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }
