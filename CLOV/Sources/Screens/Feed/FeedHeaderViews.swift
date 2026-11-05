@@ -52,7 +52,7 @@ struct FeedIconBadge: View {
             .foregroundStyle(tint)
             .frame(width: Theme.minTapSize, height: Theme.minTapSize)
             .background(Theme.cardElevated, in: Circle())
-            .overlay(Circle().stroke(Theme.controlBorder.opacity(0.5), lineWidth: 1))
+            .overlay(Circle().strokeBorder(Theme.controlBorder.opacity(0.5), lineWidth: 1))
             .layeredShadow()
             .contentShape(Circle())
     }
@@ -110,7 +110,7 @@ struct FeedModeChip: View {
                 if isSelected {
                     Capsule(style: .continuous)
                         .fill(Theme.accentTint)
-                        .overlay(Capsule(style: .continuous).stroke(Theme.accentDeep, lineWidth: 1.5))
+                        .overlay(Capsule(style: .continuous).strokeBorder(Theme.accentDeep, lineWidth: 1.5))
                         .matchedGeometryEffect(id: "feedModeIndicator", in: namespace)
                 }
             }
@@ -164,11 +164,11 @@ struct FeedOccasionChip: View {
             .frame(minHeight: Theme.minTapSize)
             .background {
                 Capsule(style: .continuous).fill(Theme.muted)
-                    .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+                    .overlay(Capsule(style: .continuous).strokeBorder(Theme.controlBorder, lineWidth: 1))
                 if isSelected {
                     Capsule(style: .continuous)
                         .fill(Theme.accentTint)
-                        .overlay(Capsule(style: .continuous).stroke(Theme.accentDeep, lineWidth: 1.5))
+                        .overlay(Capsule(style: .continuous).strokeBorder(Theme.accentDeep, lineWidth: 1.5))
                         .matchedGeometryEffect(id: "feedOccasionIndicator", in: namespace)
                 }
             }
