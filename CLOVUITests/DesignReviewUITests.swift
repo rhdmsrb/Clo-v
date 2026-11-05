@@ -72,16 +72,24 @@ final class DesignReviewUITests: XCTestCase {
         guard tap(look) else {
             attach(app, name: "\(prefix)-03-vote-missing"); return
         }
+        confirmVoteIfAsked(app)
         settle()
         attach(app, name: "\(prefix)-03-comment-sheet")
         dismissSheet(app)
         attach(app, name: "\(prefix)-03-after-vote")
     }
 
+    /// Voting now asks "Vote for Look N?" first; accept it when it appears.
+    private func confirmVoteIfAsked(_ app: XCUIApplication) {
+        let confirm = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Vote for Look'")).firstMatch
+        if confirm.waitForExistence(timeout: 2) { confirm.tap() }
+    }
+
     private func openCommentSheet(_ app: XCUIApplication, prefix: String) {
         guard let look = scrollToVisible(app, buttons(app, labeled: "Look 1")), tap(look) else {
             attach(app, name: "\(prefix)-comment-sheet-missing"); return
         }
+        confirmVoteIfAsked(app)
         settle()
         attach(app, name: "\(prefix)-comment-sheet")
         dismissSheet(app)

@@ -15,6 +15,8 @@ struct SwipeFitCheckPage: View {
     @StateObject private var model: ReelVoteModel
     @State private var drag: CGSize = .zero
     @State private var hasSwiped = false
+    /// Swiping right only asks; the vote is cast once the voter confirms.
+    @State private var isConfirmingVote = false
 
     private static let bottomInset: CGFloat = 112
     private static let lookIndicatorTopPadding: CGFloat = 112
@@ -55,7 +57,17 @@ struct SwipeFitCheckPage: View {
             .simultaneousGesture(swipeGesture)
             .onAppear(perform: onImpression)
         }
-        .accessibilityAction(named: "Vote for this look") { castVote() }
+        .accessibilityAction(named: "Vote for this look") { requestVote() }
+        .confirmationDialog(
+            "Vote for Look \(model.currentPhoto?.position ?? 1)?",
+            isPresented: $isConfirmingVote,
+            titleVisibility: .visible
+        ) {
+            Button("Vote") { castVote() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You can change your vote while voting is open.")
+        }
         .accessibilityAction(named: "Show next look") { model.showLook(step: 1) }
         .sensoryFeedback(.selection, trigger: model.lookIndex)
     }
@@ -94,11 +106,16 @@ struct SwipeFitCheckPage: View {
 
     private func perform(_ action: SwipeVoteAction) {
         switch action {
-        case .vote: castVote()
+        case .vote: requestVote()
         case .nextLook: hasSwiped = true; model.showLook(step: 1)
         case .previousLook: hasSwiped = true; model.showLook(step: -1)
         case .none: break
         }
+    }
+
+    private func requestVote() {
+        guard model.canVote else { return }
+        isConfirmingVote = true
     }
 
     private func castVote() {
