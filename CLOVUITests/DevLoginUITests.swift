@@ -35,9 +35,15 @@ final class DevLoginUITests: XCTestCase {
     /// persists in the simulator's keychain, so the app can open signed in.
     /// Start from the auth screen regardless of what ran before.
     private func signOutIfNeeded(_ app: XCUIApplication) {
-        if app.textFields.firstMatch.waitForExistence(timeout: 8) { return }
+        // Tell the two states apart by something unique to each. Any text field
+        // is not enough: the main tabs also contain one (Search's field), which
+        // exists once that tab is built in the background after launch.
         let accountTab = app.buttons["accountTab"]
-        XCTAssertTrue(accountTab.waitForExistence(timeout: 5), "Neither the auth screen nor the main tabs appeared.")
+        let logInButton = app.buttons["Log in"]
+        let deadline = Date().addingTimeInterval(10)
+        while !accountTab.exists, !logInButton.exists, Date() < deadline { usleep(200_000) }
+        if logInButton.exists { return }
+        XCTAssertTrue(accountTab.exists, "Neither the auth screen nor the main tabs appeared.")
         accountTab.tap()
         let logOut = app.buttons["Log out"]
         for _ in 0..<8 where !logOut.isHittable { app.swipeUp() }

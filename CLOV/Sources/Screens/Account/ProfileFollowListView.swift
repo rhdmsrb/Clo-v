@@ -169,7 +169,7 @@ struct ProfileFollowListView: View {
                 following.removeAll { $0.id == person.id }
             }
             appState.contentDidChange()
-            Haptics.success()
+            Haptics.selection()
         } catch {
             self.error = "Couldn’t update your following list. Please try again."
         }

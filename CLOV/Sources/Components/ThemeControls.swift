@@ -139,7 +139,7 @@ struct ChipToggle: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .motionSafeAnimation(Theme.snap, value: selected)
-        .sensoryFeedback(.selection, trigger: selected)
+        .sensoryFeedback(.selection, trigger: selected) { _, nowSelected in nowSelected }
     }
 }
 

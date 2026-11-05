@@ -93,7 +93,6 @@ struct VotingPhotoGridView: View {
             Text("You can change your vote while voting is open.")
         }
         .task { streak = VoteStreakStore.load(for: voterId) }
-        .sensoryFeedback(.impact(weight: .medium), trigger: myVote) { old, new in old == nil && new != nil }
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
     }
 
@@ -372,7 +371,6 @@ struct VotingPhotoGridView: View {
             defer { isVoting = false }
             do {
                 try await API.castVote(fitCheckId: fitCheckId, photoId: photoId, voterId: voterId, creatorId: creatorId, status: status, expiresAt: expiresAt)
-                Haptics.success()
                 streak = VoteStreakStore.recordVote(for: voterId)
                 AccessibilityNotification.Announcement("Vote recorded, results shown").post()
                 appState.contentDidChange()
@@ -382,7 +380,7 @@ struct VotingPhotoGridView: View {
                 setError(APIError.alreadyVoted.localizedDescription)
                 appState.contentDidChange()
             } catch {
-                Haptics.error()
+                // The `.sensoryFeedback(.error, trigger: error)` above plays the failure haptic.
                 setError(friendlyMessage(for: error, fallback: "Couldn’t record your vote. Please try again."))
                 myVote = nil
                 counts[photoId, default: 1] -= 1
@@ -408,7 +406,6 @@ struct VotingPhotoGridView: View {
                 AccessibilityNotification.Announcement("Vote cancelled. Pick again.").post()
                 appState.contentDidChange()
             } catch {
-                Haptics.error()
                 setError(friendlyMessage(for: error, fallback: "Couldn’t cancel your vote. Please try again."))
                 myVote = previous
                 counts[previous, default: 0] += 1

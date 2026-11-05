@@ -145,7 +145,7 @@ struct SwipeFitCheckPage: View {
 
     private func stamp(_ title: String, systemImage: String, tint: Color) -> some View {
         Label(title, systemImage: systemImage)
-            .font(.title2.weight(.black))
+            .font(Theme.font(.title2, weight: .black))
             .foregroundStyle(tint)
             .padding(.horizontal, 18).padding(.vertical, 10)
             .background(.black.opacity(0.45), in: Capsule())
@@ -185,7 +185,7 @@ struct SwipeFitCheckPage: View {
             voteStatus
             detailLink {
                 Label("Open Fit-Check", systemImage: "sparkles")
-                    .font(.caption.weight(.bold))
+                    .font(Theme.font(.caption, weight: .bold))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
                     .background(.white.opacity(0.18), in: Capsule())
@@ -202,9 +202,9 @@ struct SwipeFitCheckPage: View {
                     .font(Theme.font(.footnote, weight: .black))
                 Text(insight).font(Theme.font(.caption, weight: .medium))
                 if let summary = model.streak.summary() {
-                    Label(summary, systemImage: "flame.fill").font(.caption.weight(.bold)).foregroundStyle(Theme.accent)
+                    Label(summary, systemImage: "flame.fill").font(Theme.font(.caption, weight: .bold)).foregroundStyle(Theme.accent)
                 }
-                Text("Swipe up for the next look").font(.caption2).foregroundStyle(.white.opacity(0.7))
+                Text("Swipe up for the next look").font(Theme.font(.caption2)).foregroundStyle(.white.opacity(0.7))
             }
             .padding(10)
             .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
@@ -222,7 +222,7 @@ struct SwipeFitCheckPage: View {
             Image(systemName: "hand.draw").accessibilityHidden(true)
             Text(model.isFirstTimeVoter && !hasSwiped ? "Swipe right to vote · left for the next look" : "Swipe right to vote")
         }
-        .font(.caption.weight(.bold))
+        .font(Theme.font(.caption, weight: .bold))
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(.white.opacity(0.18), in: Capsule())
         .accessibilityHidden(true)
