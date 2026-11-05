@@ -77,7 +77,8 @@ struct FriendsView: View {
             Text("No pending requests.").font(Theme.body).foregroundStyle(Theme.mutedForeground)
         } else {
             ForEach(incoming) { request in
-                personRow(peopleById[request.requesterId], action: AnyView(incomingActions(request)))
+                personRow(peopleById[request.requesterId], action: AnyView(incomingActions(request)),
+                          showsAccountCode: false, stacksAction: true)
             }
         }
     }
@@ -138,19 +139,39 @@ struct FriendsView: View {
 
     private func name(_ id: UUID) -> String { peopleById[id]?.nickname ?? "this person" }
 
-    private func personRow(_ person: AuthorInfoWithId?, action: AnyView?) -> some View {
-        HStack(spacing: 12) {
-            AvatarView(url: person?.avatarUrl, nickname: person?.nickname, size: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(person?.nickname ?? "Someone").font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
-                if let person {
-                    Text(person.accountCode + (person.mutualCount > 0 ? " · \(person.mutualCount) mutual" : ""))
-                        .font(Theme.micro).foregroundStyle(Theme.mutedForeground)
+    /// `showsAccountCode` hides the CLO·V ID (not wanted on incoming requests);
+    /// `stacksAction` puts the action below the name so wide buttons never truncate.
+    private func personRow(_ person: AuthorInfoWithId?, action: AnyView?,
+                           showsAccountCode: Bool = true, stacksAction: Bool = false) -> some View {
+        let details = VStack(alignment: .leading, spacing: 2) {
+            Text(person?.nickname ?? "Someone").font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
+            if let person, showsAccountCode {
+                Text(person.accountCode + (person.mutualCount > 0 ? " · \(person.mutualCount) mutual" : ""))
+                    .font(Theme.micro).foregroundStyle(Theme.mutedForeground)
+            } else if let person, person.mutualCount > 0 {
+                Text("\(person.mutualCount) mutual").font(Theme.micro).foregroundStyle(Theme.mutedForeground)
+            }
+        }
+        return Group {
+            if stacksAction {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        AvatarView(url: person?.avatarUrl, nickname: person?.nickname, size: 44)
+                        details
+                        Spacer(minLength: 0)
+                    }
+                    action
+                }
+            } else {
+                HStack(spacing: 12) {
+                    AvatarView(url: person?.avatarUrl, nickname: person?.nickname, size: 44)
+                    details
+                    Spacer(minLength: 8)
+                    action
                 }
             }
-            Spacer(minLength: 8)
-            action
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .softCard(radius: Theme.cardRadius, padding: 12)
     }
 
@@ -203,7 +224,7 @@ private struct FriendCapsuleButton: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 if let icon { Image(systemName: icon).font(Theme.caption).accessibilityHidden(true) }
-                Text(title)
+                Text(title).lineLimit(1).fixedSize(horizontal: true, vertical: false)
             }
             .font(Theme.label)
             .foregroundStyle(isFilled ? Theme.accentDeep : Theme.ink)

@@ -23,6 +23,8 @@ struct VotingPhotoGridView: View {
     @State private var isSendingReaction = false
     @State private var commentPhotoId: UUID?
     @State private var expandedPhoto: FitCheckPhoto?
+    /// A tapped photo waits here until the voter confirms, so a stray tap never casts a vote.
+    @State private var photoAwaitingConfirmation: FitCheckPhoto?
     @State private var reactionMessage: String?
     @State private var streak = VoteStreak()
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -79,8 +81,21 @@ struct VotingPhotoGridView: View {
         .fullScreenCover(item: $expandedPhoto) { photo in
             PhotoZoomView(photo: photo)
         }
-        .task { streak = VoteStreakStore.load(for: voterId) }
-        .sensoryFeedback(.impact(weight: .medium), trigger: myVote) { old, new in old == nil && new != nil }
+        .confirmationDialog(
+            photoAwaitingConfirmation.map { "Vote for Look \($0.position)?" } ?? "Confirm your vote",
+            isPresented: Binding(get: { photoAwaitingConfirmation != nil }, set: { if !$0 { photoAwaitingConfirmation = nil } }),
+            titleVisibility: .visible,
+            presenting: photoAwaitingConfirmation
+        ) { photo in
+            Button("Vote for Look \(photo.position)") { vote(on: photo.id) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("You can change your vote while voting is open.")
+        }
+        .task {
+            Haptics.prepare()
+            streak = VoteStreakStore.load(for: voterId)
+        }
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
     }
 
@@ -208,7 +223,7 @@ struct VotingPhotoGridView: View {
             if !canVote {
                 Text("YOUR FIT-CHECK").font(Theme.micro)
             }
-            Text("\(total) \(total == 1 ? "vote" : "votes")")
+            Text(total == 1 ? "1 person has voted" : "\(total) people have voted")
                 .font(Theme.microMedium)
         }
         .foregroundStyle(Theme.ink)
@@ -230,7 +245,7 @@ struct VotingPhotoGridView: View {
             isMine: myVote == photo.id,
             canVote: canVote,
             isDisabled: isVoting,
-            onVote: { vote(on: photo.id) },
+            onVote: { photoAwaitingConfirmation = photo },
             onZoom: { expandedPhoto = photo },
             hasMyVote: myVote != nil
         )
@@ -324,13 +339,14 @@ struct VotingPhotoGridView: View {
             return
         }
         isSendingReaction = true
+        Haptics.impact(.light) // instant feedback; don't wait for the network
         Task {
             defer { isSendingReaction = false }
             do {
                 try await API.saveVoteReason(fitCheckId: fitCheckId, photoId: photoId, tags: [reason], comment: "")
-                Haptics.success()
                 setReactionMessage("Reaction sent")
             } catch {
+                Haptics.error()
                 setReactionMessage("Couldn't send reaction")
             }
         }
@@ -350,7 +366,7 @@ struct VotingPhotoGridView: View {
         guard !revealed, !isVoting else { return }
         error = nil
         isVoting = true
-        Haptics.impact(.light)
+        Haptics.impact(.medium)
         myVote = photoId // optimistic
         counts[photoId, default: 0] += 1
         total += 1
@@ -359,7 +375,6 @@ struct VotingPhotoGridView: View {
             defer { isVoting = false }
             do {
                 try await API.castVote(fitCheckId: fitCheckId, photoId: photoId, voterId: voterId, creatorId: creatorId, status: status, expiresAt: expiresAt)
-                Haptics.success()
                 streak = VoteStreakStore.recordVote(for: voterId)
                 AccessibilityNotification.Announcement("Vote recorded, results shown").post()
                 appState.contentDidChange()
