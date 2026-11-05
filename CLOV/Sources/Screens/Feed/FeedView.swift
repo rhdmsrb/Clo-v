@@ -253,7 +253,7 @@ struct FeedView: View {
                         isFollowing: followingIDs.contains(item.creatorId),
                         onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) }
                     )
-                    .scrollTransition(.animated(Theme.settle), axis: .vertical) { view, phase in
+                    .scrollTransition(.animated(Theme.settle), axis: .vertical) { [reduceMotion] view, phase in
                         view
                             .opacity(reduceMotion || phase.isIdentity ? 1 : 0.6)
                             .scaleEffect(reduceMotion || phase.isIdentity ? 1 : 0.97)
