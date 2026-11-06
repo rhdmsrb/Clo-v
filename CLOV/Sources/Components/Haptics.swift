@@ -33,6 +33,10 @@ enum Haptics {
         notification.prepare()
     }
 
+    static func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
     static func error() {
         notification.notificationOccurred(.error)
         notification.prepare()

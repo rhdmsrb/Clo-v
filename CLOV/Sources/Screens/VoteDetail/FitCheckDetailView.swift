@@ -25,19 +25,6 @@ struct FitCheckDetailView: View {
     @State private var showingBlockConfirmation = false
     @State private var safetyMessage: String?
 
-    private struct ReportReason: Identifiable {
-        let title: String
-        let value: String
-        var id: String { value }
-    }
-
-    private let reportReasons = [
-        ReportReason(title: "Inappropriate content", value: "inappropriate"),
-        ReportReason(title: "Harassment or bullying", value: "harassment"),
-        ReportReason(title: "Spam", value: "spam"),
-        ReportReason(title: "Other", value: "other")
-    ]
-
     private var voteCounts: [UUID: Int] {
         Dictionary(grouping: votes, by: \.photoId).mapValues(\.count)
     }
@@ -80,7 +67,7 @@ struct FitCheckDetailView: View {
             }
         }
         .confirmationDialog("Why are you reporting this?", isPresented: $showingReportReasons, titleVisibility: .visible) {
-            ForEach(reportReasons) { reason in
+            ForEach(ReportReason.all) { reason in
                 Button(reason.title) { Task { await report(reason: reason.value) } }
             }
             Button("Cancel", role: .cancel) {}

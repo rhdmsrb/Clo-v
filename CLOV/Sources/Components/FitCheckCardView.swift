@@ -36,6 +36,10 @@ struct FitCheckCardView: View {
             }
         }
         .elevatedCard(radius: Theme.cardRadius, padding: 14)
+        .fitCheckContextMenu(
+            fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: voterId,
+            isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
+        )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(posterName)’s Fit-Check")
     }

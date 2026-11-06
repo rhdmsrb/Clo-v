@@ -12,8 +12,6 @@ struct AccountView: View {
     @State private var isUploadingAvatar = false
     @State private var terminateTarget: UUID?
     @State private var deleteTarget: UUID?
-    @State private var isDeletingAccount = false
-    @State private var showingDeleteAccountConfirmation = false
     @State private var showingEditProfile = false
     @State private var followerIDs: Set<UUID> = []
     @State private var followingIDs: Set<UUID> = []
@@ -31,9 +29,7 @@ struct AccountView: View {
                 header
                 profileHero(avatarURL: avatarURL, nickname: nickname, uploadingAvatar: uploadingAvatar)
 
-                SectionHeader(title: "Wardrobe & circle")
-                shortcutGrid
-
+                // The user's own posts come first: it is what they open Profile for.
                 SectionHeader(title: "Your Fit-Checks")
                     .overlay(alignment: .trailing) {
                         Text("\(liveVotes.count + archivedVotes.count) posts")
@@ -46,7 +42,8 @@ struct AccountView: View {
                     votesSection(title: "ENDED", items: archivedVotes, emptyText: "Completed Fit-Checks will land here.")
                 }
 
-                accountFooter
+                SectionHeader(title: "Wardrobe & circle")
+                shortcutGrid
             }
             .padding(20)
             // Leave room for the floating tab bar so the final section can
@@ -65,14 +62,6 @@ struct AccountView: View {
         .sheet(item: $selectedFollowList) { list in
             ProfileFollowListView(userId: appState.userId, initialList: list)
                 .environmentObject(appState)
-        }
-        .alert("Delete your account?", isPresented: $showingDeleteAccountConfirmation) {
-            Button("Delete account", role: .destructive) {
-                Task { await deleteAccount() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently deletes your profile, Fit-Checks, photos, votes, comments, friends, and wardrobe items. This can't be undone.")
         }
         .confirmationDialog(
             "End voting on this Fit-Check?",
@@ -130,6 +119,17 @@ struct AccountView: View {
                     .contentShape(Circle())
             }
             .accessibilityLabel("Edit profile")
+            NavigationLink(destination: SettingsView()) {
+                Image(systemName: "gearshape")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .background(Theme.muted, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(InstantPressStyle())
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("settingsButton")
         }
     }
 
@@ -147,38 +147,7 @@ struct AccountView: View {
             profileShortcut(title: "Your week", subtitle: "Style activity", icon: "chart.bar", tint: Theme.iconSage) {
                 StyleInsightsView()
             }
-            profileShortcut(title: "Privacy", subtitle: "Data & controls", icon: "lock.shield", tint: Theme.iconPlum) {
-                PrivacyView()
-            }
-            profileShortcut(title: "Appearance", subtitle: "Colors & theme", icon: "paintpalette", tint: Theme.iconCoral) {
-                AppearanceView()
-            }
         }
-    }
-
-    private var accountFooter: some View {
-        VStack(spacing: 4) {
-            Button { Task { await appState.signOut() } } label: {
-                Text("Log out")
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Theme.mutedForeground)
-                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            Button(role: .destructive) {
-                showingDeleteAccountConfirmation = true
-            } label: {
-                Text("Delete account")
-                    .font(Theme.label)
-                    .foregroundStyle(Theme.danger)
-                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isDeletingAccount)
-        }
-        .padding(.top, 8)
     }
 
     private func profileHero(avatarURL: String?, nickname: String?, uploadingAvatar: Bool) -> some View {
@@ -337,26 +306,37 @@ struct AccountView: View {
                             }
                             .buttonStyle(.plain)
                             Spacer()
-                            if item.status == "live" && !isExpired(item.expiresAt) {
-                                Button("Terminate") { terminateTarget = item.id }
-                                    .font(Theme.micro)
-                                    .foregroundStyle(Theme.accentDeep)
-                                    .frame(minWidth: 44, minHeight: 44)
+                            Menu {
+                                fitCheckActions(item)
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(Theme.headline)
+                                    .foregroundStyle(Theme.mutedForeground)
+                                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
                                     .contentShape(Rectangle())
-                                    .accessibilityLabel("Terminate \(item.caption ?? "Fit-Check")")
                             }
-                            Button("Delete") { deleteTarget = item.id }
-                                .font(Theme.micro)
-                                .foregroundStyle(Theme.danger)
-                                .frame(minWidth: 44, minHeight: 44)
-                                .contentShape(Rectangle())
-                                .accessibilityLabel("Delete \(item.caption ?? "Fit-Check")")
+                            .accessibilityLabel("Actions for \(item.caption ?? "Fit-Check")")
+                            .accessibilityIdentifier("fitCheckActions")
                         }
                         .softCard(radius: Theme.tileRadius, padding: 12)
+                        .contextMenu { fitCheckActions(item) }
                     }
                 }
             }
         }
+    }
+
+    /// One menu instead of two cramped text buttons side by side, so a
+    /// destructive action can't be hit by accident. Also the long-press menu.
+    @ViewBuilder
+    private func fitCheckActions(_ item: MyFitCheck) -> some View {
+        if let url = ShareURL.make(fitCheckId: item.id) {
+            ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
+        }
+        if item.status == "live" && !isExpired(item.expiresAt) {
+            Button("End voting", systemImage: "stop.circle") { terminateTarget = item.id }
+        }
+        Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = item.id }
     }
 
     private func load() async {
@@ -405,18 +385,6 @@ struct AccountView: View {
         }
     }
 
-    private func deleteAccount() async {
-        isDeletingAccount = true
-        error = nil
-        do {
-            try await API.deleteAccount()
-            appState.accountDeleted()
-        } catch {
-            self.error = error.localizedDescription
-        }
-        isDeletingAccount = false
-    }
-
     private func uploadAvatar(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         isUploadingAvatar = true
@@ -436,6 +404,7 @@ struct AccountView: View {
 @MainActor
 struct StyleInsightsView: View {
     @EnvironmentObject private var appState: AppState
+    @ScaledMetric(relativeTo: .title2) private var streakIconSize: CGFloat = 28
     @State private var report: WeeklyStyleReport?
     @State private var isLoading = true
     @State private var hasLoaded = false
@@ -465,7 +434,7 @@ struct StyleInsightsView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack(spacing: 14) {
                                 Image(systemName: "flame.fill")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.system(size: streakIconSize, weight: .bold))
                                     .foregroundStyle(Theme.iconCoral)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 3) {
@@ -554,7 +523,7 @@ struct MyFitCheck: Identifiable {
 }
 
 @MainActor
-private struct EditProfileView: View {
+struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
 
