@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B1F2C3D4E5F60718293A4B5D /* FriendProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F2C3D4E5F60718293A4B5C /* FriendProfileView.swift */; };
 		023DDA943D80D6142A6D6425 /* ResultShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9705A62A0FCC5CB4282968 /* ResultShareCard.swift */; };
 		024C33323DDEB358A6121E5A /* InviteCodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CB773663B21203B6DCFE5D /* InviteCodeTests.swift */; };
 		0286760E95CA39CA12D6A6BA /* FeedRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3483F357BD033B6B974112B /* FeedRanking.swift */; };
@@ -146,6 +147,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A1F2C3D4E5F60718293A4B5C /* FriendProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendProfileView.swift; sourceTree = "<group>"; };
 		01C1CAC97596178A2D258E52 /* PushPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushPayload.swift; sourceTree = "<group>"; };
 		01CB773663B21203B6DCFE5D /* InviteCodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteCodeTests.swift; sourceTree = "<group>"; };
 		04707C280DC50ED7B0059E86 /* DeepLinkUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkUITests.swift; sourceTree = "<group>"; };
@@ -498,6 +500,7 @@
 			isa = PBXGroup;
 			children = (
 				E18F2A0EA717C09413980E4F /* FriendsView.swift */,
+				A1F2C3D4E5F60718293A4B5C /* FriendProfileView.swift */,
 			);
 			path = Friends;
 			sourceTree = "<group>";
@@ -766,6 +769,7 @@
 				FDFDE5CE54962C8C811D9FED /* FlowLayout.swift in Sources */,
 				61B5D57E0D832C9E60B5CF18 /* FriendlyError.swift in Sources */,
 				06C26C940D95DB811D359A28 /* FriendsView.swift in Sources */,
+				B1F2C3D4E5F60718293A4B5D /* FriendProfileView.swift in Sources */,
 				FBF966980820C01E97D0E1BA /* GroupDetailView.swift in Sources */,
 				F24DA4F3C05FFC0CADDD7B44 /* GroupsView.swift in Sources */,
 				559E6D0685C5AEB1E51854D2 /* Haptics.swift in Sources */,

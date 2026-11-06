@@ -152,20 +152,29 @@ struct FriendsView: View {
                 Text("\(person.mutualCount) mutual").font(Theme.micro).foregroundStyle(Theme.mutedForeground)
             }
         }
+        let row = HStack(spacing: 12) {
+            AvatarView(url: person?.avatarUrl, nickname: person?.nickname, size: 44)
+            details
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: Theme.minTapSize)
+        .contentShape(Rectangle())
+        let identity = Group {
+            if let person {
+                NavigationLink { FriendProfileView(person: person) } label: { row }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens profile")
+            } else { row }
+        }
         return Group {
             if stacksAction {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        AvatarView(url: person?.avatarUrl, nickname: person?.nickname, size: 44)
-                        details
-                        Spacer(minLength: 0)
-                    }
+                    identity
                     action
                 }
             } else {
                 HStack(spacing: 12) {
-                    AvatarView(url: person?.avatarUrl, nickname: person?.nickname, size: 44)
-                    details
+                    identity
                     Spacer(minLength: 8)
                     action
                 }

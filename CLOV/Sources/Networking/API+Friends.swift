@@ -79,3 +79,19 @@ extension API {
         try await client.rpc("cancel_friend_request", params: ["p_request_id": id]).execute()
     }
 }
+
+extension API {
+    /// Another user's public profile (style preferences, join date). Profiles are
+    /// readable by any signed-in user; `fetchProfile(id:)` is restricted to the caller.
+    static func fetchPublicProfile(id: UUID) async throws -> Profile? {
+#if DEBUG
+        if SampleData.isActive {
+            return SampleData.profiles(ids: [id]).first.map {
+                Profile(id: $0.id, nickname: $0.nickname, stylePreferences: [], avatarUrl: $0.avatarUrl, createdAt: nil)
+            }
+        }
+#endif
+        let rows: [Profile] = try await client.from("profiles").select().eq("id", value: id).limit(1).execute().value
+        return rows.first
+    }
+}
