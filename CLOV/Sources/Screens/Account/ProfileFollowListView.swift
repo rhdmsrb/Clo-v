@@ -17,6 +17,7 @@ struct ProfileFollowListView: View {
     @State private var followers: [AuthorInfoWithId] = []
     @State private var following: [AuthorInfoWithId] = []
     @State private var followingIDs: Set<UUID> = []
+    @State private var friendIDs: Set<UUID> = []
     @State private var isLoading = true
     @State private var error: String?
     @State private var updatingIDs: Set<UUID> = []
@@ -116,6 +117,22 @@ struct ProfileFollowListView: View {
 
     @ViewBuilder
     private func followButton(for person: AuthorInfoWithId) -> some View {
+        if friendIDs.contains(person.id) {
+            Label("Friends", systemImage: "person.2.fill")
+                .font(Theme.label)
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 16)
+                .frame(minHeight: Theme.minTapSize)
+                .background(Capsule(style: .continuous).fill(Theme.muted)
+                    .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1)))
+                .accessibilityLabel("Friends with \(person.nickname ?? "user")")
+        } else {
+            followToggle(for: person)
+        }
+    }
+
+    @ViewBuilder
+    private func followToggle(for person: AuthorInfoWithId) -> some View {
         let isFollowing = followingIDs.contains(person.id)
         Button {
             Task { await setFollowing(!isFollowing, person: person) }
@@ -154,9 +171,13 @@ struct ProfileFollowListView: View {
         defer { isLoading = false }
         async let followerTask = API.fetchFollowerIDs(userId: userId)
         async let followingTask = API.fetchFollowingIDs(userId: userId)
+        async let friendsTask = API.fetchFriendIDs(userId: userId)
         do {
-            let fetchedFollowers = try await followerTask
-            let fetchedFollowing = try await followingTask
+            // Friendships are mutual, so friends appear in both lists.
+            let fetchedFriends = try await friendsTask
+            let fetchedFollowers = try await followerTask.union(fetchedFriends)
+            let fetchedFollowing = try await followingTask.union(fetchedFriends)
+            friendIDs = fetchedFriends
             async let followerProfilesTask = API.fetchProfiles(ids: Array(fetchedFollowers))
             async let followingProfilesTask = API.fetchProfiles(ids: Array(fetchedFollowing))
             let fetchedFollowerProfiles = try await followerProfilesTask

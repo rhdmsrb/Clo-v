@@ -1,7 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// A branded, shareable picture of a Fit-Check's result.
+/// A branded, shareable picture of a Fit-Check's result, laid out like a page
+/// from a magazine rather than a dashboard: hairline rules, one large serif
+/// question, serif percentages and a single accent for the leading look.
 ///
 /// Uses fixed (non-adaptive) colors and a pinned type size so the picture
 /// looks the same in light and dark mode. It never shows nicknames or other
@@ -22,27 +24,39 @@ struct ResultShareCard: View {
     let showsPhotos: Bool
 
     private static let cardWidth: CGFloat = 360
-    /// Keeps every bar starting at the same x regardless of the digits shown.
-    private static let badgeWidth: CGFloat = 30
+    /// 9:16, so the picture fits a story without cropping.
+    private static let minHeight: CGFloat = 640
+    private static let paper = Color(red: 0.988, green: 0.965, blue: 0.973)
     private static let ink = Color(red: 0.227, green: 0.125, blue: 0.161)
-    private static let pink = Color(red: 0.894, green: 0.569, blue: 0.651)
+    private static let rose = Color(red: 0.894, green: 0.569, blue: 0.651)
+    private static let roseDeep = Color(red: 0.447, green: 0.271, blue: 0.353)
     private static let fallbackPrompt = "Which look wins?"
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
             header
+            rule.padding(.top, 12)
             Text(promptText)
-                .font(Theme.editorialFont(size: 26, relativeTo: .title2))
+                .font(Theme.editorialFont(size: 30, relativeTo: .title))
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 20)
+            Spacer(minLength: 24)
             if showsPhotos { photoGrid } else { barRows }
-            Text("Cast your vote on CLO·V")
-                .font(Theme.font(.caption, weight: .bold))
-                .tracking(0.8)
+            Spacer(minLength: 24)
+            rule
+            Text("Settle it on CLO·V")
+                .font(Theme.font(.caption2, weight: .bold))
+                .tracking(1.4)
+                .textCase(.uppercase)
+                .foregroundStyle(Self.roseDeep)
+                .padding(.top, 12)
         }
-        .padding(20)
+        .padding(24)
         .frame(width: Self.cardWidth, alignment: .leading)
+        .frame(minHeight: Self.minHeight, alignment: .top)
         .foregroundStyle(Self.ink)
-        .background(Color.white)
+        .background(Self.paper)
         .environment(\.colorScheme, .light)
         .environment(\.dynamicTypeSize, .large)
     }
@@ -52,79 +66,103 @@ struct ResultShareCard: View {
         return trimmed.isEmpty ? Self.fallbackPrompt : trimmed
     }
 
+    private var rule: some View {
+        Rectangle().fill(Self.ink.opacity(0.35)).frame(height: 1)
+    }
+
     private var header: some View {
-        HStack {
-            Text("CLO·V").font(Theme.font(.headline, weight: .heavy))
+        HStack(alignment: .firstTextBaseline) {
+            Text("CLO·V").font(Theme.editorialFont(size: 22, relativeTo: .title3))
             Spacer()
-            Text("\(totalVotes) \(totalVotes == 1 ? "VOTE" : "VOTES")")
-                .font(Theme.font(.caption2, weight: .black))
-                .tracking(1.2)
+            Text("\(totalVotes) \(totalVotes == 1 ? "vote" : "votes")")
+                .font(Theme.font(.caption2, weight: .bold))
+                .tracking(1.4)
+                .textCase(.uppercase)
+                .foregroundStyle(Self.roseDeep)
         }
     }
+
+    private func label(_ entry: Entry) -> String { "Look \(entry.position)" }
 
     // MARK: Photos (creator)
 
     private var photoGrid: some View {
         let ratio: CGFloat = entries.count > 2 ? 1 : 3.0 / 4.0
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 14) {
             ForEach(entries) { entry in tile(entry, ratio: ratio) }
         }
     }
 
     private func tile(_ entry: Entry, ratio: CGFloat) -> some View {
-        Color.clear
-            .aspectRatio(ratio, contentMode: .fit)
-            .overlay {
-                if let image = entry.image {
-                    Image(uiImage: image).resizable().scaledToFill()
-                } else {
-                    Self.ink.opacity(0.1)
+        VStack(alignment: .leading, spacing: 8) {
+            Color.clear
+                .aspectRatio(ratio, contentMode: .fit)
+                .overlay {
+                    if let image = entry.image {
+                        Image(uiImage: image).resizable().scaledToFill()
+                    } else {
+                        Self.ink.opacity(0.08)
+                    }
                 }
+                .clipped()
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label(entry))
+                        .font(Theme.font(.caption2, weight: .bold))
+                        .tracking(1.2)
+                        .textCase(.uppercase)
+                        .foregroundStyle(Self.ink.opacity(0.6))
+                    if entry.isLeading {
+                        Text("Winning")
+                            .font(Theme.font(.caption2, weight: .bold))
+                            .tracking(1.2)
+                            .textCase(.uppercase)
+                            .foregroundStyle(Self.roseDeep)
+                    }
+                }
+                Spacer(minLength: 4)
+                Text("\(entry.percent)%")
+                    .font(Theme.editorialFont(size: 30, relativeTo: .title))
+                    .foregroundStyle(entry.isLeading ? Self.ink : Self.ink.opacity(0.55))
             }
-            .clipped()
-            .overlay(alignment: .topLeading) { badge(String(format: "%02d", entry.position)) }
-            .overlay(alignment: .bottom) { percentFooter(entry) }
-            .overlay(Rectangle().stroke(Self.ink, lineWidth: entry.isLeading ? 3 : 1))
-    }
-
-    private func badge(_ text: String) -> some View {
-        Text(text)
-            .font(Theme.font(.caption2, weight: .black))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 5)
-            .background(Self.ink)
-    }
-
-    private func percentFooter(_ entry: Entry) -> some View {
-        HStack(spacing: 4) {
-            Text("\(entry.percent)%").font(Theme.font(.headline, weight: .black))
-            if entry.isLeading { Image(systemName: "star.fill").font(.caption2) }
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
-        .background(Self.ink)
     }
 
     // MARK: Bars (voter: no photos leave the app)
 
     private var barRows: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 22) {
             ForEach(entries) { entry in
-                HStack(spacing: 10) {
-                    badge(String(format: "%02d", entry.position))
-                        .frame(width: Self.badgeWidth)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .lastTextBaseline) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(label(entry))
+                                .font(Theme.font(.caption2, weight: .bold))
+                                .tracking(1.2)
+                                .textCase(.uppercase)
+                                .foregroundStyle(Self.ink.opacity(0.6))
+                            if entry.isLeading || entry.isMine {
+                                Text(entry.isLeading && entry.isMine ? "Winning · my pick"
+                                     : entry.isLeading ? "Winning" : "My pick")
+                                    .font(Theme.font(.caption2, weight: .bold))
+                                    .tracking(1.2)
+                                    .textCase(.uppercase)
+                                    .foregroundStyle(Self.roseDeep)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        Text("\(entry.percent)%")
+                            .font(Theme.editorialFont(size: 44, relativeTo: .largeTitle))
+                            .foregroundStyle(entry.isLeading ? Self.ink : Self.ink.opacity(0.55))
+                    }
                     GeometryReader { proxy in
                         ZStack(alignment: .leading) {
-                            Self.ink.opacity(0.08)
-                            Self.pink.frame(width: proxy.size.width * CGFloat(entry.percent) / 100)
+                            Self.ink.opacity(0.12)
+                            (entry.isLeading ? Self.rose : Self.ink.opacity(0.4))
+                                .frame(width: proxy.size.width * CGFloat(max(0, min(100, entry.percent))) / 100)
                         }
                     }
-                    .frame(height: 28)
-                    Text("\(entry.percent)%")
-                        .font(Theme.font(.headline, weight: .black))
-                        .frame(minWidth: 48, alignment: .trailing)
+                    .frame(height: 4)
                 }
             }
         }

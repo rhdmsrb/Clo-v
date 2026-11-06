@@ -345,12 +345,16 @@ struct AccountView: View {
         defer { isLoading = false }
         async let followersTask = API.fetchFollowerIDs(userId: appState.userId)
         async let followingTask = API.fetchFollowingIDs(userId: appState.userId)
+        async let friendsTask = API.fetchFriendIDs(userId: appState.userId)
         do {
             let all = try await API.fetchMyFitChecksWithStatus(creatorId: appState.userId)
             liveVotes = all.filter { $0.status == "live" && !isExpired($0.expiresAt) }
             archivedVotes = all.filter { $0.status == "archived" || isExpired($0.expiresAt) }
-            followerIDs = try await followersTask
-            followingIDs = try await followingTask
+            // Friendships are mutual, so friends count as both followers and
+            // following (the feed already treats them this way).
+            let friendIDs = try await friendsTask
+            followerIDs = try await followersTask.union(friendIDs)
+            followingIDs = try await followingTask.union(friendIDs)
             hasLoaded = true
         } catch is CancellationError {
             return

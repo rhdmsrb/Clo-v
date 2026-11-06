@@ -20,6 +20,7 @@ struct VotingPhotoGridView: View {
     @State private var error: String?
     @State private var isVoting = false
     @State private var isRetracting = false
+    @State private var showsReactions = false
     @State private var isSendingReaction = false
     @State private var commentPhotoId: UUID?
     @State private var expandedPhoto: FitCheckPhoto?
@@ -69,6 +70,9 @@ struct VotingPhotoGridView: View {
     // vote time), so a card left on screen stops accepting votes once it expires.
     private var canVote: Bool { status == "live" && creatorId != voterId && !isExpired(expiresAt) }
     private var revealed: Bool { myVote != nil || !canVote }
+    /// A voter (not the creator) who has already picked a look.
+    private var hasVoted: Bool { myVote != nil && creatorId != voterId }
+    private var showsShare: Bool { revealed && total > 0 && canShareResult }
     private var leadingCount: Int { counts.values.max() ?? 0 }
 
     var body: some View {
@@ -97,7 +101,10 @@ struct VotingPhotoGridView: View {
         } message: { _ in
             Text("You can change your vote while voting is open.")
         }
-        .task { streak = VoteStreakStore.load(for: voterId) }
+        .task {
+            Haptics.prepare()
+            streak = VoteStreakStore.load(for: voterId)
+        }
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
         .sensoryFeedback(.success, trigger: celebration) { _, new in new != nil }
     }
@@ -146,11 +153,14 @@ struct VotingPhotoGridView: View {
                 Text(error).font(Theme.font(.caption)).foregroundStyle(Theme.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if myVote != nil, creatorId != voterId {
+            if hasVoted {
                 resultCard
             }
+            actionRow
+            if hasVoted {
+                reactionsDisclosure
+            }
             voteSummary
-            shareResultButton
         }
     }
 
@@ -176,20 +186,44 @@ struct VotingPhotoGridView: View {
     /// creator), so it never spoils an undecided vote. Only the creator's own
     /// photos are included in the picture; voters share a bars-only card.
     @ViewBuilder
-    private var shareResultButton: some View {
-        if revealed && total > 0 && canShareResult {
+    private var shareAction: some View {
+        if showsShare {
             ShareLink(item: shareImage,
                       message: Text(shareMessage),
                       preview: SharePreview("Fit-Check result")) {
-                Label("Share result", systemImage: "square.and.arrow.up")
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 12)
-                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                    .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+                actionLabel("Share", systemImage: "square.and.arrow.up", isPrimary: false)
             }
+            .accessibilityLabel("Share result")
             .accessibilityHint("Shares a picture of the result")
         }
+    }
+
+    /// One compact row for everything you can do after the result is shown.
+    /// Wraps onto a second line at large text sizes instead of truncating.
+    @ViewBuilder
+    private var actionRow: some View {
+        if hasVoted || showsShare {
+            FlowLayout(spacing: 8) {
+                if hasVoted {
+                    Button { commentPhotoId = myVote } label: {
+                        actionLabel("Tell them why", systemImage: "text.bubble", isPrimary: true)
+                    }
+                    .accessibilityHint("Add a comment and what stood out")
+                }
+                if hasVoted, canVote { changeVoteButton }
+                shareAction
+            }
+        }
+    }
+
+    private func actionLabel(_ title: String, systemImage: String, isPrimary: Bool) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(Theme.caption)
+            .lineLimit(1)
+            .foregroundStyle(isPrimary ? Theme.accentDeep : Theme.ink)
+            .padding(.horizontal, 14)
+            .frame(minHeight: Theme.minTapSize)
+            .background(isPrimary ? Theme.accentTint : Theme.muted.opacity(0.65), in: Capsule())
     }
 
     /// The creator may always export their own result; anyone else only for a
@@ -227,18 +261,16 @@ struct VotingPhotoGridView: View {
     }
 
     private var voteSummary: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if !canVote {
-                Text("YOUR FIT-CHECK").font(Theme.micro)
+                Text("YOUR FIT-CHECK").font(Theme.micro).tracking(1.1)
+                Text("·").accessibilityHidden(true)
             }
             Text(total == 1 ? "1 person has voted" : "\(total) people have voted")
                 .font(Theme.microMedium)
         }
-        .foregroundStyle(Theme.ink)
+        .foregroundStyle(Theme.mutedForeground)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
@@ -278,17 +310,6 @@ struct VotingPhotoGridView: View {
                     .font(Theme.caption)
                     .foregroundStyle(Theme.accentDeep)
             }
-            Button { commentPhotoId = myVote } label: {
-                Label("Tell them why", systemImage: "text.bubble")
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: Theme.minTapSize)
-                    .background(Theme.muted.opacity(0.65), in: Capsule())
-            }
-            .accessibilityHint("Add a comment and what stood out")
-            if canVote { changeVoteButton }
-            quickReactionBar
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .softCard(padding: 14)
@@ -297,23 +318,39 @@ struct VotingPhotoGridView: View {
 
     private var changeVoteButton: some View {
         Button { retractVote() } label: {
-            Label("Change vote", systemImage: "arrow.uturn.backward")
-                .font(Theme.caption)
-                .foregroundStyle(Theme.ink)
-                .padding(.horizontal, 12)
-                .frame(minHeight: Theme.minTapSize)
-                .background(Theme.muted.opacity(0.65), in: Capsule())
+            actionLabel("Change vote", systemImage: "arrow.uturn.backward", isPrimary: false)
         }
         .disabled(isRetracting || isVoting)
         .accessibilityHint("Cancels your vote so you can pick again while voting is open")
     }
 
+    /// Reactions stay one tap away but out of the way until wanted.
+    private var reactionsDisclosure: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { showsReactions.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Text("QUICK REACTION").font(Theme.micro).tracking(1.1)
+                    Image(systemName: showsReactions ? "chevron.up" : "chevron.down")
+                        .font(Theme.micro)
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(Theme.mutedForeground)
+                .frame(minHeight: Theme.minTapSize)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Quick reaction")
+            .accessibilityValue(showsReactions ? "expanded" : "collapsed")
+            .accessibilityHint("Shows reactions you can send to the poster")
+            if showsReactions { quickReactionBar }
+        }
+    }
+
     private var quickReactionBar: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("QUICK REACTION")
-                .font(Theme.micro)
-                .tracking(1.1)
-                .foregroundStyle(Theme.mutedForeground)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
                     ForEach(VoteReason.options, id: \.self) { reason in
@@ -347,13 +384,14 @@ struct VotingPhotoGridView: View {
             return
         }
         isSendingReaction = true
+        Haptics.impact(.light) // instant feedback; don't wait for the network
         Task {
             defer { isSendingReaction = false }
             do {
                 try await API.saveVoteReason(fitCheckId: fitCheckId, photoId: photoId, tags: [reason], comment: "")
-                Haptics.success()
                 setReactionMessage("Reaction sent")
             } catch {
+                Haptics.error()
                 setReactionMessage("Couldn't send reaction")
             }
         }
@@ -373,7 +411,7 @@ struct VotingPhotoGridView: View {
         guard !revealed, !isVoting else { return }
         error = nil
         isVoting = true
-        Haptics.impact(.light)
+        Haptics.impact(.medium)
         myVote = photoId // optimistic
         counts[photoId, default: 0] += 1
         total += 1
