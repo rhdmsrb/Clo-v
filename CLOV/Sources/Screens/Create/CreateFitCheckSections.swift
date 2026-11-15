@@ -78,45 +78,6 @@ struct NoteSection: View {
     }
 }
 
-struct PromptSection: View {
-    @Binding var votePrompt: String
-    let suggestions: [String]
-    let maxLength: Int
-
-    /// Clamps on write so the limit is enforced in a single update.
-    private var clampedPrompt: Binding<String> {
-        Binding(get: { votePrompt }, set: { votePrompt = String($0.prefix(maxLength)) })
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            SectionHeader(title: "What should people help you decide?")
-            LabeledField(padding: 12) {
-                TextField("e.g. Which shoes finish this look?", text: clampedPrompt, axis: .vertical)
-                    .lineLimit(1...2)
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 7) {
-                    ForEach(suggestions, id: \.self) { suggestion in
-                        Button { votePrompt = suggestion } label: { Text(suggestion) }
-                            .buttonStyle(ChipButtonStyle(
-                                isSelected: false,
-                                unselectedFill: Theme.muted,
-                                unselectedForeground: Theme.ink,
-                                horizontalPadding: 10
-                            ))
-                            // Size to the full text inside the horizontal scroll
-                            // instead of truncating.
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                }
-            }
-            Text("Optional. A specific question gets more useful feedback.")
-                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
-        }
-    }
-}
-
 struct OccasionSection: View {
     @Binding var occasion: String
     let options: [String]
