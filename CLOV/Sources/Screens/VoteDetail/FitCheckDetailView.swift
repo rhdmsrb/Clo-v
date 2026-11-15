@@ -9,6 +9,8 @@ import SwiftUI
 /// screen — see `GroupDetailView`'s own `FitCheckRoute` registration.
 struct FitCheckRoute: Hashable {
     let id: UUID
+    /// The photo to open on; nil opens on the first look.
+    var photoIndex: Int? = nil
 }
 
 struct FitCheckDetailView: View {

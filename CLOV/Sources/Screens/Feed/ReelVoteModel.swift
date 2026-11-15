@@ -1,14 +1,34 @@
 import SwiftUI
 
+/// Network calls the reel vote model makes. Production uses `.live`; tests inject fakes.
+struct ReelVoteService {
+    var cast: (_ item: FeedItemDTO, _ photoId: UUID, _ voterId: UUID) async throws -> Void
+    var retract: (_ item: FeedItemDTO, _ voterId: UUID) async throws -> Void
+    var fetchVotes: (_ fitCheckId: UUID) async throws -> [VoteRef]
+
+    static let live = ReelVoteService(
+        cast: { item, photoId, voterId in
+            try await API.castVote(fitCheckId: item.id, photoId: photoId, voterId: voterId,
+                                   creatorId: item.creatorId, status: "live", expiresAt: item.expiresAt)
+        },
+        retract: { item, voterId in
+            try await API.retractVote(fitCheckId: item.id, voterId: voterId,
+                                      status: "live", expiresAt: item.expiresAt)
+        },
+        fetchVotes: { try await API.fetchVotes(fitCheckId: $0) })
+}
+
 /// Vote state for one Fit-Check in the swipe reel: which look is on screen,
 /// the running tally, and casting a vote with an optimistic update.
 @MainActor
 final class ReelVoteModel: ObservableObject {
     private let item: FeedItemDTO
     private let voterId: UUID
+    private let service: ReelVoteService
+    private var pendingTask: Task<Void, Never>?
 
     let photos: [FitCheckPhoto]
-    @Published private(set) var lookIndex = 0
+    @Published private(set) var lookIndex: Int
     @Published private(set) var counts: [UUID: Int]
     @Published private(set) var total: Int
     @Published private(set) var myVote: UUID?
@@ -17,25 +37,43 @@ final class ReelVoteModel: ObservableObject {
     @Published private(set) var streak: VoteStreak
     @Published var error: String?
 
-    init(item: FeedItemDTO, voterId: UUID) {
+    init(item: FeedItemDTO, voterId: UUID, initialLook: Int? = nil,
+         service: ReelVoteService = .live) {
         self.item = item
         self.voterId = voterId
+        self.service = service
         photos = item.fitCheckPhotos.sorted { $0.position < $1.position }
+        lookIndex = Self.clampedLook(initialLook, count: photos.count)
         counts = Dictionary(grouping: item.fitCheckVotes, by: \.photoId).mapValues(\.count)
         total = item.fitCheckVotes.count
         myVote = item.fitCheckVotes.first { $0.voterId == voterId }?.photoId
         streak = VoteStreakStore.load(for: voterId)
     }
 
+    /// An out-of-range or missing index opens on the first look.
+    nonisolated static func clampedLook(_ index: Int?, count: Int) -> Int {
+        guard let index, (0..<count).contains(index) else { return 0 }
+        return index
+    }
+
     var currentPhoto: FitCheckPhoto? { photos.indices.contains(lookIndex) ? photos[lookIndex] : photos.first }
-    var canVote: Bool { item.creatorId != voterId && myVote == nil && !isExpired(item.expiresAt) }
+    /// False while a vote or an undo is in flight so the two never overlap.
+    var canVote: Bool {
+        item.creatorId != voterId && myVote == nil && !isExpired(item.expiresAt) && !isVoting && !isRetracting
+    }
     /// A cast vote can be taken back while the post is live.
     var canRetract: Bool {
         item.creatorId != voterId && myVote != nil
             && !isExpired(item.expiresAt) && !isVoting && !isRetracting
     }
-    /// First-time voters get a hint about the swipe.
+    /// First-time voters get a hint about the hold gesture.
     var isFirstTimeVoter: Bool { streak.lastVoteDay == nil }
+    var isCreator: Bool { item.creatorId == voterId }
+    var isEnded: Bool { isExpired(item.expiresAt) }
+    /// Vote totals and the per-photo split stay blurred until this is true.
+    var isResultsRevealed: Bool {
+        BlurReveal.isRevealed(hasVoted: myVote != nil, isCreator: isCreator, ended: isEnded)
+    }
 
     func percent(for photoId: UUID) -> Int {
         total > 0 ? Int((Double(counts[photoId] ?? 0) / Double(total) * 100).rounded()) : 0
@@ -48,38 +86,52 @@ final class ReelVoteModel: ObservableObject {
                                    total: total, optionCount: photos.count)
     }
 
+    /// Browses to a photo, ignoring out-of-range indexes.
+    func setLook(_ index: Int) {
+        guard photos.indices.contains(index), index != lookIndex else { return }
+        lookIndex = index
+    }
+
     func showLook(step: Int) {
         lookIndex = SwipeVoteGesture.index(after: lookIndex, count: photos.count, step: step)
+    }
+
+    /// Suspends until the in-flight vote or undo (if any) finishes.
+    func waitUntilIdle() async {
+        await pendingTask?.value
     }
 
     /// Votes for the look on screen. Returns whether a vote was started.
     @discardableResult
     func voteForCurrentLook(onRecorded: @escaping () -> Void) -> Bool {
-        guard canVote, !isVoting, let photo = currentPhoto else { return false }
+        guard canVote, let photo = currentPhoto else { return false }
+        let before = (counts: counts, total: total)
         error = nil
         isVoting = true
         myVote = photo.id // optimistic
-        counts[photo.id, default: 0] += 1
-        total += 1
+        counts = counts.merging([photo.id: 1], uniquingKeysWith: +)
+        total = before.total + 1
 
-        Task {
+        pendingTask = Task {
             defer { isVoting = false }
             do {
-                try await API.castVote(fitCheckId: item.id, photoId: photo.id, voterId: voterId,
-                                       creatorId: item.creatorId, status: "live", expiresAt: item.expiresAt)
+                try await service.cast(item, photo.id, voterId)
                 Haptics.success()
                 streak = VoteStreakStore.recordVote(for: voterId)
                 onRecorded()
             } catch APIError.alreadyVoted {
-                // The vote exists server-side (another device, or a retry); keep it.
+                // The server already had a vote: drop our optimistic increment, then resync.
                 error = APIError.alreadyVoted.localizedDescription
+                counts = before.counts
+                total = before.total
+                await resyncFromServer(fallbackVote: photo.id)
                 onRecorded()
             } catch {
                 Haptics.error()
                 self.error = friendlyMessage(for: error, fallback: "Couldn’t record your vote. Please try again.")
                 myVote = nil
-                counts[photo.id, default: 1] -= 1
-                total -= 1
+                counts = before.counts
+                total = before.total
             }
         }
         return true
@@ -88,26 +140,38 @@ final class ReelVoteModel: ObservableObject {
     /// Takes back the vote so the voter can pick again. Optimistic, rolled back on failure.
     func retractVote(onRecorded: @escaping () -> Void) {
         guard canRetract, let previous = myVote else { return }
+        let before = (counts: counts, total: total)
         error = nil
         isRetracting = true
         myVote = nil
-        counts[previous, default: 1] -= 1
-        total -= 1
+        counts = counts.merging([previous: -1], uniquingKeysWith: +).filter { $0.value > 0 }
+        total = max(0, before.total - 1)
 
-        Task {
+        pendingTask = Task {
             defer { isRetracting = false }
             do {
-                try await API.retractVote(fitCheckId: item.id, voterId: voterId,
-                                          status: "live", expiresAt: item.expiresAt)
+                try await service.retract(item, voterId)
                 streak = VoteStreakStore.unrecordVote(for: voterId)
                 onRecorded()
             } catch {
                 Haptics.error()
                 self.error = friendlyMessage(for: error, fallback: "Couldn’t undo your vote. Please try again.")
                 myVote = previous
-                counts[previous, default: 0] += 1
-                total += 1
+                counts = before.counts
+                total = before.total
             }
         }
+    }
+
+    /// Reloads the tally from the server. If that fails, keeps the pre-vote tally and marks
+    /// the voter as having voted (the server rejected a second vote).
+    private func resyncFromServer(fallbackVote: UUID) async {
+        guard let votes = try? await service.fetchVotes(item.id) else {
+            myVote = fallbackVote
+            return
+        }
+        counts = Dictionary(grouping: votes, by: \.photoId).mapValues(\.count)
+        total = votes.count
+        myVote = votes.first { $0.voterId == voterId }?.photoId ?? fallbackVote
     }
 }

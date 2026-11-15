@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// One full-screen Fit-Check in the reel. Swipe right to vote for the look
-/// on screen, swipe left for the next look, swipe up for the next Fit-Check.
+/// One full-screen Fit-Check. Swipe sideways to browse its photos; press and
+/// hold (~0.6s) to vote for the photo on screen.
 struct SwipeFitCheckPage: View {
     let item: FeedItemDTO
     let voterId: UUID
@@ -13,21 +13,30 @@ struct SwipeFitCheckPage: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: ReelVoteModel
-    @State private var drag: CGSize = .zero
-    @State private var hasSwiped = false
-    /// Swiping right only asks; the vote is cast once the voter confirms.
-    @State private var isConfirmingVote = false
-    /// Brief "Voted · Undo" toast shown after a swipe vote; nil when hidden.
+    /// Brief "Voted · Undo" toast shown after a vote; nil when hidden.
     @State private var undoLookPosition: Int?
     @State private var undoDismissTask: Task<Void, Never>?
+    @State private var isDescriptionExpanded = false
+    @State private var showComments = false
+    @State private var isLiked = false
+    @State private var likeCount: Int?
+    @State private var isBookmarked = false
+    @State private var showingReportReasons = false
+    @State private var showingBlockConfirmation = false
+    @State private var safetyMessage: String?
 
     private static let bottomInset: CGFloat = 112
     private static let lookIndicatorTopPadding: CGFloat = 112
     private static let undoToastDuration: Duration = .seconds(5)
-    private static let maxTiltDegrees: Double = 6
-    private static let dragFollowRatio: CGFloat = 0.6
+    private static let railWidth: CGFloat = 56
+    private static let collapsedDescriptionLines = 2
+    private static let reportReasons = [
+        ("Inappropriate content", "inappropriate"), ("Harassment or bullying", "harassment"),
+        ("Spam", "spam"), ("Other", "other")
+    ]
 
-    init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, onToggleFollow: @escaping (Bool) -> Void,
+    init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, initialPhotoIndex: Int? = nil,
+         onToggleFollow: @escaping (Bool) -> Void,
          onEvent: @escaping (String) -> Void, onImpression: @escaping () -> Void) {
         self.item = item
         self.voterId = voterId
@@ -35,19 +44,27 @@ struct SwipeFitCheckPage: View {
         self.onToggleFollow = onToggleFollow
         self.onEvent = onEvent
         self.onImpression = onImpression
-        _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: voterId))
+        _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: voterId, initialLook: initialPhotoIndex))
+        _likeCount = State(initialValue: item.likeCount)
     }
 
     private var nickname: String { item.profiles?.nickname ?? "Someone" }
-    private var canFollow: Bool { item.creatorId != voterId }
-    private var progress: CGFloat { SwipeVoteGesture.progress(for: drag) }
+    /// The @handle shown on the overlay: the account code, else the nickname.
+    private var handle: String { PostCardContent.handle(accountCode: item.profiles?.accountCode, nickname: item.profiles?.nickname) }
+    private var canFollow: Bool { !model.isCreator }
+    private var title: String? {
+        [item.votePrompt, item.occasion].compactMap { $0 }.first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+    /// The photo on screen's own description, falling back to the post caption.
+    private var photoDescription: String? {
+        PostCardContent.overlayDescription(photoDescription: model.currentPhoto?.description, caption: item.caption)
+    }
 
     var body: some View {
-        GeometryReader { proxy in
+        GeometryReader { _ in
             ZStack(alignment: .bottomLeading) {
-                photoLayer(size: proxy.size)
-                Theme.photoScrim
-                stamps
+                photoLayer
+                Theme.photoScrim.allowsHitTesting(false)
                 HStack(alignment: .bottom, spacing: 18) {
                     infoColumn
                     actionRail
@@ -58,79 +75,64 @@ struct SwipeFitCheckPage: View {
             }
             .overlay(alignment: .top) { lookIndicator }
             .overlay(alignment: .bottom) { undoToast.padding(.bottom, Self.bottomInset + 8) }
-            .contentShape(Rectangle())
-            .simultaneousGesture(swipeGesture)
             .onAppear(perform: onImpression)
         }
-        .accessibilityAction(named: "Vote for this look") { requestVote() }
         .accessibilityAction(named: "Undo vote") { undoVote() }
-        .confirmationDialog(
-            "Vote for Look \(model.currentPhoto?.position ?? 1)?",
-            isPresented: $isConfirmingVote,
-            titleVisibility: .visible
-        ) {
-            Button("Vote") { castVote() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You can change your vote while voting is open.")
-        }
         .accessibilityAction(named: "Show next look") { model.showLook(step: 1) }
         .sensoryFeedback(.selection, trigger: model.lookIndex)
+        .onChange(of: model.error) { _, newError in
+            // Async vote failures surface here; announce so non-visual users hear them.
+            guard newError != nil else { return }
+            AccessibilityNotification.Announcement("Couldn’t record your vote. Try again.").post()
+        }
+        .sheet(isPresented: $showComments) {
+            CommentThreadSheet(fitCheckId: item.id, photoURLs: model.photos.map(\.imageUrl),
+                               voterId: voterId, canComment: !model.isEnded)
+                .environmentObject(appState)
+        }
+        .confirmationDialog("Why are you reporting this?", isPresented: $showingReportReasons, titleVisibility: .visible) {
+            ForEach(Self.reportReasons, id: \.1) { reason in
+                Button(reason.0) { Task { await report(reason: reason.1) } }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Block this creator?", isPresented: $showingBlockConfirmation, titleVisibility: .visible) {
+            Button("Block creator", role: .destructive) { Task { await blockCreator() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You won’t see their Fit-Checks anymore.")
+        }
+        .alert("Thanks", isPresented: Binding(get: { safetyMessage != nil }, set: { if !$0 { safetyMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(safetyMessage ?? "") }
+        .task { await loadEngagement() }
     }
 
-    // MARK: Photo and gesture
+    // MARK: Photo and hold-to-vote
+
+    private var lookBinding: Binding<Int> {
+        Binding(get: { model.lookIndex }, set: { model.setLook($0) })
+    }
 
     @ViewBuilder
-    private func photoLayer(size: CGSize) -> some View {
-        if let photo = model.currentPhoto {
-            RemoteImage(url: photo.imageUrl, label: "Look \(photo.position) by \(nickname)")
-                .scaledToFill()
-                .frame(width: size.width, height: size.height)
-                .clipped()
-                .id(photo.id)
-                .transition(.opacity)
-                .offset(x: progress * SwipeVoteGesture.commitDistance * Self.dragFollowRatio)
-                .rotationEffect(.degrees(Double(progress) * Self.maxTiltDegrees))
-                .animation(reduceMotion ? nil : .snappy, value: model.lookIndex)
-        } else {
+    private var photoLayer: some View {
+        if model.photos.isEmpty {
             Theme.muted
+        } else {
+            PhotoCarousel(urls: model.photos.compactMap { URL(string: $0.imageUrl) },
+                          currentIndex: lookBinding, contentMode: .fill,
+                          accessibilityIdentifier: "reel-photo-carousel")
+                .holdToVote(isEnabled: model.canVote) { castVote() }
         }
-    }
-
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onChanged { value in
-                // Only horizontal drags move the photo; vertical ones belong to the pager.
-                drag = value.translation
-            }
-            .onEnded { value in
-                let action = SwipeVoteGesture.action(for: value.translation, canVote: model.canVote)
-                withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) { drag = .zero }
-                perform(action)
-            }
-    }
-
-    private func perform(_ action: SwipeVoteAction) {
-        switch action {
-        case .vote: requestVote()
-        case .nextLook: hasSwiped = true; model.showLook(step: 1)
-        case .previousLook: hasSwiped = true; model.showLook(step: -1)
-        case .none: break
-        }
-    }
-
-    private func requestVote() {
-        guard model.canVote else { return }
-        isConfirmingVote = true
     }
 
     private func castVote() {
-        hasSwiped = true
-        let started = model.voteForCurrentLook {
-            appState.contentDidChange()
+        let started = model.voteForCurrentLook { appState.contentDidChange() }
+        guard started, let position = model.currentPhoto?.position else {
+            AccessibilityNotification.Announcement("Vote not recorded").post()
+            return
         }
-        guard started, let position = model.currentPhoto?.position else { return }
-        Haptics.impact(.medium)
+        AccessibilityNotification.Announcement("Vote recorded, results shown").post()
         showUndoToast(for: position)
     }
 
@@ -177,32 +179,6 @@ struct SwipeFitCheckPage: View {
         }
     }
 
-    // MARK: Overlays
-
-    /// "VOTE" fades in as you drag right; "NEXT LOOK" as you drag left.
-    private var stamps: some View {
-        ZStack {
-            if model.canVote {
-                stamp("VOTE", systemImage: "heart.fill", tint: Theme.accent)
-                    .opacity(max(0, progress))
-                    .scaleEffect(0.8 + 0.3 * max(0, progress))
-            }
-            stamp("NEXT LOOK", systemImage: "arrow.left", tint: .white)
-                .opacity(max(0, -progress))
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    private func stamp(_ title: String, systemImage: String, tint: Color) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.title2.weight(.black))
-            .foregroundStyle(tint)
-            .padding(.horizontal, 18).padding(.vertical, 10)
-            .background(.black.opacity(0.45), in: Capsule())
-            .overlay(Capsule().stroke(tint, lineWidth: 3))
-    }
-
     @ViewBuilder
     private var lookIndicator: some View {
         if model.photos.count > 1 {
@@ -214,6 +190,7 @@ struct SwipeFitCheckPage: View {
                 }
             }
             .padding(.top, Self.lookIndicatorTopPadding)
+            .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Look \(model.lookIndex + 1) of \(model.photos.count)")
         }
@@ -222,27 +199,49 @@ struct SwipeFitCheckPage: View {
     // MARK: Info
 
     private var infoColumn: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 9) {
-                Text("@\(nickname)")
-                    .font(Theme.font(.subheadline, weight: .bold))
+                AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 30, ringed: true)
+                Text(handle).font(Theme.font(.subheadline, weight: .bold))
                 if canFollow { followPill }
             }
-            if let caption = item.caption, !caption.isEmpty {
-                Text(caption)
-                    .font(Theme.font(.subheadline, weight: .medium))
-                    .lineLimit(3)
+            if let title {
+                Text(title).font(Theme.font(.headline, weight: .bold)).lineLimit(2)
             }
+            descriptionText
+            resultsChip
             voteStatus
-            detailLink {
-                Label("Open Fit-Check", systemImage: "sparkles")
-                    .font(.caption.weight(.bold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(.white.opacity(0.18), in: Capsule())
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .allowsHitTesting(true)
+    }
+
+    @ViewBuilder
+    private var descriptionText: some View {
+        if let photoDescription {
+            Text(photoDescription)
+                .font(Theme.font(.subheadline, weight: .medium))
+                .lineLimit(isDescriptionExpanded ? nil : Self.collapsedDescriptionLines)
+                .onTapGesture { withAnimation(reduceMotion ? nil : .snappy) { isDescriptionExpanded.toggle() } }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(isDescriptionExpanded ? "Collapses the description" : "Expands the description")
+        }
+    }
+
+    /// VOTE # and the per-photo split, blurred until the viewer has voted,
+    /// created the post, or voting ended.
+    private var resultsChip: some View {
+        HStack(spacing: 10) {
+            Text("VOTES \(model.total)").font(Theme.font(.caption, weight: .black))
+            ForEach(model.photos) { photo in
+                Text("Look \(photo.position) \(model.percent(for: photo.id))%")
+                    .font(Theme.font(.caption, weight: photo.id == model.myVote ? .black : .medium))
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(.black.opacity(0.45), in: Capsule())
+        .blurReveal(isRevealed: model.isResultsRevealed)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -255,7 +254,6 @@ struct SwipeFitCheckPage: View {
                 if let summary = model.streak.summary() {
                     Label(summary, systemImage: "flame.fill").font(.caption.weight(.bold)).foregroundStyle(Theme.accent)
                 }
-                Text("Swipe up for the next look").font(.caption2).foregroundStyle(.white.opacity(0.7))
             }
             .padding(10)
             .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
@@ -264,14 +262,14 @@ struct SwipeFitCheckPage: View {
         } else if let error = model.error {
             Text(error).font(Theme.font(.caption, weight: .semibold)).foregroundStyle(Theme.danger)
         } else if model.canVote {
-            swipeHint
+            holdHint
         }
     }
 
-    private var swipeHint: some View {
+    private var holdHint: some View {
         HStack(spacing: 8) {
-            Image(systemName: "hand.draw").accessibilityHidden(true)
-            Text(model.isFirstTimeVoter && !hasSwiped ? "Swipe right to vote · left for the next look" : "Swipe right to vote")
+            Image(systemName: "hand.tap").accessibilityHidden(true)
+            Text(model.isFirstTimeVoter ? "Hold to vote · swipe for the next look" : "Hold to vote")
         }
         .font(.caption.weight(.bold))
         .padding(.horizontal, 12).padding(.vertical, 8)
@@ -280,84 +278,105 @@ struct SwipeFitCheckPage: View {
     }
 
     private var followPill: some View {
-        Button(isFollowing ? "Following" : "+ Follow") {
-            onToggleFollow(!isFollowing)
-        }
-        .font(Theme.font(.caption, weight: .bold))
-        .foregroundStyle(isFollowing ? Color.white : Theme.accentForeground)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(isFollowing ? .white.opacity(0.18) : Theme.accent, in: Capsule())
-        .frame(minHeight: FeedLayout.minHitSize)
-        .contentShape(Rectangle())
-        .accessibilityLabel("Follow \(nickname)")
-        .accessibilityValue(isFollowing ? "Following" : "Not following")
-        .accessibilityAddTraits(.isToggle)
+        Button(isFollowing ? "Following" : "+ Follow") { onToggleFollow(!isFollowing) }
+            .font(Theme.font(.caption, weight: .bold))
+            .foregroundStyle(isFollowing ? Color.white : Theme.accentForeground)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(isFollowing ? .white.opacity(0.18) : Theme.accent, in: Capsule())
+            .frame(minHeight: FeedLayout.minHitSize)
+            .contentShape(Rectangle())
+            .accessibilityLabel("Follow \(nickname)")
+            .accessibilityValue(isFollowing ? "Following" : "Not following")
+            .accessibilityAddTraits(.isToggle)
     }
 
     // MARK: Action rail
 
     private var actionRail: some View {
-        VStack(spacing: 18) {
-            avatarButton
-            detailLink { feedAction("heart.fill", count: model.total, label: "Votes") }
-            detailLink { feedAction("bubble.right.fill", count: item.fitCheckComments.count, label: "Comments") }
-            ShareLink(item: "Check out this Fit-Check on CLO·V") {
-                feedAction("paperplane.fill", count: nil, label: "Share")
+        VStack(spacing: 14) {
+            LikeButton(isLiked: isLiked, count: likeCount) { wantsLike in
+                if wantsLike { try await API.likeFitCheck(id: item.id, userId: voterId) }
+                else { try await API.unlikeFitCheck(id: item.id, userId: voterId) }
+                onEvent(wantsLike ? "like" : "unlike")
             }
-            .simultaneousGesture(TapGesture().onEnded { onEvent("share") })
+            Button { showComments = true; onEvent("open_comments") } label: { railIcon("bubble.right", count: item.fitCheckComments.count) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Comments, \(item.fitCheckComments.count)")
+            BookmarkButton(isBookmarked: isBookmarked) { wantsSave in
+                if wantsSave { try await API.bookmarkFitCheck(id: item.id, userId: voterId) }
+                else { try await API.unbookmarkFitCheck(id: item.id, userId: voterId) }
+            }
+            sendButton
+            if !model.isCreator { overflowMenu }
         }
-        .frame(width: 50)
+        .environment(\.colorScheme, .dark)
+        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+        .frame(width: Self.railWidth)
     }
 
-    private var avatarButton: some View {
-        Button {
-            guard canFollow else { return }
-            onToggleFollow(!isFollowing)
+    @ViewBuilder
+    private var sendButton: some View {
+        if let url = ShareURL.make(fitCheckId: item.id) {
+            ShareLink(item: url) { railIcon("paperplane", count: nil) }
+                .simultaneousGesture(TapGesture().onEnded { onEvent("share") })
+                .accessibilityLabel("Send")
+        }
+    }
+
+    private var overflowMenu: some View {
+        Menu {
+            Button("Report Fit-Check", systemImage: "flag") { showingReportReasons = true }
+            Button("Block creator", systemImage: "person.slash", role: .destructive) { showingBlockConfirmation = true }
         } label: {
-            AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 46, ringed: true)
-                .overlay(alignment: .bottom) {
-                    if canFollow {
-                        Image(systemName: isFollowing ? "checkmark" : "plus")
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(Theme.accentForeground)
-                            .frame(width: 20, height: 20)
-                            .background(Theme.accent, in: Circle())
-                            .offset(y: 8)
-                    }
-                }
+            railIcon("ellipsis", count: nil)
         }
-        .buttonStyle(.plain)
-        .disabled(!canFollow)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Follow \(nickname)")
-        .accessibilityValue(isFollowing ? "Following" : "Not following")
-        .accessibilityAddTraits([.isButton, .isToggle])
-        .accessibilityHidden(!canFollow)
+        .accessibilityLabel("Report or block")
     }
 
-    private func detailLink<Label: View>(@ViewBuilder label: () -> Label) -> some View {
-        NavigationLink {
-            FitCheckDetailView(fitCheckId: item.id)
-        } label: {
-            label()
-        }
-        .simultaneousGesture(TapGesture().onEnded { onEvent("open_detail") })
-    }
-
-    private func feedAction(_ symbol: String, count: Int?, label: String) -> some View {
-        VStack(spacing: 4) {
+    private func railIcon(_ symbol: String, count: Int?) -> some View {
+        HStack(spacing: 4) {
             Image(systemName: symbol)
-                .font(.title2.weight(.semibold))
-                .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
-            if let count {
-                Text("\(count)")
-                    .font(Theme.font(.caption2, weight: .bold))
-            }
+            if let count { Text("\(count)").font(Theme.font(.footnote, weight: .semibold)).monospacedDigit() }
         }
-        .frame(minWidth: 48, minHeight: 46)
+        .foregroundStyle(.white)
+        .frame(minWidth: 44, minHeight: 44)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(count.map { "\(label), \($0)" } ?? label)
+    }
+
+    // MARK: Engagement and safety
+
+    /// Likes and bookmarks live in tables that may not exist yet; failures leave the defaults.
+    private func loadEngagement() async {
+        let ids = [item.id]
+        if let liked = try? await API.fetchLikedFitCheckIDs(among: ids, userId: voterId) { isLiked = liked.contains(item.id) }
+        if let saved = try? await API.fetchBookmarkedFitCheckIDs(among: ids, userId: voterId) { isBookmarked = saved.contains(item.id) }
+        await refreshLikeCount()
+    }
+
+    /// Keeps the previous count when the fetch fails or the post is unknown.
+    private func refreshLikeCount() async {
+        do {
+            if let count = try await API.fetchLikeCount(id: item.id) { likeCount = count }
+        } catch {
+            Log.app.error("Like count fetch failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func report(reason: String) async {
+        do {
+            try await API.reportFitCheck(id: item.id, reason: reason)
+            safetyMessage = "Your report was submitted for review."
+        } catch {
+            safetyMessage = "We couldn’t submit the report. Please try again."
+        }
+    }
+
+    private func blockCreator() async {
+        do {
+            try await API.blockUser(id: item.creatorId)
+            safetyMessage = "Creator blocked. Their content will be removed from your feed after refresh."
+        } catch {
+            safetyMessage = "We couldn’t block this creator. Please try again."
+        }
     }
 }
