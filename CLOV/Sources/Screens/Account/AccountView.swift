@@ -135,7 +135,7 @@ struct AccountView: View {
 
     // MARK: - Header
 
-    private var topRow: some View {
+    @MainActor private var topRow: some View {
         let nickname = appState.profile?.nickname
         return HStack(spacing: 14) {
             PhotosPicker(selection: $avatarItem, matching: .images) {

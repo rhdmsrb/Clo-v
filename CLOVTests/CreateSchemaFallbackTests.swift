@@ -4,7 +4,7 @@ import Supabase
 
 final class CreateSchemaFallbackTests: XCTestCase {
     private func error(code: String?, message: String) -> PostgrestError {
-        PostgrestError(detail: nil, hint: nil, code: code, message: message)
+        PostgrestError(details: nil, hint: nil, code: code, message: message)
     }
 
     func testMissingFunctionAndColumnCodesAreDetected() {
