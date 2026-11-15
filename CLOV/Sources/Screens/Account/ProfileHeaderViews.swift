@@ -1,0 +1,95 @@
+import SwiftUI
+
+/// Fit-Checks / Followers / Following stats (spec D13). Followers and Following open their lists.
+struct ProfileStatsRow: View {
+    let fitChecks: Int
+    let followers: Int
+    let following: Int
+    let onFollowers: () -> Void
+    let onFollowing: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            stat(fitChecks, "Fit-Checks", action: nil)
+            stat(followers, "Followers", action: onFollowers)
+            stat(following, "Following", action: onFollowing)
+        }
+    }
+
+    @ViewBuilder
+    private func stat(_ value: Int, _ label: String, action: (() -> Void)?) -> some View {
+        let content = VStack(spacing: 2) {
+            Text("\(value)").font(Theme.headline).foregroundStyle(Theme.ink)
+            Text(label).font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+        }
+        .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        if let action {
+            Button(action: action) { content }.buttonStyle(.plain)
+        } else {
+            content
+        }
+    }
+}
+
+/// "+ Group", "+ Join", then one circle per group that opens its feed.
+struct ProfileGroupsRow: View {
+    let groups: [FashionGroup]
+    let onCreate: () -> Void
+    let onJoin: () -> Void
+
+    private static let circleSize: CGFloat = 52
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 14) {
+                addButton("+ Group", id: "profile.addGroup", action: onCreate)
+                addButton("+ Join", id: "profile.joinGroup", action: onJoin)
+                ForEach(groups) { group in
+                    NavigationLink { GroupDetailView(groupId: group.id) } label: { circle(group) }
+                        .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .accessibilityIdentifier("profile.groupsRow")
+    }
+
+    private func addButton(_ title: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: "plus")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.accentDeep)
+                    .frame(width: Self.circleSize, height: Self.circleSize)
+                    .overlay(Circle().strokeBorder(Theme.accentDeep, lineWidth: 1.5))
+                Text(title.replacingOccurrences(of: "+ ", with: ""))
+                    .font(Theme.micro)
+                    .foregroundStyle(Theme.ink)
+            }
+            .frame(minWidth: Theme.minTapSize)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title == "+ Group" ? "Create group" : "Join group")
+        .accessibilityIdentifier(id)
+    }
+
+    private func circle(_ group: FashionGroup) -> some View {
+        VStack(spacing: 4) {
+            Text(String(group.name.prefix(1)).uppercased())
+                .font(Theme.headline)
+                .foregroundStyle(Theme.accentForeground)
+                .frame(width: Self.circleSize, height: Self.circleSize)
+                .background(Theme.accent, in: Circle())
+            Text(group.name)
+                .font(Theme.micro)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .frame(maxWidth: Self.circleSize + 16)
+        }
+        .frame(minWidth: Theme.minTapSize)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Group \(group.name)")
+    }
+}
