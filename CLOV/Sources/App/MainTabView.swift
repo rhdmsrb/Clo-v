@@ -16,22 +16,37 @@ struct MainTabView: View {
     @State private var showCreate = false
     /// The bar would otherwise ride above the keyboard and cover results.
     @State private var isKeyboardVisible = false
+    /// Set by pushed full-screen screens (the vote screen) that cover the pill.
+    @State private var isTabBarHidden = false
     @State private var feedPath = NavigationPath()
     @State private var accountPath = NavigationPath()
+
+    #if DEBUG
+    /// `-CLOVInitialTab feed|groups|search|profile` for screenshot walkthroughs.
+    private static var debugInitialTab: MainTab? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-CLOVInitialTab"), index + 1 < args.count else { return nil }
+        switch args[index + 1] {
+        case "feed": return .feed
+        case "groups": return .groups
+        case "search": return .search
+        case "profile", "account": return .account
+        default: return nil
+        }
+    }
+    #endif
+
+    private var isBarHidden: Bool { isKeyboardVisible || isTabBarHidden }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             ZStack {
                 tabRoot(.feed) { NavigationStack(path: $feedPath) { FeedView() } }
                 tabRoot(.search) {
-                    NavigationStack {
-                        SearchExploreView()
-                            .navigationDestination(for: FitCheckRoute.self) { route in
-                                FitCheckDetailView(fitCheckId: route.id)
-                            }
-                    }
+                    // SearchExploreView registers its own FitCheckRoute destination.
+                    NavigationStack { SearchExploreView() }
                 }
-                tabRoot(.groups) { NavigationStack { GroupsView() } }
+                tabRoot(.groups) { GroupsView() }
                 tabRoot(.account) { NavigationStack(path: $accountPath) { AccountView() } }
             }
             .safeAreaInset(edge: .bottom) { Color.clear.frame(height: barHeight + Self.contentClearance) }
@@ -46,9 +61,9 @@ struct MainTabView: View {
             // Tab labels are caption-sized and share a row of five items, so
             // they collide past xxxLarge; everything else keeps scaling.
             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-            .opacity(isKeyboardVisible ? 0 : 1)
-            .allowsHitTesting(!isKeyboardVisible)
-            .accessibilityHidden(isKeyboardVisible)
+            .opacity(isBarHidden ? 0 : 1)
+            .allowsHitTesting(!isBarHidden)
+            .accessibilityHidden(isBarHidden)
             .padding(.horizontal, 20)
             .padding(.bottom, Self.barBottomPadding)
             .background(GeometryReader { proxy in
@@ -67,8 +82,9 @@ struct MainTabView: View {
         }
         // A `clov://vote/<id>` link (see ShareLinkButton / .onOpenURL in
         // CLOVApp) opens here regardless of which tab is active, and
-        // regardless of the timer — FitCheckDetailView itself checks
-        // expiry and shows VotingEndedView if it's run out. UUID isn't
+        // regardless of the timer — FitCheckVoteLoader shows the vote
+        // screen for live posts and falls back to FitCheckDetailView
+        // (which shows VotingEndedView) for expired or unavailable ones. UUID isn't
         // Identifiable, so this is isPresented-driven rather than
         // item-driven; the id is read inside the closure, which only
         // runs while non-nil.
@@ -90,7 +106,7 @@ struct MainTabView: View {
                 CreateFitCheckView()
             case .vote(let id):
                 NavigationStack {
-                    FitCheckDetailView(fitCheckId: id)
+                    FitCheckVoteLoader(fitCheckId: id)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Close") { appState.deepLinkFitCheckId = nil }
@@ -106,6 +122,13 @@ struct MainTabView: View {
             mountedTabs.insert(newTab)
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
+        #if DEBUG
+        .onAppear {
+            guard let initial = Self.debugInitialTab else { return }
+            mountedTabs.insert(initial)
+            tab = initial
+        }
+        #endif
         .task { await premountRemainingTabs() }
         .sensoryFeedback(.selection, trigger: tab)
         .sensoryFeedback(.impact(weight: .medium), trigger: showCreate) { _, new in new }
@@ -145,6 +168,7 @@ struct MainTabView: View {
             content()
                 .environment(\.isTabActive, tab == target)
                 .environment(\.tabBarClearance, barHeight + Self.contentClearance)
+                .environment(\.setTabBarHidden, { isTabBarHidden = $0 })
                 .tabVisibility(isVisible: tab == target)
         }
     }
@@ -162,6 +186,8 @@ extension EnvironmentValues {
     /// Room a tab's scrolling screen must leave so its last row can clear the
     /// floating tab bar. Zero outside the tabs (sheets and full-screen covers).
     @Entry var tabBarClearance: CGFloat = 0
+    /// Lets a pushed screen hide or restore the floating tab pill.
+    @Entry var setTabBarHidden: (Bool) -> Void = { _ in }
 }
 
 private struct BarHeightKey: PreferenceKey {
