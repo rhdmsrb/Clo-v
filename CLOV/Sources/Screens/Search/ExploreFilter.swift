@@ -34,8 +34,8 @@ struct ExploreFilter: Equatable {
         case .newest: return tagged.sorted { $0.createdAt > $1.createdAt }
         case .mostVoted:
             return tagged.sorted {
-                $0.fitCheckVotes.count != $1.fitCheckVotes.count
-                    ? $0.fitCheckVotes.count > $1.fitCheckVotes.count
+                $0.totalVotes != $1.totalVotes
+                    ? $0.totalVotes > $1.totalVotes
                     : $0.createdAt > $1.createdAt
             }
         }
@@ -43,11 +43,16 @@ struct ExploreFilter: Equatable {
 }
 
 /// Deterministic, varied tile aspect ratios (width / height) so the Explore
-/// masonry looks staggered; the API sends no real photo dimensions.
+/// masonry looks staggered; the API sends no real photo dimensions. The ratio
+/// is derived from the post id so a tile keeps its shape across filters/sorts.
 enum ExploreTileRatio {
     static let ratios: [CGFloat] = [0.8, 1.0, 0.7, 0.9, 0.75, 1.1, 0.65, 0.85]
 
-    static func ratio(forIndex index: Int) -> CGFloat {
-        ratios[((index % ratios.count) + ratios.count) % ratios.count]
+    static func ratio(for id: UUID) -> CGFloat {
+        // Stable FNV-1a over the UUID bytes (Hasher is randomly seeded per launch).
+        let hash = withUnsafeBytes(of: id.uuid) { bytes in
+            bytes.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
+        }
+        return ratios[Int(hash % UInt64(ratios.count))]
     }
 }
