@@ -68,6 +68,9 @@ struct FitCheckPhoto: Codable, Identifiable, Equatable {
     let fitCheckId: UUID?
     var imageUrl: String
     let position: Int
+    /// Per-photo copy and tags; nil on servers without migration 20261107000100.
+    var description: String? = nil
+    var tags: [String]? = nil
 }
 
 struct FitCheckVote: Codable, Identifiable {
@@ -177,6 +180,8 @@ enum WardrobeFrequency: String, CaseIterable, Identifiable {
 struct AuthorInfo: Codable {
     var nickname: String?
     var avatarUrl: String?
+    /// profiles.account_code, shown as the @handle on the vote screen.
+    var accountCode: String? = nil
 }
 
 // Not in the original CLAUDE.md scope; added on request. Notifies a

@@ -177,7 +177,10 @@ enum API {
 
     // Optional vote prompts are loaded separately so older Supabase schemas
     // can still serve the core discovery feed during a gradual rollout.
-    static let feedColumns = "id, creator_id, caption, occasion, is_public, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url)"
+    static let legacyFeedColumns = "id, creator_id, caption, occasion, is_public, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url)"
+    /// Adds post tags, like_count and per-photo description/tags. Those columns
+    /// exist only after migrations 20261107000100+; see `selectingFeedColumns`.
+    static let feedColumns = "id, creator_id, caption, occasion, is_public, tags, like_count, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position, description, tags), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url, account_code)"
 
     static var notExpiredFilter: String {
         "expires_at.is.null,expires_at.gt.\(ISO8601DateFormatter().string(from: Date()))"
@@ -191,11 +194,12 @@ enum API {
         let userId = try await client.auth.session.user.id
         async let friendTask = fetchFriendIDs(userId: userId)
         let friendIDs = try await friendTask
-        var query = client.from("fit_checks").select(feedColumns).eq("status", value: "live").or(notExpiredFilter)
-        if friendIDs.isEmpty { query = query.eq("is_public", value: true) }
-        else { query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))") }
-        let rows: [FeedItemDTO] = try await query
-            .order("created_at", ascending: false).limit(50).execute().value
+        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
+            var query = client.from("fit_checks").select(columns).eq("status", value: "live").or(notExpiredFilter)
+            if friendIDs.isEmpty { query = query.eq("is_public", value: true) }
+            else { query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))") }
+            return try await query.order("created_at", ascending: false).limit(50).execute().value
+        }
         let blocked = try await blockedTask
         let promptedRows = await attachVotePrompts(rows)
         return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
@@ -208,26 +212,28 @@ enum API {
         let followedOrFriends = (followingIDs ?? []).union(friendIDs)
         if followingIDs != nil, followedOrFriends.isEmpty { return FeedPageResult(items: [], fetchedCount: 0) }
         let trimmedSearch = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        var query = client.from("fit_checks")
-            .select(feedColumns).eq("status", value: "live")
-            .or(notExpiredFilter)
-        if followingIDs != nil {
-            query = query.in("creator_id", values: Array(followedOrFriends))
-        } else if !friendIDs.isEmpty {
-            query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))")
-        } else {
-            query = query.eq("is_public", value: true)
+        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
+            var query = client.from("fit_checks")
+                .select(columns).eq("status", value: "live")
+                .or(notExpiredFilter)
+            if followingIDs != nil {
+                query = query.in("creator_id", values: Array(followedOrFriends))
+            } else if !friendIDs.isEmpty {
+                query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))")
+            } else {
+                query = query.eq("is_public", value: true)
+            }
+            if let occasion, !occasion.isEmpty {
+                query = query.eq("occasion", value: occasion)
+            }
+            if !trimmedSearch.isEmpty {
+                query = query.ilike("caption", pattern: "%\(SearchTerm.likeEscaped(trimmedSearch))%")
+            }
+            return try await query
+                .order("created_at", ascending: false)
+                .range(from: offset, to: offset + max(0, limit - 1))
+                .execute().value
         }
-        if let occasion, !occasion.isEmpty {
-            query = query.eq("occasion", value: occasion)
-        }
-        if !trimmedSearch.isEmpty {
-            query = query.ilike("caption", pattern: "%\(SearchTerm.likeEscaped(trimmedSearch))%")
-        }
-        let rows: [FeedItemDTO] = try await query
-            .order("created_at", ascending: false)
-            .range(from: offset, to: offset + max(0, limit - 1))
-            .execute().value
         let blocked = try await fetchBlockedUserIDs()
         let promptedRows = await attachVotePrompts(rows)
         let visible = try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
@@ -240,11 +246,13 @@ enum API {
         let visibleAuthors = following.union(friendIDs)
         guard !visibleAuthors.isEmpty else { return [] }
         async let blockedTask = fetchBlockedUserIDs()
-        let rows: [FeedItemDTO] = try await client.from("fit_checks")
-            .select(feedColumns).eq("status", value: "live")
-            .in("creator_id", values: Array(visibleAuthors))
-            .or(notExpiredFilter)
-            .order("created_at", ascending: false).limit(50).execute().value
+        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
+            try await client.from("fit_checks")
+                .select(columns).eq("status", value: "live")
+                .in("creator_id", values: Array(visibleAuthors))
+                .or(notExpiredFilter)
+                .order("created_at", ascending: false).limit(50).execute().value
+        }
         let blocked = try await blockedTask
         let promptedRows = await attachVotePrompts(rows)
         return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
@@ -328,10 +336,12 @@ enum API {
         if SampleData.isActive { return SampleData.groupFeed(groupId: groupId) }
 #endif
         async let blockedTask = fetchBlockedUserIDs()
-        let rows: [FeedItemDTO] = try await client.from("fit_checks")
-            .select(feedColumns).eq("status", value: "live")
-            .eq("group_id", value: groupId).or(notExpiredFilter)
-            .order("created_at", ascending: false).limit(50).execute().value
+        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
+            try await client.from("fit_checks")
+                .select(columns).eq("status", value: "live")
+                .eq("group_id", value: groupId).or(notExpiredFilter)
+                .order("created_at", ascending: false).limit(50).execute().value
+        }
         let blocked = try await blockedTask
         let promptedRows = await attachVotePrompts(rows)
         return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
@@ -415,7 +425,7 @@ enum API {
 #endif
         return try await client
             .from("fit_check_comments")
-            .select("id, body, created_at, profiles(nickname, avatar_url)")
+            .select("id, body, created_at, photo_id, profiles(nickname, avatar_url)")
             .eq("fit_check_id", value: fitCheckId)
             .order("created_at", ascending: false)
             .execute()
@@ -518,7 +528,7 @@ enum API {
         currentDeviceToken = token
     }
 
-    static func addComment(fitCheckId: UUID, photoId: UUID, commenterId: UUID, body: String) async throws {
+    static func addComment(fitCheckId: UUID, photoId: UUID? = nil, commenterId: UUID, body: String) async throws {
 #if DEBUG
         if SampleData.isActive { return }
 #endif
@@ -535,7 +545,7 @@ enum API {
 
         struct Payload: Encodable {
             let fitCheckId: UUID
-            let photoId: UUID
+            let photoId: UUID?
             let commenterId: UUID
             let body: String
         }
@@ -574,59 +584,7 @@ enum API {
 
 
     // MARK: - Create Fit-Check
-
-    static func createFitCheck(creatorId: UUID, caption: String?, occasion: String? = nil, groupId: UUID?, audience: String = "public", votePrompt: String? = nil, votingDuration: TimeInterval, photos: [UIImage]) async throws {
-#if DEBUG
-        if SampleData.isActive { return }
-#endif
-        guard photos.count == 2 || photos.count == 4 else { throw APIError.message("Upload exactly 2 or 4 photos.") }
-        guard (caption ?? "").count <= 280 else { throw APIError.message("Keep the caption under 280 characters.") }
-        let session = try await client.auth.session
-        guard creatorId == session.user.id else { throw APIError.message("Please sign in again.") }
-
-        if let groupId {
-            let memberships: [GroupMember] = try await client.from("group_members").select()
-                .eq("group_id", value: groupId).eq("profile_id", value: creatorId).execute().value
-            guard !memberships.isEmpty else { throw APIError.message("You're not a member of that group.") }
-        }
-        // The live create_fit_check_draft RPC only understands public vs group
-        // (is_public = group_id is null). Friends/private would be stored as
-        // public, so reject them until the server supports them.
-        guard ["public", "group"].contains(audience),
-              (audience == "group") == (groupId != nil) else {
-            throw APIError.message("Choose a valid audience for this Fit-Check.")
-        }
-        struct DraftParams: Encodable {
-            let id: UUID
-            let caption: String?
-            let groupId: UUID?
-            let occasion: String?
-            enum CodingKeys: String, CodingKey { case id = "p_id"; case caption = "p_caption"; case groupId = "p_group_id"; case occasion = "p_occasion" }
-        }
-        let fitCheckId: UUID = try await client.rpc("create_fit_check_draft", params: DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion)).execute().value
-        // The draft and each photo are separate writes. If any later step
-        // fails, remove what was already created so no orphan draft or
-        // unreferenced photo stays behind.
-        var uploadedPaths: [String] = []
-        do {
-            for (index, photo) in photos.enumerated() {
-                let path = try await uploadImage(photo, bucket: "fit-check-photos", pathPrefix: "\(creatorId.storagePathComponent)/\(fitCheckId.storagePathComponent)", aspectRatio: 3.0 / 4.0)
-                uploadedPaths.append(path)
-                struct PhotoInsert: Encodable { let fitCheckId: UUID; let imageUrl: String; let position: Int }
-                try await client.from("fit_check_photos")
-                    .insert(PhotoInsert(fitCheckId: fitCheckId, imageUrl: path, position: index + 1)).execute()
-            }
-            struct PublishParams: Encodable {
-                let id: UUID
-                let durationSeconds: Int
-                enum CodingKeys: String, CodingKey { case id = "p_id"; case durationSeconds = "p_duration_seconds" }
-            }
-            try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
-        } catch {
-            await discardDraft(fitCheckId: fitCheckId, creatorId: creatorId, uploadedPaths: uploadedPaths)
-            throw error
-        }
-    }
+    // createFitCheck lives in API+CreateFitCheck.swift.
 
     static func discardDraft(fitCheckId: UUID, creatorId: UUID, uploadedPaths: [String]) async {
         // Detached so cleanup still runs when the caller was cancelled
