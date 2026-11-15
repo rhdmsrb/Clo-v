@@ -10,3 +10,8 @@ supabase/.temp/
 .env.*
 *.p8
 *.p12
+
+# Local previews and scratch output
+clov-*-preview.png
+output/
+tmp/
