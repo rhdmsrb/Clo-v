@@ -50,7 +50,13 @@ final class WardrobeFlowUITests: XCTestCase {
         accountTab.tap()
 
         let weeklyReport = app.buttons["yourWeekButton"]
-        XCTAssertTrue(weeklyReport.waitForExistence(timeout: 10))
+        // The shortcut grid is lazy and sits below the Fit-Checks list, so the
+        // tile only exists once scrolled near; scroll before asserting.
+        XCTAssertTrue(accountTab.waitForExistence(timeout: 10))
+        for _ in 0..<8 where !weeklyReport.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(weeklyReport.isHittable, "Your week shortcut should be reachable by scrolling")
         weeklyReport.tap()
 
         XCTAssertTrue(app.navigationBars["Your week"].waitForExistence(timeout: 5))

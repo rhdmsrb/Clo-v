@@ -37,6 +37,7 @@ struct FeedView: View {
     @State private var loadID = UUID()
     @Namespace private var occasionIndicator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tabBarClearance) private var tabBarClearance
 
     private static let pagePadding: CGFloat = 20
     private static let pageSize = 24
@@ -143,6 +144,7 @@ struct FeedView: View {
             .padding(.horizontal, Self.pagePadding)
             .padding(.vertical, Self.cardSpacing)
         }
+        .safeAreaPadding(.bottom, tabBarClearance)
         .background(Theme.background)
         .safeAreaInset(edge: .top, spacing: 0) { pinnedFilters }
         .refreshable { await load(refreshGraph: true) }

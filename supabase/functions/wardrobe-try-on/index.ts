@@ -38,7 +38,13 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
 
   let payload: Record<string, unknown>;
-  try { payload = await request.json(); } catch { return json({ message: "Invalid request." }, 400); }
+  try {
+    const parsed = await request.json();
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return json({ message: "Invalid request." }, 400);
+    }
+    payload = parsed as Record<string, unknown>;
+  } catch { return json({ message: "Invalid request." }, 400); }
   const action = payload.action;
 
   if (action === "submit") {
@@ -93,16 +99,22 @@ Deno.serve(async (request) => {
       return json({ message: "You've reached the hourly try-on limit. Please try again later." }, 429);
     }
 
-    const providerResponse = await fetch("https://api.wearfits.com/api/v1/tryon/clothing", {
-      method: "POST",
-      headers: { "X-API-Key": wearfitsKey, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(45_000),
-      body: JSON.stringify({
-        personImages: [bodyPhoto],
-        ...slots,
-        options: { quality: "standard", preserveBackground: true },
-      }),
-    });
+    let providerResponse: Response;
+    try {
+      providerResponse = await fetch("https://api.wearfits.com/api/v1/tryon/clothing", {
+        method: "POST",
+        headers: { "X-API-Key": wearfitsKey, "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(45_000),
+        body: JSON.stringify({
+          personImages: [bodyPhoto],
+          ...slots,
+          options: { quality: "standard", preserveBackground: true },
+        }),
+      });
+    } catch (error) {
+      console.error("WEARFITS submit request failed", error instanceof Error ? error.name : "unknown");
+      return json({ message: "The try-on service took too long to respond. Please try again." }, 502);
+    }
     const providerBody = await providerResponse.json().catch(() => ({}));
     if (!providerResponse.ok || providerBody.success === false) {
       console.error("WEARFITS submit failed", providerResponse.status, providerBody?.error?.message);
@@ -133,10 +145,16 @@ Deno.serve(async (request) => {
     // so the client keeps polling instead of surfacing an error.
     if (!allowed) return json({ jobId: jobID, status: "processing", imageUrl: null });
 
-    const providerResponse = await fetch(`https://api.wearfits.com/api/v1/jobs/${jobID}`, {
-      headers: { "X-API-Key": wearfitsKey },
-      signal: AbortSignal.timeout(20_000),
-    });
+    let providerResponse: Response;
+    try {
+      providerResponse = await fetch(`https://api.wearfits.com/api/v1/jobs/${jobID}`, {
+        headers: { "X-API-Key": wearfitsKey },
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (error) {
+      console.error("WEARFITS status request failed", error instanceof Error ? error.name : "unknown");
+      return json({ message: "Couldn't check the try-on yet. Please try again." }, 502);
+    }
     const providerBody = await providerResponse.json().catch(() => ({}));
     if (!providerResponse.ok) return json({ message: "Couldn't check the try-on yet. Please try again." }, 502);
 

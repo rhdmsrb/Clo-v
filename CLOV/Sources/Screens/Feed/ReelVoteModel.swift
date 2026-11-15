@@ -13,6 +13,7 @@ final class ReelVoteModel: ObservableObject {
     @Published private(set) var total: Int
     @Published private(set) var myVote: UUID?
     @Published private(set) var isVoting = false
+    @Published private(set) var isRetracting = false
     @Published private(set) var streak: VoteStreak
     @Published var error: String?
 
@@ -28,6 +29,11 @@ final class ReelVoteModel: ObservableObject {
 
     var currentPhoto: FitCheckPhoto? { photos.indices.contains(lookIndex) ? photos[lookIndex] : photos.first }
     var canVote: Bool { item.creatorId != voterId && myVote == nil && !isExpired(item.expiresAt) }
+    /// A cast vote can be taken back while the post is live.
+    var canRetract: Bool {
+        item.creatorId != voterId && myVote != nil
+            && !isExpired(item.expiresAt) && !isVoting && !isRetracting
+    }
     /// First-time voters get a hint about the swipe.
     var isFirstTimeVoter: Bool { streak.lastVoteDay == nil }
 
@@ -77,5 +83,31 @@ final class ReelVoteModel: ObservableObject {
             }
         }
         return true
+    }
+
+    /// Takes back the vote so the voter can pick again. Optimistic, rolled back on failure.
+    func retractVote(onRecorded: @escaping () -> Void) {
+        guard canRetract, let previous = myVote else { return }
+        error = nil
+        isRetracting = true
+        myVote = nil
+        counts[previous, default: 1] -= 1
+        total -= 1
+
+        Task {
+            defer { isRetracting = false }
+            do {
+                try await API.retractVote(fitCheckId: item.id, voterId: voterId,
+                                          status: "live", expiresAt: item.expiresAt)
+                streak = VoteStreakStore.unrecordVote(for: voterId)
+                onRecorded()
+            } catch {
+                Haptics.error()
+                self.error = friendlyMessage(for: error, fallback: "Couldn’t undo your vote. Please try again.")
+                myVote = previous
+                counts[previous, default: 0] += 1
+                total += 1
+            }
+        }
     }
 }

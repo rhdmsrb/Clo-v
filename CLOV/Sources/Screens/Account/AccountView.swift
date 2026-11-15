@@ -31,9 +31,6 @@ struct AccountView: View {
                 header
                 profileHero(avatarURL: avatarURL, nickname: nickname, uploadingAvatar: uploadingAvatar)
 
-                SectionHeader(title: "Wardrobe & circle")
-                shortcutGrid
-
                 SectionHeader(title: "Your Fit-Checks")
                     .overlay(alignment: .trailing) {
                         Text("\(liveVotes.count + archivedVotes.count) posts")
@@ -45,6 +42,9 @@ struct AccountView: View {
                     votesSection(title: "LIVE", items: liveVotes, emptyText: "No live votes yet — post a Fit-Check to get started.")
                     votesSection(title: "ENDED", items: archivedVotes, emptyText: "Completed Fit-Checks will land here.")
                 }
+
+                SectionHeader(title: "Wardrobe & circle")
+                shortcutGrid
 
                 accountFooter
             }
@@ -182,53 +182,58 @@ struct AccountView: View {
     }
 
     private func profileHero(avatarURL: String?, nickname: String?, uploadingAvatar: Bool) -> some View {
-        VStack(spacing: 14) {
-            PhotosPicker(selection: $avatarItem, matching: .images) {
-                ZStack {
-                    AvatarView(url: avatarURL, nickname: nickname, size: 96, ringed: true)
-                    if uploadingAvatar {
-                        ProgressView().tint(.white)
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                PhotosPicker(selection: $avatarItem, matching: .images) {
+                    ZStack {
+                        AvatarView(url: avatarURL, nickname: nickname, size: Self.heroAvatarSize, ringed: true)
+                        if uploadingAvatar {
+                            ProgressView().tint(.white)
+                        }
+                    }
+                    .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                    .contentShape(Circle())
+                }
+                .onChange(of: avatarItem) { _, newItem in
+                    Task { await uploadAvatar(newItem) }
+                }
+                .accessibilityLabel("Change profile photo")
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(nickname ?? "Your style profile")
+                        .font(Theme.editorialFont(size: 26, relativeTo: .title2))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    if let email = appState.email {
+                        Text(email)
+                            .font(Theme.caption)
+                            .foregroundStyle(Color.white.opacity(0.9))
+                            .lineLimit(1)
+                    }
+                    if let createdAt = appState.profile?.createdAt {
+                        Label("Here since \(createdAt.formatted(.dateTime.month(.abbreviated).year()))", systemImage: "calendar")
+                            .font(Theme.micro)
+                            .foregroundStyle(Color.white.opacity(0.9))
+                    }
+                    if !profileStyles.isEmpty {
+                        Text(profileStyles.joined(separator: "  ·  "))
+                            .font(Theme.label)
+                            .foregroundStyle(Color.white)
+                            .lineLimit(2)
+                            .padding(.top, 4)
                     }
                 }
-                .padding(8)
-                .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
-                .contentShape(Circle())
-            }
-            .onChange(of: avatarItem) { _, newItem in
-                Task { await uploadAvatar(newItem) }
-            }
-            .accessibilityLabel("Change profile photo")
-
-            VStack(spacing: 4) {
-                Text(nickname ?? "Your style profile")
-                    .font(Theme.editorialFont(size: 30, relativeTo: .title2))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                if let email = appState.email {
-                    Text(email)
-                        .font(Theme.caption)
-                        .foregroundStyle(Color.white.opacity(0.9))
-                        .lineLimit(1)
-                }
-                if let createdAt = appState.profile?.createdAt {
-                    Label("Here since \(createdAt.formatted(.dateTime.month(.abbreviated).year()))", systemImage: "calendar")
-                        .font(Theme.micro)
-                        .foregroundStyle(Color.white.opacity(0.9))
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if let styles = appState.profile?.stylePreferences, !styles.isEmpty {
-                Text(styles.joined(separator: "  ·  "))
-                    .font(Theme.label)
-                    .foregroundStyle(Color.white)
-                    .multilineTextAlignment(.center)
-            } else {
+            if profileStyles.isEmpty {
                 Text("Add your style preferences to personalize your feed.")
                     .font(Theme.bodyEmphasis)
                     .foregroundStyle(Color.white.opacity(0.9))
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             ViewThatFits(in: .horizontal) {
@@ -237,7 +242,7 @@ struct AccountView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(20)
+        .padding(16)
         .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: Self.heroRadius, style: .continuous))
         .elevatedShadow()
     }
@@ -259,6 +264,9 @@ struct AccountView: View {
     }
 
     private static let heroRadius: CGFloat = 28
+    private static let heroAvatarSize: CGFloat = 64
+
+    private var profileStyles: [String] { appState.profile?.stylePreferences ?? [] }
 
     /// Opaque-feeling dark capsule over the gradient so white text stays >= 4.5:1.
     private func countCapsule(_ value: String, label: String) -> some View {

@@ -17,9 +17,13 @@ struct SwipeFitCheckPage: View {
     @State private var hasSwiped = false
     /// Swiping right only asks; the vote is cast once the voter confirms.
     @State private var isConfirmingVote = false
+    /// Brief "Voted · Undo" toast shown after a swipe vote; nil when hidden.
+    @State private var undoLookPosition: Int?
+    @State private var undoDismissTask: Task<Void, Never>?
 
     private static let bottomInset: CGFloat = 112
     private static let lookIndicatorTopPadding: CGFloat = 112
+    private static let undoToastDuration: Duration = .seconds(5)
     private static let maxTiltDegrees: Double = 6
     private static let dragFollowRatio: CGFloat = 0.6
 
@@ -53,11 +57,13 @@ struct SwipeFitCheckPage: View {
                 .padding(.bottom, Self.bottomInset)
             }
             .overlay(alignment: .top) { lookIndicator }
+            .overlay(alignment: .bottom) { undoToast.padding(.bottom, Self.bottomInset + 8) }
             .contentShape(Rectangle())
             .simultaneousGesture(swipeGesture)
             .onAppear(perform: onImpression)
         }
         .accessibilityAction(named: "Vote for this look") { requestVote() }
+        .accessibilityAction(named: "Undo vote") { undoVote() }
         .confirmationDialog(
             "Vote for Look \(model.currentPhoto?.position ?? 1)?",
             isPresented: $isConfirmingVote,
@@ -123,7 +129,52 @@ struct SwipeFitCheckPage: View {
         let started = model.voteForCurrentLook {
             appState.contentDidChange()
         }
-        if started { Haptics.impact(.medium) }
+        guard started, let position = model.currentPhoto?.position else { return }
+        Haptics.impact(.medium)
+        showUndoToast(for: position)
+    }
+
+    private func undoVote() {
+        hideUndoToast()
+        guard model.canRetract else { return }
+        Haptics.impact(.light)
+        model.retractVote { appState.contentDidChange() }
+        AccessibilityNotification.Announcement("Vote undone. Pick again.").post()
+    }
+
+    private func showUndoToast(for position: Int) {
+        undoDismissTask?.cancel()
+        withAnimation(reduceMotion ? nil : .snappy) { undoLookPosition = position }
+        undoDismissTask = Task {
+            try? await Task.sleep(for: Self.undoToastDuration)
+            guard !Task.isCancelled else { return }
+            hideUndoToast()
+        }
+    }
+
+    private func hideUndoToast() {
+        undoDismissTask?.cancel()
+        withAnimation(reduceMotion ? nil : .snappy) { undoLookPosition = nil }
+    }
+
+    @ViewBuilder
+    private var undoToast: some View {
+        if let position = undoLookPosition {
+            HStack(spacing: 12) {
+                Label("Voted Look \(position)", systemImage: "checkmark.circle.fill")
+                    .font(Theme.font(.subheadline, weight: .bold))
+                Button("Undo", action: undoVote)
+                    .font(Theme.font(.subheadline, weight: .black))
+                    .foregroundStyle(Theme.accent)
+                    .frame(minHeight: FeedLayout.minHitSize)
+                    .contentShape(Rectangle())
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .background(.black.opacity(0.7), in: Capsule())
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .accessibilityElement(children: .contain)
+        }
     }
 
     // MARK: Overlays
