@@ -106,7 +106,7 @@ struct SearchExploreView: View {
         HStack(spacing: 11) {
             Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
                 .accessibilityHidden(true)
-            TextField("Search fit-checks, tags, people", text: $query)
+            TextField("Search fit-checks", text: $query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)

@@ -170,7 +170,7 @@ Unique description*
 
 ### 5.4 Explore (Search tab)
 
-- Search bar and a Filters pill. Placeholder text: "Search fit-checks, tags, people".
+- Search bar and a Filters pill. Placeholder text: "Search fit-checks" (search matches captions only; tag and people search is not built).
 - Results in a **two-column masonry grid** (first photo per post, heights from aspect ratio). Tap opens Vote screen 1.
 - Filters sheet: tags, occasion, sort (newest / most voted). Move the occasion chips and sort here from the feed (D3).
 - Reuse the existing `SearchTerm` escaping for search text.
