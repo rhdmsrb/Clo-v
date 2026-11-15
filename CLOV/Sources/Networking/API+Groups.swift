@@ -97,8 +97,7 @@ extension API {
 #if DEBUG
         if SampleData.isActive { return }
 #endif
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw APIError.message("Enter a board name.") }
+        let trimmed = try GroupNameValidator.validated(name)
         try await client.from("groups").update(["name": trimmed]).eq("id", value: id).execute()
     }
 

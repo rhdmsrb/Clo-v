@@ -69,7 +69,7 @@ struct GroupAddSheet: View {
             Text("Enter the code a friend shared with you.")
                 .font(Theme.body)
                 .foregroundStyle(Theme.mutedForeground)
-            TextField("ABC123", text: $joinCode)
+            TextField("ABC234", text: $joinCode)
                 .font(Theme.body)
                 .accessibilityLabel("Invite code")
                 .textInputAutocapitalization(.characters)
@@ -78,6 +78,12 @@ struct GroupAddSheet: View {
                 .frame(minHeight: Theme.minTapSize)
                 .background(Theme.muted, in: Capsule(style: .continuous))
                 .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+            if InviteCodeInput.hasAmbiguousCharacters(joinCode) {
+                Text(InviteCodeInput.hint)
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.mutedForeground)
+                    .accessibilityIdentifier("groupAdd.codeHint")
+            }
             Button(isWorking ? "Joining…" : "Join with invite code") { Task { await join() } }
                 .buttonStyle(PrimaryButtonStyle(isDisabled: isWorking))
                 .disabled(isWorking)
@@ -138,31 +144,32 @@ struct GroupAddSheet: View {
         isWorking = true
         defer { isWorking = false }
         do {
-            joinedGroup = try await API.joinGroup(code: joinCode)
+            joinedGroup = try await API.joinGroup(code: InviteCodeInput.normalize(joinCode))
             Haptics.success()
             joinCode = ""
             await onChanged()
         } catch {
             Haptics.error()
-            self.error = error.localizedDescription
+            self.error = friendlyMessage(for: error, fallback: "Couldn’t join that group. Please try again.")
         }
     }
 
     private func create() async {
-        guard name.trimmingCharacters(in: .whitespaces).count >= 2 else {
-            error = "Group name must be 2-40 characters."
+        let trimmedName: String
+        do { trimmedName = try GroupNameValidator.validated(name) } catch {
+            self.error = friendlyMessage(for: error, fallback: GroupNameValidator.message)
             return
         }
         error = nil
         isWorking = true
         defer { isWorking = false }
         do {
-            createdGroup = try await API.createGroup(name: name, creatorId: appState.userId)
+            createdGroup = try await API.createGroup(name: trimmedName, creatorId: appState.userId)
             Haptics.success()
             await onChanged()
         } catch {
             Haptics.error()
-            self.error = error.localizedDescription
+            self.error = friendlyMessage(for: error, fallback: "Couldn’t create the group. Please try again.")
         }
     }
 }

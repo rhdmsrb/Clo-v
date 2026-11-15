@@ -42,7 +42,7 @@ struct GroupsView: View {
         .background(Theme.background)
         .accessibilityIdentifier("groups.root")
         .navigationDestination(for: UUID.self) { id in
-            GroupDetailView(groupId: id)
+            GroupDetailView(groupId: id, groupName: groups.first(where: { $0.id == id })?.name)
         }
         .sheet(item: $addMode) { mode in
             GroupAddSheet(initialMode: mode) { await load() }
@@ -106,29 +106,29 @@ private struct GroupCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             NavigationLink(value: group.id) {
-              HStack(spacing: 12) {
-                Image(systemName: "person.2.fill")
-                    .font(.title3)
-                    .foregroundStyle(Theme.accentDeep)
-                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                    .background(Theme.accentTint, in: Circle())
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(group.name)
-                        .font(Theme.headline)
-                        .foregroundStyle(Theme.ink)
-                    Text("Private circle")
+                HStack(spacing: 12) {
+                    Image(systemName: "person.2.fill")
+                        .font(.title3)
+                        .foregroundStyle(Theme.accentDeep)
+                        .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                        .background(Theme.accentTint, in: Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(group.name)
+                            .font(Theme.headline)
+                            .foregroundStyle(Theme.ink)
+                        Text("Private circle")
+                            .font(Theme.caption)
+                            .foregroundStyle(Theme.mutedForeground)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
                         .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
+                        .accessibilityHidden(true)
                 }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.mutedForeground)
-                    .accessibilityHidden(true)
-              }
-              .contentShape(Rectangle())
-              .accessibilityElement(children: .combine)
+                .contentShape(Rectangle())
+                .accessibilityElement(children: .combine)
             }
             .buttonStyle(.plain)
             InviteCodeCapsule(code: group.inviteCode)

@@ -4,6 +4,8 @@ import SwiftUI
 /// hides on scroll down and returns on scroll up, and large first-photo cards.
 struct GroupDetailView: View {
     let groupId: UUID
+    /// Name known from the route (e.g. the Groups list), shown while loading or if loading fails.
+    var groupName: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var appState: AppState
@@ -25,11 +27,12 @@ struct GroupDetailView: View {
     @State private var newName = ""
     @State private var avatarRowVisible = true
     @State private var lastScrollOffset: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
 
     @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 36
 
     private static let scrollSpace = "groupFeedScroll"
-    private static let scrollThreshold: CGFloat = 8
     private static let visibleMemberLimit = 4
 
     private var isOwner: Bool { group?.creatorId == appState.userId }
@@ -52,11 +55,17 @@ struct GroupDetailView: View {
 
     private var mainColumn: some View {
         VStack(spacing: 0) {
-            if isMember, let group {
-                topBar(group)
-                if avatarRowVisible { memberRow }
-            }
+            header
+            if isMember, group != nil { memberRow }
             feedScroll
+        }
+    }
+
+    @ViewBuilder private var header: some View {
+        if isMember, let group {
+            topBar(name: group.name, group: group)
+        } else if !hasLoaded, let name = group?.name ?? groupName {
+            topBar(name: name, group: nil)
         }
     }
 
@@ -70,8 +79,12 @@ struct GroupDetailView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 100)
+            .background(GeometryReader { Color.clear.preference(key: ContentHeightKey.self, value: $0.size.height) })
         }
+        .background(GeometryReader { Color.clear.preference(key: ViewportHeightKey.self, value: $0.size.height) })
         .coordinateSpace(name: Self.scrollSpace)
+        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+        .onPreferenceChange(ViewportHeightKey.self) { viewportHeight = $0 }
         .onPreferenceChange(ScrollOffsetKey.self) { handleScroll($0) }
     }
 
@@ -130,46 +143,45 @@ struct GroupDetailView: View {
     }
 
     private func handleScroll(_ offset: CGFloat) {
-        let delta = offset - lastScrollOffset
-        let shouldShow: Bool?
-        if offset >= 0 { shouldShow = true }
-        else if delta < -Self.scrollThreshold { shouldShow = false }
-        else if delta > Self.scrollThreshold { shouldShow = true }
-        else { shouldShow = nil }
-        guard let shouldShow else { return }
-        lastScrollOffset = offset
-        guard shouldShow != avatarRowVisible else { return }
+        let result = AvatarRowScrollRule.evaluate(
+            offset: offset, lastOffset: lastScrollOffset,
+            contentHeight: contentHeight, viewportHeight: viewportHeight
+        )
+        lastScrollOffset = result.anchor
+        guard let shouldShow = result.shouldShow, shouldShow != avatarRowVisible else { return }
         withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { avatarRowVisible = shouldShow }
     }
 
     // MARK: - Header
 
-    private func topBar(_ group: FashionGroup) -> some View {
+    private func topBar(name: String, group: FashionGroup?) -> some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(group.name)
+                Text(name)
                     .font(Theme.editorialFont(size: 28, relativeTo: .title))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
                     .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     .accessibilityAddTraits(.isHeader)
-                if let date = group.createdAt {
+                if let date = group?.createdAt {
                     Text("Created \(date.formatted(date: .abbreviated, time: .omitted))")
                         .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
                 }
             }
             Spacer(minLength: 8)
-            Button { showCreate = true } label: {
-                Image(systemName: "plus")
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                    .background(Theme.muted, in: Circle())
+            if let group {
+                Button { showCreate = true } label: {
+                    Image(systemName: "plus")
+                        .font(Theme.bodyEmphasis)
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                        .background(Theme.muted, in: Circle())
+                }
+                .accessibilityLabel("Post to group")
+                optionsMenu(group)
             }
-            .accessibilityLabel("Post to group")
-            optionsMenu(group)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
@@ -195,7 +207,17 @@ struct GroupDetailView: View {
         .accessibilityLabel("Group options")
     }
 
+    private var memberRowHeight: CGFloat { max(avatarSize, Theme.minTapSize) + 8 }
+
     private var memberRow: some View {
+        memberRowButton
+            .frame(height: avatarRowVisible ? memberRowHeight : 0, alignment: .top)
+            .clipped()
+            .opacity(avatarRowVisible ? 1 : 0)
+            .accessibilityHidden(!avatarRowVisible)
+    }
+
+    private var memberRowButton: some View {
         Button { showMembers = true } label: {
             HStack(spacing: 10) {
                 ForEach(Array(members.prefix(Self.visibleMemberLimit))) { member in
@@ -212,7 +234,6 @@ struct GroupDetailView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .transition(.move(edge: .top).combined(with: .opacity))
         .accessibilityLabel("\(members.count) members")
         .accessibilityHint("Shows the member list")
         .accessibilityIdentifier("groupFeed.memberRow")
@@ -282,12 +303,13 @@ struct GroupDetailView: View {
         error = nil
         defer { isLoading = false }
         do {
-            isMember = try await API.isMember(groupId: groupId, profileId: appState.userId)
+            // fetchMyGroups only returns groups the user belongs to, so it doubles as the membership check.
+            let mine = try await API.fetchMyGroups(profileId: appState.userId)
+            group = mine.first(where: { $0.id == groupId })
+            isMember = group != nil
             guard isMember else { hasLoaded = true; return }
-            async let groups = API.fetchMyGroups(profileId: appState.userId)
             async let membersTask = API.fetchGroupMembers(groupId: groupId)
             async let feedTask = API.fetchGroupFeed(groupId: groupId)
-            group = try await groups.first(where: { $0.id == groupId })
             members = try await membersTask
             items = try await feedTask
             followingIDs = await Log.attempt("Load following IDs") {
@@ -297,7 +319,7 @@ struct GroupDetailView: View {
         } catch is CancellationError {
             return
         } catch {
-            self.error = "Couldn’t load this content. Please try again."
+            self.error = friendlyMessage(for: error, fallback: "Couldn’t load this content. Please try again.")
         }
     }
 
@@ -318,7 +340,7 @@ struct GroupDetailView: View {
             try await API.renameGroup(id: groupId, name: newName)
             appState.contentDidChange()
             await load()
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = friendlyMessage(for: error, fallback: "Couldn’t rename the group. Please try again.") }
     }
 
     private func leave() async {
@@ -326,7 +348,7 @@ struct GroupDetailView: View {
             try await API.leaveGroup(id: groupId, profileId: appState.userId)
             appState.contentDidChange()
             dismiss()
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = friendlyMessage(for: error, fallback: "Couldn’t leave the group. Please try again.") }
     }
 
     private func deleteBoard() async {
@@ -334,7 +356,7 @@ struct GroupDetailView: View {
             try await API.deleteGroup(id: groupId)
             appState.contentDidChange()
             dismiss()
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = friendlyMessage(for: error, fallback: "Couldn’t delete the group. Please try again.") }
     }
 
     private func remove(_ member: GroupMemberDisplay) async {
@@ -342,8 +364,18 @@ struct GroupDetailView: View {
             try await API.removeGroupMember(groupId: groupId, profileId: member.id)
             memberToRemove = nil
             await load()
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = friendlyMessage(for: error, fallback: "Couldn’t remove that member. Please try again.") }
     }
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct ViewportHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 private struct ScrollOffsetKey: PreferenceKey {
@@ -354,6 +386,8 @@ private struct ScrollOffsetKey: PreferenceKey {
 /// YouTube-style card: large first photo, then author avatar, title and metadata.
 private struct GroupFeedCard: View {
     let item: FeedItemDTO
+
+    @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 36
 
     private static let photoAspect: CGFloat = 4.0 / 3.0
 
@@ -383,7 +417,7 @@ private struct GroupFeedCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                     .accessibilityHidden(true)
                 HStack(alignment: .top, spacing: 10) {
-                    AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 36)
+                    AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: avatarSize)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(title)
                             .font(Theme.bodyEmphasis)
