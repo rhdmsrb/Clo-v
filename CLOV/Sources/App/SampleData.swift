@@ -8,7 +8,12 @@ import Supabase
 /// every write is a no-op, so no request ever reaches Supabase.
 enum SampleData {
     static let launchArgument = "--uiTestSampleData"
-    static let isActive = ProcessInfo.processInfo.arguments.contains(launchArgument)
+    /// Short alias for manual simulator walkthroughs (`-CLOVSampleData`).
+    static let aliasArgument = "-CLOVSampleData"
+    static let isActive: Bool = {
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains(launchArgument) || arguments.contains(aliasArgument)
+    }()
 
     /// Host served by `SampleImageURLProtocol`; `.invalid` can never resolve,
     /// so a missed interception fails fast instead of reaching the internet.

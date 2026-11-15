@@ -70,7 +70,7 @@ Defaults are chosen so work can proceed. Items marked **confirm** are ones where
 |---|---|---|
 | D1 | The sketches have Title, Description, Occasion. The repo has Note (`caption`), Prompt (`votePrompt`, max 120), Occasion. | **Title = `votePrompt`** (relabelled). **Description = `caption`**. Occasion unchanged. Old posts render the same. No migration **if the live database already has `vote_prompt`** (verify; it is missing from the baseline snapshot). Old posts with no prompt fall back to the occasion as their title. |
 | D2 | Photo count. Sketch shows four page dots; the app allows 2 or 4; an earlier note of yours said 3. | **Keep 2 or 4. Confirm.** Changing to 3 touches the creation UI, grid layouts and the vote-tile layout. |
-| D3 | The sketched feed has no search, chips or sort. | Keep the For You / Following segments (real functionality). Move search, occasion chips and sort into Explore. **Confirm.** |
+| D3 | The sketched feed has no search, chips or sort. | **DECIDED 2026-11-15: keep search, occasion chips and sort in the Home Feed**, alongside the For You / Following segments. Explore keeps its own search and filters. |
 | D4 | Hold-to-vote versus the existing confirm step. | A completed hold counts as the confirmation. Keep the "Voted - Undo" toast and `retractVote`. |
 | D5 | Can a voter change their vote? | **Yes, via undo while the post is live.** The app already supports this (`20261104000100_retract_vote.sql`). This reverses my earlier "no". |
 | D6 | `@handle` shown on the vote screen. | Use the existing `profiles.account_code`. No new column. |

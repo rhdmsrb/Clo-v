@@ -17,13 +17,11 @@ final class AppearanceUITests: XCTestCase {
     private func openAppearance(_ app: XCUIApplication) {
         XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15))
         app.buttons["accountTab"].tap()
+        let menu = app.buttons["profile.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "Profile menu never appeared.")
+        menu.tap()
         let shortcut = app.buttons["profileShortcut_Appearance"]
-        var swipes = 0
-        while !shortcut.waitForExistence(timeout: 2) || !shortcut.isHittable, swipes < 5 {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(shortcut.isHittable, "Appearance shortcut never became reachable.")
+        XCTAssertTrue(shortcut.waitForExistence(timeout: 5), "Appearance shortcut missing from the profile menu.")
         shortcut.tap()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
     }
