@@ -41,21 +41,6 @@ struct ProfileFollow: Codable, Hashable {
     var createdAt: Date?
 }
 
-struct FitCheck: Codable, Identifiable {
-    let id: UUID
-    let creatorId: UUID
-    var caption: String?
-    var status: String
-    var isPublic: Bool
-    var groupId: UUID?
-    var createdAt: Date?
-    var endedAt: Date?
-    /// Not in the original CLAUDE.md scope; added on request. Once this
-    /// passes, voting closes AND results are fully hidden — stricter
-    /// than a manually "Terminated" post, which stays read-only-visible.
-    var expiresAt: Date?
-}
-
 /// `true` once `expiresAt` has passed. `false` (never expires) for
 /// posts created before this feature, or with a nil `expiresAt`.
 func isExpired(_ expiresAt: Date?) -> Bool {
@@ -71,23 +56,6 @@ struct FitCheckPhoto: Codable, Identifiable, Equatable {
     /// Per-photo copy and tags; nil on servers without migration 20261107000100.
     var description: String? = nil
     var tags: [String]? = nil
-}
-
-struct FitCheckVote: Codable, Identifiable {
-    let id: UUID
-    let fitCheckId: UUID
-    let photoId: UUID
-    let voterId: UUID
-    var createdAt: Date?
-}
-
-struct FitCheckComment: Codable, Identifiable {
-    let id: UUID
-    let fitCheckId: UUID
-    let photoId: UUID?
-    let commenterId: UUID
-    let body: String
-    var createdAt: Date?
 }
 
 struct FashionGroup: Codable, Identifiable {
@@ -182,18 +150,4 @@ struct AuthorInfo: Codable {
     var avatarUrl: String?
     /// profiles.account_code, shown as the @handle on the vote screen.
     var accountCode: String? = nil
-}
-
-// Not in the original CLAUDE.md scope; added on request. Notifies a
-// Fit-Check's creator when someone votes or comments on it.
-struct AppNotification: Codable, Identifiable {
-    let id: UUID
-    let recipientId: UUID
-    let actorId: UUID
-    let type: String // "vote" | "comment"
-    let fitCheckId: UUID
-    let photoId: UUID?
-    let commentId: UUID?
-    var isRead: Bool
-    var createdAt: Date?
 }

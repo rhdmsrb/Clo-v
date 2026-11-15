@@ -40,12 +40,14 @@ struct ProfileGroupsRow: View {
     let onJoin: () -> Void
 
     private static let circleSize: CGFloat = 52
+    /// Labels sit under fixed-size circles, so cap their growth.
+    private static let maxLabelSize = DynamicTypeSize.xxxLarge
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 14) {
-                addButton("+ Group", id: "profile.addGroup", action: onCreate)
-                addButton("+ Join", id: "profile.joinGroup", action: onJoin)
+                addButton("Group", accessibilityLabel: "Create group", id: "profile.addGroup", action: onCreate)
+                addButton("Join", accessibilityLabel: "Join group", id: "profile.joinGroup", action: onJoin)
                 ForEach(groups) { group in
                     NavigationLink { GroupDetailView(groupId: group.id) } label: { circle(group) }
                         .buttonStyle(.plain)
@@ -56,7 +58,7 @@ struct ProfileGroupsRow: View {
         .accessibilityIdentifier("profile.groupsRow")
     }
 
-    private func addButton(_ title: String, id: String, action: @escaping () -> Void) -> some View {
+    private func addButton(_ title: String, accessibilityLabel: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: "plus")
@@ -64,14 +66,15 @@ struct ProfileGroupsRow: View {
                     .foregroundStyle(Theme.accentDeep)
                     .frame(width: Self.circleSize, height: Self.circleSize)
                     .overlay(Circle().strokeBorder(Theme.accentDeep, lineWidth: 1.5))
-                Text(title.replacingOccurrences(of: "+ ", with: ""))
+                Text(title)
                     .font(Theme.micro)
+                    .dynamicTypeSize(...Self.maxLabelSize)
                     .foregroundStyle(Theme.ink)
             }
             .frame(minWidth: Theme.minTapSize)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title == "+ Group" ? "Create group" : "Join group")
+        .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(id)
     }
 
@@ -85,6 +88,7 @@ struct ProfileGroupsRow: View {
             Text(group.name)
                 .font(Theme.micro)
                 .foregroundStyle(Theme.ink)
+                .dynamicTypeSize(...Self.maxLabelSize)
                 .lineLimit(1)
                 .frame(maxWidth: Self.circleSize + 16)
         }
