@@ -27,6 +27,7 @@ struct GroupsView: View {
             .padding(20)
         }
         .background(Theme.background)
+        .accessibilityIdentifier("groups.root")
         .navigationDestination(for: UUID.self) { id in
             GroupDetailView(groupId: id)
         }

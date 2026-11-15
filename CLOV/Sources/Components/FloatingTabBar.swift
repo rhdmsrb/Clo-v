@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum MainTab: Hashable {
-    case feed, search, activity, account
+    case feed, groups, search, account
 }
 
 /// Keep the core loops visible in one thumb-reachable navigation bar.
@@ -27,13 +27,13 @@ struct FloatingTabBar: View {
         HStack(spacing: 0) {
             tabButton(.feed, systemImage: "house", activeSystemImage: "house.fill", label: "For You")
                 .accessibilityIdentifier("feedTab")
-            tabButton(.search, systemImage: "magnifyingglass", activeSystemImage: "magnifyingglass", label: "Search")
-                .accessibilityIdentifier("searchTab")
+            tabButton(.groups, systemImage: "person.3", activeSystemImage: "person.3.fill", label: "Group")
+                .accessibilityIdentifier("groupsTab")
 
             createButton
 
-            tabButton(.activity, systemImage: "bell", activeSystemImage: "bell.fill", label: "Activity")
-                .accessibilityIdentifier("activityTab")
+            tabButton(.search, systemImage: "magnifyingglass", activeSystemImage: "magnifyingglass", label: "Search")
+                .accessibilityIdentifier("searchTab")
 
             tabButton(.account, systemImage: "person.crop.circle", activeSystemImage: "person.crop.circle.fill", label: "Profile")
                 .accessibilityIdentifier("accountTab")

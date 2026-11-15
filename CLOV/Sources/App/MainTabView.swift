@@ -31,14 +31,7 @@ struct MainTabView: View {
                             }
                     }
                 }
-                tabRoot(.activity) {
-                    NavigationStack {
-                        NotificationsView(onRead: { appState.contentDidChange() })
-                            .navigationDestination(for: FitCheckRoute.self) { route in
-                                FitCheckDetailView(fitCheckId: route.id)
-                            }
-                    }
-                }
+                tabRoot(.groups) { NavigationStack { GroupsView() } }
                 tabRoot(.account) { NavigationStack(path: $accountPath) { AccountView() } }
             }
             .safeAreaInset(edge: .bottom) { Color.clear.frame(height: barHeight + Self.contentClearance) }
@@ -130,7 +123,7 @@ struct MainTabView: View {
     /// doesn't pay for constructing its view tree. Inactive tabs skip data
     /// loading (see `revisionTask`), so this adds no network work.
     private func premountRemainingTabs() async {
-        for target in [MainTab.search, .activity, .account] {
+        for target in [MainTab.groups, .search, .account] {
             try? await Task.sleep(for: .milliseconds(400))
             if Task.isCancelled { return }
             mountedTabs.insert(target)
@@ -141,7 +134,7 @@ struct MainTabView: View {
         switch target {
         case .feed: feedPath = NavigationPath()
         case .account: accountPath = NavigationPath()
-        case .search, .activity: break
+        case .search, .groups: break
         }
     }
 
