@@ -20,7 +20,6 @@
 		0970A373F493CB6B4CD169BC /* DeepLinkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04707C280DC50ED7B0059E86 /* DeepLinkUITests.swift */; };
 		0A93DBD0C1CEC6659DAB199A /* NewPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED9C5BD98E79FE4B46C54B7 /* NewPasswordView.swift */; };
 		0AA7E790520D8A97D64EEA15 /* FitCheckSubmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3F99FC034982B6A963448A /* FitCheckSubmission.swift */; };
-		0AB41ECAE45FD8330F2E3116 /* DebugSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47453F5498E7AC4CF2D5914 /* DebugSamples.swift */; };
 		0DA8D13158D5CE3C53915494 /* ShareLinkButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F860B4DDFF2854B7F726FA /* ShareLinkButton.swift */; };
 		0EAD93E47C8D57F17A3232E8 /* PushPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C1CAC97596178A2D258E52 /* PushPayload.swift */; };
 		118541A8AF721E1364902256 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 68DDD5B1819611152BC31098 /* Assets.xcassets */; };
@@ -112,7 +111,6 @@
 		B232B4740ED1781E230752D7 /* ProfileFollowListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD9009398BD3B201A42C081 /* ProfileFollowListView.swift */; };
 		B36784BAD5A4E52E628287EB /* API+Insights.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0000AB9B734F44FF15DC1B6 /* API+Insights.swift */; };
 		B3AD396D886754FF4342C01A /* DebugVerify.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BE7B0D063BE06987D597C8 /* DebugVerify.swift */; };
-		B49ED6D51D7FDDFA3EE948EA /* FitCheckCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D26D3AB38B235D5C03EC219B /* FitCheckCardView.swift */; };
 		B659C47E04F997F382070E25 /* VoteFanScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9491A94245C6C0A57D05C42 /* VoteFanScreen.swift */; };
 		B9EC2ECAC19AC41912A21285 /* API+Friends.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C983FAF6FB705D63412DA18 /* API+Friends.swift */; };
 		BA8D8B39EEFF3262A4B721AA /* FeedPostAndExploreLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B50936775883F2A60B28F3 /* FeedPostAndExploreLogicTests.swift */; };
@@ -289,7 +287,6 @@
 		A3483F357BD033B6B974112B /* FeedRanking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedRanking.swift; sourceTree = "<group>"; };
 		A35BD8CFFDF939CE8EB4289F /* SafeLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeLink.swift; sourceTree = "<group>"; };
 		A3ECAB460891A84BBCB6C5E3 /* FeedPostCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedPostCard.swift; sourceTree = "<group>"; };
-		A47453F5498E7AC4CF2D5914 /* DebugSamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSamples.swift; sourceTree = "<group>"; };
 		A76AFFFECC8F625E8DE559E1 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		AA76D53F64B3A4EFF8BF6945 /* ShareURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURL.swift; sourceTree = "<group>"; };
 		AA907F10260484A4664EBBB1 /* FloatingTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingTabBar.swift; sourceTree = "<group>"; };
@@ -320,7 +317,6 @@
 		CE87AB7EE22CF1F540214571 /* SearchExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchExploreView.swift; sourceTree = "<group>"; };
 		CF00F4FB8D2CDE6BF26B7960 /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		D23D19A5CD7E80D9D1B9C8C0 /* FriendProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendProfileView.swift; sourceTree = "<group>"; };
-		D26D3AB38B235D5C03EC219B /* FitCheckCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheckCardView.swift; sourceTree = "<group>"; };
 		D297B01B02E9032A82D4BD6F /* SwipeVoteGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeVoteGesture.swift; sourceTree = "<group>"; };
 		D38C5ED97E03BE44C773CE6E /* API+SharePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "API+SharePreview.swift"; sourceTree = "<group>"; };
 		D772D3767E38350DDE20527B /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -582,7 +578,6 @@
 				E39132D95D941DF9565339A9 /* CommentSheet.swift */,
 				149808D0019CBCE174BE3E97 /* CommentSheetThread.swift */,
 				AEE2FC0BC1A7735837CFFD4D /* EmptyStateView.swift */,
-				D26D3AB38B235D5C03EC219B /* FitCheckCardView.swift */,
 				AA907F10260484A4664EBBB1 /* FloatingTabBar.swift */,
 				C634564AD096C712C1379C1B /* FlowLayout.swift */,
 				BA493FE2055F95CCB5D5CC39 /* FriendlyError.swift */,
@@ -655,7 +650,6 @@
 			isa = PBXGroup;
 			children = (
 				847567A3C162923670F3462A /* DailyChallengeCard.swift */,
-				A47453F5498E7AC4CF2D5914 /* DebugSamples.swift */,
 				6B9ABA4546C072A611826735 /* FeedHeaderViews.swift */,
 				A3ECAB460891A84BBCB6C5E3 /* FeedPostCard.swift */,
 				A3483F357BD033B6B974112B /* FeedRanking.swift */,
@@ -899,7 +893,6 @@
 				EDBDB747CE4BABB0CFF197FC /* DTOs.swift in Sources */,
 				5139830D74B8A7D0AA6DE2F2 /* DailyChallenge.swift in Sources */,
 				45D01A292FFD3EE58864C8E3 /* DailyChallengeCard.swift in Sources */,
-				0AB41ECAE45FD8330F2E3116 /* DebugSamples.swift in Sources */,
 				B3AD396D886754FF4342C01A /* DebugVerify.swift in Sources */,
 				FDE52E4E84F1E58B9264F551 /* EmptyStateView.swift in Sources */,
 				C0D3AD4DABAEBDBDD0B0A4D5 /* Engagement.swift in Sources */,
@@ -909,7 +902,6 @@
 				5F6C09080F236DD642BF2750 /* FeedPostCard.swift in Sources */,
 				0286760E95CA39CA12D6A6BA /* FeedRanking.swift in Sources */,
 				BE8B6EF93360C3FEB5C044CC /* FeedView.swift in Sources */,
-				B49ED6D51D7FDDFA3EE948EA /* FitCheckCardView.swift in Sources */,
 				F0EA010FEEECD0F9571EAEA0 /* FitCheckDetailView.swift in Sources */,
 				6069DA2C2F0F9259A3A65D4F /* FitCheckReelView.swift in Sources */,
 				0AA7E790520D8A97D64EEA15 /* FitCheckSubmission.swift in Sources */,
