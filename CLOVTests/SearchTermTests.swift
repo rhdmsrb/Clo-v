@@ -35,3 +35,22 @@ final class LikeEscapeTests: XCTestCase {
         XCTAssertEqual(SearchTerm.likeEscaped("summer fit"), "summer fit")
     }
 }
+
+final class ExploreTileRatioTests: XCTestCase {
+    func testRatiosAreDeterministicAndVaried() {
+        XCTAssertEqual(ExploreTileRatio.ratio(forIndex: 3), ExploreTileRatio.ratio(forIndex: 3))
+        XCTAssertGreaterThan(Set((0..<8).map { ExploreTileRatio.ratio(forIndex: $0) }).count, 3)
+    }
+
+    func testIndexWrapsAndNegativeIsSafe() {
+        let count = ExploreTileRatio.ratios.count
+        XCTAssertEqual(ExploreTileRatio.ratio(forIndex: count), ExploreTileRatio.ratio(forIndex: 0))
+        XCTAssertEqual(ExploreTileRatio.ratio(forIndex: -1), ExploreTileRatio.ratios[count - 1])
+    }
+
+    func testDisplayLikeCountHidesNilAndZero() {
+        XCTAssertNil(PostCardContent.displayLikeCount(nil))
+        XCTAssertNil(PostCardContent.displayLikeCount(0))
+        XCTAssertEqual(PostCardContent.displayLikeCount(128), 128)
+    }
+}
