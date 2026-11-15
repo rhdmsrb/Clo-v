@@ -51,7 +51,7 @@ struct NoteSection: View {
     @Binding var caption: String
     @ScaledMetric(relativeTo: .body) private var noteMinHeight: CGFloat = 80
 
-    private static let placeholder = "Add context about where you're going or what matters to you."
+    private static let placeholder = "Add context about where you’re going or what matters to you."
 
     var body: some View {
         LabeledField(label: "Add a note (optional)", padding: 8) {
@@ -123,7 +123,7 @@ struct OccasionSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: "What's the occasion?")
+            SectionHeader(title: "What’s the occasion?")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(options, id: \.self) { option in
