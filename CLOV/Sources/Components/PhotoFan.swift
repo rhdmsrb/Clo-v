@@ -57,7 +57,11 @@ struct PhotoFan: View {
     private func card(_ photo: FitCheckPhoto, index: Int, width: CGFloat) -> some View {
         // The hold modifier is always applied; only `isEnabled` changes, so its
         // burst state survives the vote flipping `canVote` to false.
-        RemoteImage(url: photo.imageUrl, label: "Photo \(index + 1) of \(photos.count)")
+        // Captured here: the scrollTransition closure is Sendable and must not read main-actor state.
+        let tilt: Double = reduceMotion ? 0 : Self.sideTiltDegrees
+        let sideScale = Self.sideScale
+        let sideOpacity = Self.sideOpacity
+        return RemoteImage(url: photo.imageUrl, label: "Photo \(index + 1) of \(photos.count)")
             .scaledToFill()
             .frame(width: width, height: width * Self.cardAspect)
             .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
@@ -65,9 +69,9 @@ struct PhotoFan: View {
             .overlay(alignment: .bottom) { resultChip(photo) }
             .scrollTransition(axis: .horizontal) { content, phase in
                 content
-                    .scaleEffect(phase.isIdentity ? 1 : Self.sideScale)
-                    .rotationEffect(.degrees(reduceMotion ? 0 : phase.value * Self.sideTiltDegrees))
-                    .opacity(phase.isIdentity ? 1 : Self.sideOpacity)
+                    .scaleEffect(phase.isIdentity ? 1 : sideScale)
+                    .rotationEffect(.degrees(phase.value * tilt))
+                    .opacity(phase.isIdentity ? 1 : sideOpacity)
             }
     }
 
