@@ -95,6 +95,7 @@ struct VoteFanScreen: View {
             undoDismissTask?.cancel()
         }
         .task { await commentsModel.load() }
+        .task { await model.loadSummary() }
         .task { await loadEngagement() }
     }
 

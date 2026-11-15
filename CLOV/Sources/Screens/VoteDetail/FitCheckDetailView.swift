@@ -19,7 +19,7 @@ struct FitCheckDetailView: View {
     @Environment(\.tabBarClearance) private var tabBarClearance
 
     @State private var detail: FitCheckDetailDTO?
-    @State private var votes: [VoteRef] = []
+    @State private var summary: VoteSummary?
     @State private var comments: [CommentDTO] = []
     @State private var isLoading = true
     @State private var hasLoaded = false
@@ -41,12 +41,9 @@ struct FitCheckDetailView: View {
         ReportReason(title: "Other", value: "other")
     ]
 
-    private var voteCounts: [UUID: Int] {
-        Dictionary(grouping: votes, by: \.photoId).mapValues(\.count)
-    }
-    private var myVote: UUID? {
-        votes.first(where: { $0.voterId == appState.userId })?.photoId
-    }
+    private var voteCounts: [UUID: Int] { summary?.counts ?? [:] }
+    private var totalVotes: Int { summary?.total ?? 0 }
+    private var myVote: UUID? { summary?.myVote }
 
     private static let pagePadding: CGFloat = 20
     private static let sectionSpacing: CGFloat = 20
@@ -145,7 +142,7 @@ struct FitCheckDetailView: View {
             status: detail.status,
             photos: detail.fitCheckPhotos,
             voteCounts: voteCounts,
-            totalVotes: votes.count,
+            totalVotes: totalVotes,
             myVote: myVote,
             voterId: appState.userId,
             expiresAt: detail.expiresAt,
@@ -196,9 +193,9 @@ struct FitCheckDetailView: View {
     /// so it never spoils an undecided vote.
     private func heroSummary(_ detail: FitCheckDetailDTO, expired: Bool) -> AnyView? {
         let isCreator = detail.creatorId == appState.userId
-        guard !votes.isEmpty, isCreator || (!expired && myVote != nil) else { return nil }
+        guard totalVotes > 0, isCreator || (!expired && myVote != nil) else { return nil }
         let leading = voteCounts.values.max() ?? 0
-        let percent = Int((Double(leading) / Double(votes.count) * 100).rounded())
+        let percent = Int((Double(leading) / Double(totalVotes) * 100).rounded())
         let card = HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text("\(percent)%")
                 .font(Theme.editorialFont(size: 44))
@@ -207,7 +204,7 @@ struct FitCheckDetailView: View {
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             VStack(alignment: .leading, spacing: 2) {
                 Label("Leading look", systemImage: "crown.fill").font(Theme.label)
-                Text("\(votes.count) \(votes.count == 1 ? "vote" : "votes")").font(Theme.caption)
+                Text("\(totalVotes) \(totalVotes == 1 ? "vote" : "votes")").font(Theme.caption)
             }
             Spacer(minLength: 0)
         }
@@ -216,7 +213,7 @@ struct FitCheckDetailView: View {
         .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .layeredShadow()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Leading look has \(percent) percent of \(votes.count) \(votes.count == 1 ? "vote" : "votes")")
+        .accessibilityLabel("Leading look has \(percent) percent of \(totalVotes) \(totalVotes == 1 ? "vote" : "votes")")
         return AnyView(card)
     }
 
@@ -260,7 +257,7 @@ struct FitCheckDetailView: View {
                 Text(RelativeDateTimeFormatter().localizedString(for: expiresAt, relativeTo: Date()))
                     .font(Theme.caption)
             } else {
-                Text("\(votes.count) \(votes.count == 1 ? "vote" : "votes")")
+                Text("\(totalVotes) \(totalVotes == 1 ? "vote" : "votes")")
                     .font(Theme.caption)
             }
         }
@@ -271,27 +268,31 @@ struct FitCheckDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var shareSummary: String {
-        let total = votes.count
-        guard total > 0 else { return "Help me choose my outfit on CLO·V." }
-        let leading = voteCounts.values.max() ?? 0
-        let percentage = Int((Double(leading) / Double(total) * 100).rounded())
-        return "My Fit-Check is at \(percentage)% for the leading look (\(total) vote\(total == 1 ? "" : "s"))."
-    }
+    private var shareSummary: String { VoteShareText.make(from: summary) }
 
     private func load() async {
         isLoading = true
         error = nil
         defer { isLoading = false }
         do {
-            async let detailTask = API.fetchFitCheckDetail(id: fitCheckId)
-            async let votesTask = API.fetchVotes(fitCheckId: fitCheckId)
+            // Nil means the post is gone or not visible to this viewer.
+            guard let loadedDetail = try await API.fetchFitCheckDetail(id: fitCheckId) else {
+                try Task.checkCancellation()
+                detail = nil
+                summary = nil
+                comments = []
+                hasLoaded = true
+                return
+            }
+            async let summaryTask = API.fetchVoteSummary(
+                fitCheckId: fitCheckId, voterId: appState.userId,
+                creatorId: loadedDetail.creatorId, expiresAt: loadedDetail.expiresAt)
             async let commentsTask = API.fetchComments(fitCheckId: fitCheckId)
-            let loaded = try await (detailTask, votesTask, commentsTask)
+            let loaded = try await (summaryTask, commentsTask)
             try Task.checkCancellation()
-            detail = loaded.0
-            votes = loaded.1
-            comments = loaded.2
+            detail = loadedDetail
+            summary = loaded.0
+            comments = loaded.1
             hasLoaded = true
         } catch is CancellationError {
             return

@@ -177,10 +177,10 @@ enum API {
 
     // Optional vote prompts are loaded separately so older Supabase schemas
     // can still serve the core discovery feed during a gradual rollout.
-    static let legacyFeedColumns = "id, creator_id, caption, occasion, is_public, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url)"
+    static let legacyFeedColumns = "id, creator_id, caption, occasion, is_public, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), vote_count, profiles(nickname, avatar_url)"
     /// Adds post tags, like_count and per-photo description/tags. Those columns
     /// exist only after migrations 20261107000100+; see `selectingFeedColumns`.
-    static let feedColumns = "id, creator_id, caption, occasion, is_public, tags, like_count, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position, description, tags), fit_check_votes(photo_id, voter_id), fit_check_comments(id), profiles(nickname, avatar_url, account_code)"
+    static let feedColumns = "id, creator_id, caption, occasion, is_public, tags, like_count, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position, description, tags), fit_check_votes(photo_id, voter_id), fit_check_comments(id), vote_count, profiles(nickname, avatar_url, account_code)"
 
     static var notExpiredFilter: String {
         "expires_at.is.null,expires_at.gt.\(ISO8601DateFormatter().string(from: Date()))"

@@ -32,6 +32,8 @@ struct FeedItemDTO: Codable, Identifiable {
     /// Post-level tags and like total; nil until migrations 20261107* are live.
     var tags: [String]? = nil
     var likeCount: Int? = nil
+    /// fit_checks.vote_count (publicly readable total); nil on older rows.
+    var voteCount: Int? = nil
 }
 
 struct FitCheckDetailDTO: Codable {

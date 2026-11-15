@@ -4,7 +4,7 @@ import SwiftUI
 struct ReelVoteService {
     var cast: (_ item: FeedItemDTO, _ photoId: UUID, _ voterId: UUID) async throws -> Void
     var retract: (_ item: FeedItemDTO, _ voterId: UUID) async throws -> Void
-    var fetchVotes: (_ fitCheckId: UUID) async throws -> [VoteRef]
+    var fetchSummary: (_ item: FeedItemDTO, _ voterId: UUID) async throws -> VoteSummary
 
     static let live = ReelVoteService(
         cast: { item, photoId, voterId in
@@ -15,7 +15,10 @@ struct ReelVoteService {
             try await API.retractVote(fitCheckId: item.id, voterId: voterId,
                                       status: "live", expiresAt: item.expiresAt)
         },
-        fetchVotes: { try await API.fetchVotes(fitCheckId: $0) })
+        fetchSummary: { item, voterId in
+            try await API.fetchVoteSummary(fitCheckId: item.id, voterId: voterId,
+                                           creatorId: item.creatorId, expiresAt: item.expiresAt)
+        })
 }
 
 /// Vote state for one Fit-Check in the swipe reel: which look is on screen,
@@ -44,8 +47,10 @@ final class ReelVoteModel: ObservableObject {
         self.service = service
         photos = item.fitCheckPhotos.sorted { $0.position < $1.position }
         lookIndex = Self.clampedLook(initialLook, count: photos.count)
+        // Seeds only: the vote policy may expose just the viewer's own row, so the
+        // authoritative numbers come from `refreshSummary()`.
         counts = Dictionary(grouping: item.fitCheckVotes, by: \.photoId).mapValues(\.count)
-        total = item.fitCheckVotes.count
+        total = item.voteCount ?? item.fitCheckVotes.count
         myVote = item.fitCheckVotes.first { $0.voterId == voterId }?.photoId
         streak = VoteStreakStore.load(for: voterId)
     }
@@ -118,6 +123,7 @@ final class ReelVoteModel: ObservableObject {
                 try await service.cast(item, photo.id, voterId)
                 Haptics.success()
                 streak = VoteStreakStore.recordVote(for: voterId)
+                await syncAfterWrite(fallbackVote: photo.id)
                 onRecorded()
             } catch APIError.alreadyVoted {
                 // The server already had a vote: drop our optimistic increment, then resync.
@@ -152,6 +158,7 @@ final class ReelVoteModel: ObservableObject {
             do {
                 try await service.retract(item, voterId)
                 streak = VoteStreakStore.unrecordVote(for: voterId)
+                await syncAfterWrite(fallbackVote: nil)
                 onRecorded()
             } catch {
                 Haptics.error()
@@ -163,15 +170,52 @@ final class ReelVoteModel: ObservableObject {
         }
     }
 
+    /// Call from the screen's `.task`: loads the server's counts and the viewer's own vote.
+    func loadSummary() async {
+        await refreshSummary()
+    }
+
+    /// Replaces the local tally with the server's. Skipped while a vote or undo is in
+    /// flight (its own resync follows). Never throws.
+    func refreshSummary() async {
+        guard !isWriteInFlight else { return }
+        do {
+            let summary = try await service.fetchSummary(item, voterId)
+            guard !isWriteInFlight else { return }
+            apply(summary, fallbackVote: myVote)
+        } catch {
+            Log.app.error("ReelVoteModel summary refresh failed: \(error.localizedDescription)")
+        }
+    }
+
+    private var isWriteInFlight: Bool { isVoting || isRetracting }
+
+    /// Applies a server summary. Counts and totals are taken only when it is revealed.
+    private func apply(_ summary: VoteSummary, fallbackVote: UUID?) {
+        myVote = summary.myVote ?? fallbackVote
+        guard summary.isRevealed else { return }
+        counts = summary.counts
+        total = summary.total
+    }
+
+    /// After a successful write, resyncs truth from the server; keeps the optimistic
+    /// numbers if the fetch fails.
+    private func syncAfterWrite(fallbackVote: UUID?) async {
+        do {
+            apply(try await service.fetchSummary(item, voterId), fallbackVote: fallbackVote)
+        } catch {
+            Log.app.error("ReelVoteModel post-write resync failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Reloads the tally from the server. If that fails, keeps the pre-vote tally and marks
     /// the voter as having voted (the server rejected a second vote).
     private func resyncFromServer(fallbackVote: UUID) async {
-        guard let votes = try? await service.fetchVotes(item.id) else {
+        do {
+            apply(try await service.fetchSummary(item, voterId), fallbackVote: fallbackVote)
+        } catch {
+            Log.app.error("ReelVoteModel already-voted resync failed: \(error.localizedDescription)")
             myVote = fallbackVote
-            return
         }
-        counts = Dictionary(grouping: votes, by: \.photoId).mapValues(\.count)
-        total = votes.count
-        myVote = votes.first { $0.voterId == voterId }?.photoId ?? fallbackVote
     }
 }

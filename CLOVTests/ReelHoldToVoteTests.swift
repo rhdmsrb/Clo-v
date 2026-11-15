@@ -27,7 +27,8 @@ final class ReelHoldToVoteTests: XCTestCase {
     private final class FakeVoteNetwork {
         var castResult: Result<Void, Error> = .success(())
         var retractResult: Result<Void, Error> = .success(())
-        var serverVotes: [VoteRef] = []
+        var serverSummary: VoteSummary?
+        private(set) var summaryCalls = 0
         private(set) var castCalls = 0
         private(set) var retractCalls = 0
         private var castGate: CheckedContinuation<Void, Never>?
@@ -51,7 +52,11 @@ final class ReelHoldToVoteTests: XCTestCase {
                     if holdRetract && !retractReleased { await withCheckedContinuation { retractGate = $0 } }
                     try retractResult.get()
                 },
-                fetchVotes: { [self] _ in serverVotes })
+                fetchSummary: { [self] _, _ in
+                    summaryCalls += 1
+                    guard let serverSummary else { throw FakeFailure() }
+                    return serverSummary
+                })
         }
 
         func releaseCast() { castReleased = true; castGate?.resume(); castGate = nil }
@@ -143,7 +148,8 @@ final class ReelHoldToVoteTests: XCTestCase {
     func testAlreadyVotedResyncsFromServerWithoutDoubleCount() async {
         let network = FakeVoteNetwork()
         network.castResult = .failure(APIError.alreadyVoted)
-        network.serverVotes = [VoteRef(photoId: photoA, voterId: viewer), VoteRef(photoId: photoB, voterId: UUID())]
+        network.serverSummary = VoteSummary(counts: [photoA: 1, photoB: 1], total: 2,
+                                            myVote: photoA, isRevealed: true)
         let model = makeModel(network: network)
         XCTAssertTrue(model.voteForCurrentLook {})
         await model.waitUntilIdle()
@@ -160,12 +166,63 @@ final class ReelHoldToVoteTests: XCTestCase {
             item: makeItem(), voterId: viewer,
             service: ReelVoteService(cast: { _, _, _ in throw APIError.alreadyVoted },
                                      retract: { _, _ in },
-                                     fetchVotes: { _ in throw FakeFailure() }))
+                                     fetchSummary: { _, _ in throw FakeFailure() }))
         XCTAssertTrue(model.voteForCurrentLook {})
         await model.waitUntilIdle()
         XCTAssertEqual(model.total, 0)
         XCTAssertEqual(model.counts[photoA] ?? 0, 0)
         XCTAssertNotNil(model.myVote)
+    }
+
+    func testRefreshSummaryAppliesServerCountsWhenIdle() async {
+        let network = FakeVoteNetwork()
+        network.serverSummary = VoteSummary(counts: [photoA: 3, photoB: 1], total: 4,
+                                            myVote: photoB, isRevealed: true)
+        let model = makeModel(network: network)
+        await model.loadSummary()
+        XCTAssertEqual(model.total, 4)
+        XCTAssertEqual(model.counts[photoA], 3)
+        XCTAssertEqual(model.myVote, photoB)
+    }
+
+    func testRefreshSummaryIsSkippedWhileVoteIsInFlight() async {
+        let network = FakeVoteNetwork()
+        network.holdCast = true
+        network.serverSummary = VoteSummary(counts: [photoB: 9], total: 9, myVote: photoB, isRevealed: true)
+        let model = makeModel(network: network)
+        XCTAssertTrue(model.voteForCurrentLook {})
+        await model.refreshSummary()
+        XCTAssertEqual(network.summaryCalls, 0)
+        XCTAssertEqual(model.total, 1)
+        XCTAssertEqual(model.myVote, photoA)
+        network.releaseCast()
+        await model.waitUntilIdle()
+        XCTAssertEqual(network.summaryCalls, 1)
+        XCTAssertEqual(model.total, 9)
+    }
+
+    func testOtherVotersRowsAreNeverMyVote() {
+        let others = [VoteRef(photoId: photoA, voterId: UUID()), VoteRef(photoId: photoB, voterId: UUID())]
+        let model = makeModel(votes: others, network: FakeVoteNetwork())
+        XCTAssertNil(model.myVote)
+        XCTAssertTrue(model.canVote)
+        XCTAssertFalse(model.isResultsRevealed)
+    }
+
+    func testTotalPrefersPublicVoteCount() {
+        var item = makeItem(votes: viewerVoteA)
+        item.voteCount = 7
+        XCTAssertEqual(ReelVoteModel(item: item, voterId: viewer).total, 7)
+    }
+
+    func testUnrevealedSummaryDoesNotApplyCounts() async {
+        let network = FakeVoteNetwork()
+        network.serverSummary = .hidden(myVote: nil)
+        let model = makeModel(network: network)
+        await model.refreshSummary()
+        XCTAssertTrue(model.counts.isEmpty)
+        XCTAssertEqual(model.total, 0)
+        XCTAssertFalse(model.isResultsRevealed)
     }
 
     func testCreatorAndExpiredPostsCannotVote() {

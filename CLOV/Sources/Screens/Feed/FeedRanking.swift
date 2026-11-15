@@ -45,7 +45,7 @@ enum FeedRanking {
         case .newest:
             return filtered.sorted { $0.createdAt > $1.createdAt }
         case .votes:
-            return filtered.sorted { $0.fitCheckVotes.count > $1.fitCheckVotes.count }
+            return filtered.sorted { $0.totalVotes > $1.totalVotes }
         }
     }
 
@@ -66,6 +66,6 @@ enum FeedRanking {
             .joined(separator: " ")
         let preferenceMatches = preferences.reduce(0) { $0 + (text.contains($1) ? preferenceMatchScore : 0) }
         let recency = item.createdAt > now.addingTimeInterval(-recencyWindow) ? recencyScore : 0
-        return preferenceMatches + min(item.fitCheckVotes.count, voteScoreCap) + recency + (signalScores[item.id] ?? 0)
+        return preferenceMatches + min(item.totalVotes, voteScoreCap) + recency + (signalScores[item.id] ?? 0)
     }
 }
