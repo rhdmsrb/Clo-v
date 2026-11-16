@@ -162,7 +162,7 @@ final class DesignReviewUITests: XCTestCase {
         // The swipe feed has no close control while it shows items; the
         // selected tab is the only way back (reported as a UX finding).
         tapTab(app, "feedTab", shot: "swipe-04-after-feed-tab")
-        if !app.staticTexts["Discover"].firstMatch.exists {
+        if !app.buttons["watchFeedButton"].firstMatch.exists {
             attach(app, name: "swipe-05-still-in-swipe-feed")
             let explore = app.buttons["Explore Fit-Checks"]
             _ = tap(explore)
@@ -220,7 +220,7 @@ final class DesignReviewUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument] + arguments
         app.launch()
-        XCTAssertTrue(app.staticTexts["Discover"].firstMatch.waitForExistence(timeout: 10),
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10),
                       "Sample-data feed never appeared")
         settle()
         return app
