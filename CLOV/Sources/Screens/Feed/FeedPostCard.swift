@@ -20,28 +20,35 @@ struct FeedPostCard: View {
     @State private var photoIndex = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private static let photoAspectRatio: CGFloat = 4.0 / 5.0
-    private static let descriptionLineLimit = 3
+    /// Slightly shorter than 4:5 so the action row and title come into view sooner.
+    private static let photoAspectRatio: CGFloat = 5.0 / 6.0
+    private static let descriptionLineLimit = 2
+    /// Side inset for text; the photo itself spans the full width.
+    private static let textInset: CGFloat = 16
 
     private var posterName: String { item.profiles?.nickname ?? "Someone" }
     private var title: String { PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion) }
     private var photoURLs: [URL] { PostCardContent.photoURLs(item.fitCheckPhotos) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            Text(title)
-                .font(Theme.title)
-                .foregroundStyle(Theme.ink)
-                .accessibilityAddTraits(.isHeader)
+        // Photo first: author, full-bleed photo, actions, then one title line.
+        // No card surface or shadow, so the clothes carry the screen.
+        VStack(alignment: .leading, spacing: 10) {
+            header.padding(.horizontal, Self.textInset)
             // One timeline per card, ticking once at expiry.
             TimelineView(.expiry(item.expiresAt)) { _ in
                 photos(expired: isExpired(item.expiresAt))
             }
-            actionRow
-            details
+            actionRow.padding(.horizontal, Self.textInset - 6)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(Theme.headline)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityAddTraits(.isHeader)
+                details
+            }
+            .padding(.horizontal, Self.textInset)
         }
-        .elevatedCard(radius: Theme.cardRadius, padding: 14)
         .fitCheckContextMenu(
             fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
             isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
@@ -58,15 +65,31 @@ struct FeedPostCard: View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 8) {
                 authorRow(nameLineLimit: 2)
-                if showsFollow { followButton }
+                HStack(spacing: 8) {
+                    if showsFollow { followButton }
+                    Spacer(minLength: 0)
+                    moreMenu
+                }
             }
         } else {
             HStack(spacing: 10) {
                 authorRow(nameLineLimit: 1)
                 Spacer(minLength: 0)
                 if showsFollow { followButton }
+                moreMenu
             }
         }
+    }
+
+    /// Visible home for Share, Report and Block; the long-press menu offers
+    /// the same entries but nothing on screen hints that it exists.
+    private var moreMenu: some View {
+        FitCheckMoreMenu(
+            fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
+            isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
+        )
+        // Pull the 44pt target's padding into the card's text inset.
+        .padding(.trailing, -10)
     }
 
     private func authorRow(nameLineLimit: Int) -> some View {
@@ -105,8 +128,9 @@ struct FeedPostCard: View {
                       accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) })
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
             .overlay { if expired { endedOverlay } }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+            .clipped()
             .contentShape(Rectangle())
+            .accessibilityAddTraits(.isButton)
             .accessibilityAction(named: expired ? "See results" : "Open to vote") { onOpen(photoIndex) }
     }
 
@@ -169,20 +193,18 @@ struct FeedPostCard: View {
 
     @ViewBuilder
     private var details: some View {
-        if let occasion = item.occasion, !occasion.isEmpty {
-            Text(occasion)
-                .font(Theme.micro)
-                .foregroundStyle(Theme.accentDeep)
-                .lineLimit(1)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .background(Theme.accentTint, in: Capsule(style: .continuous))
-        }
         if let caption = item.caption, !caption.isEmpty {
             Text(caption)
                 .font(Theme.font(.subheadline))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(Self.descriptionLineLimit)
+        }
+        // Occasion is plain muted text, not a pill, so rose stays reserved for actions.
+        if let occasion = item.occasion, !occasion.isEmpty {
+            Text(occasion)
+                .font(Theme.micro)
+                .foregroundStyle(Theme.mutedForeground)
+                .lineLimit(1)
         }
         tagsRow
     }

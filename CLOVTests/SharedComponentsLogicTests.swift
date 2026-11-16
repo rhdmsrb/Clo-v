@@ -61,6 +61,14 @@ final class SharedComponentsLogicTests: XCTestCase {
         XCTAssertFalse(CarouselAutoAdvance(pageCount: 1).shouldRun(enabled: true, reduceMotion: false, isOnScreen: true))
     }
 
+    /// VoiceOver and Switch Control users move through photos on their own;
+    /// pages changing under their focus is disorienting (and WCAG 2.2.2).
+    func testShouldNotRunWhileAssistiveTechIsActive() {
+        let logic = CarouselAutoAdvance(pageCount: 3)
+        XCTAssertFalse(logic.shouldRun(enabled: true, reduceMotion: false, isOnScreen: true, assistiveTechActive: true))
+        XCTAssertTrue(logic.shouldRun(enabled: true, reduceMotion: false, isOnScreen: true, assistiveTechActive: false))
+    }
+
     func testIndexClampedAndIntervalIsThreeSeconds() {
         XCTAssertEqual(CarouselAutoAdvance(pageCount: 2, index: 9).index, 1)
         XCTAssertEqual(CarouselAutoAdvance(pageCount: 0).advanced().index, 0)

@@ -14,6 +14,8 @@ struct PhotoCarousel: View {
     var onTap: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControlEnabled
     @State private var logic: CarouselAutoAdvance
     @Environment(\.scenePhase) private var scenePhase
     /// Inactive tabs stay mounted at opacity 0, so `onDisappear` never fires for them.
@@ -40,7 +42,9 @@ struct PhotoCarousel: View {
     private static let holdDuration: TimeInterval = 0.4
 
     private var shouldRun: Bool {
-        logic.shouldRun(enabled: autoAdvance, reduceMotion: reduceMotion, isOnScreen: isOnScreen && isTabActive && scenePhase == .active)
+        logic.shouldRun(enabled: autoAdvance, reduceMotion: reduceMotion,
+                        isOnScreen: isOnScreen && isTabActive && scenePhase == .active,
+                        assistiveTechActive: voiceOverEnabled || switchControlEnabled)
     }
 
     var body: some View {

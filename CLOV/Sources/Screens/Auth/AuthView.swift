@@ -322,6 +322,8 @@ struct SocialSignInButtons: View {
     @Binding var isBusy: Bool
     @State private var rawNonce = ""
     @Environment(\.colorScheme) private var colorScheme
+    /// Scales with the "Continue with Google" label beside it.
+    @ScaledMetric(relativeTo: .body) private var googleGlyphSize: CGFloat = 20
 
     var body: some View {
         VStack(spacing: 12) {
@@ -338,7 +340,7 @@ struct SocialSignInButtons: View {
 
             Button { Task { await signInWithGoogle() } } label: {
                 HStack(spacing: 10) {
-                    Text("G").font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text("G").font(.system(size: googleGlyphSize, weight: .bold, design: .rounded))
                         .accessibilityHidden(true)
                     Text("Continue with Google").font(Theme.bodyEmphasis)
                 }

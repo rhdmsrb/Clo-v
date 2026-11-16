@@ -1,6 +1,6 @@
 import XCTest
 
-/// Recent searches, long-press menus and the vote reveal.
+/// Recent searches and long-press menus.
 final class EngagementUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -48,7 +48,7 @@ final class EngagementUITests: XCTestCase {
 
     func testLongPressOnACardOffersShareReportAndBlock() throws {
         let app = launch()
-        XCTAssertTrue(app.staticTexts["Discover"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
         let card = app.otherElements.matching(NSPredicate(format: "label ENDSWITH %@", "’s Fit-Check")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "No Fit-Check card on the feed.")
         card.press(forDuration: 1.2)
@@ -59,11 +59,25 @@ final class EngagementUITests: XCTestCase {
         attach(app, "3-context-menu")
     }
 
+    /// Report and Block must be reachable without knowing about the long press.
+    func testVisibleMoreButtonOffersShareReportAndBlock() throws {
+        let app = launch()
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
+        let more = app.buttons["feed-more-button"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "No visible more-options button on the feed card.")
+        more.tap()
+
+        XCTAssertTrue(app.buttons["Copy link"].waitForExistence(timeout: 5), "More menu did not open.")
+        XCTAssertTrue(app.buttons["Report"].exists, "Report missing from the more menu.")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Block '")).firstMatch.exists, "Block missing.")
+        attach(app, "3b-more-menu")
+    }
+
     /// The redesigned vote screen hides the total until the viewer votes: holding
     /// the centre photo casts the vote, shows Undo, and reveals the count.
     func testVotingRevealsTheResult() throws {
         let app = launch()
-        XCTAssertTrue(app.staticTexts["Discover"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
