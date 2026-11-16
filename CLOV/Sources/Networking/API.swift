@@ -416,9 +416,13 @@ enum API {
             .select("id, body, created_at, photo_id, profiles(nickname, avatar_url)")
             .eq("fit_check_id", value: fitCheckId)
             .order("created_at", ascending: false)
+            .limit(maxCommentsLoaded)
             .execute()
             .value
     }
+
+    /// Newest comments loaded per Fit-Check, so a busy post can't return an unbounded list.
+    static let maxCommentsLoaded = 200
 
     static func castVote(fitCheckId: UUID, photoId: UUID, voterId: UUID, creatorId: UUID, status: String, expiresAt: Date? = nil) async throws {
 #if DEBUG
@@ -531,7 +535,13 @@ enum API {
         guard !trimmed.isEmpty else { throw APIError.message("Comment can't be empty.") }
         guard trimmed.count <= 280 else { throw APIError.message("Keep the comment under 280 characters.") }
 
-        guard let fitCheck = try await fetchFitCheckDetail(id: fitCheckId) else {
+        // A light expiry check for a friendly message; RLS and the activity
+        // trigger enforce visibility and liveness. The full detail fetch also
+        // signed every photo URL and loaded the prompt on each comment.
+        struct ExpiryRow: Decodable { let expiresAt: Date? }
+        let rows: [ExpiryRow] = try await client.from("fit_checks")
+            .select("expires_at").eq("id", value: fitCheckId).limit(1).execute().value
+        guard let fitCheck = rows.first else {
             throw APIError.message("Fit-Check not found.")
         }
         guard !isExpired(fitCheck.expiresAt) else {
@@ -687,8 +697,10 @@ enum API {
                 return updated
             }
         } catch {
-            // vote_prompt is an optional enhancement. Older deployments
-            // lack the column, but discovery should remain available.
+            // vote_prompt is an optional enhancement, so discovery stays
+            // available, but log it: a silent failure here hides a schema or
+            // permission problem.
+            Log.app.error("Vote prompts unavailable: \(error.localizedDescription)")
             return rows
         }
     }
