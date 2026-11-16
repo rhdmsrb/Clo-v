@@ -6,10 +6,6 @@ final class EngagementUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Points between the pinned filter bar and the floating tab bar on the test device.
-    private static let visibleTop: CGFloat = 190
-    private static let visibleBottom: CGFloat = 740
-
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["--uiTestSampleData", "-appearance.colorScheme", "light"]
@@ -63,30 +59,36 @@ final class EngagementUITests: XCTestCase {
         attach(app, "3-context-menu")
     }
 
+    /// The redesigned vote screen hides the total until the viewer votes: holding
+    /// the centre photo casts the vote, shows Undo, and reveals the count.
     func testVotingRevealsTheResult() throws {
         let app = launch()
         XCTAssertTrue(app.staticTexts["Discover"].firstMatch.waitForExistence(timeout: 15))
-        // Scroll until a vote tile sits fully between the pinned filters and the
-        // tab bar. `firstMatch` alone can pick a tile hidden under the filters.
-        var tile: XCUIElement?
-        for _ in 0..<6 where tile == nil {
-            tile = app.buttons.matching(NSPredicate(format: "label == 'Look 1'")).allElementsBoundByIndex
-                .first { $0.isHittable && $0.frame.minY > Self.visibleTop && $0.frame.maxY < Self.visibleBottom }
-            if tile == nil { app.swipeUp() }
-        }
-        guard let tile else { return XCTFail("No vote tile ever came fully into view.") }
-        tile.tap()
-        let confirm = app.sheets.buttons["Vote for Look 1"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "No vote confirmation.")
-        confirm.tap()
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
+        var attempts = 0
+        while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "No Fit-Check card on the feed.")
+        let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 5), "No photo carousel on the card.")
+        carousel.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 10), "Vote screen did not open.")
+
+        // Before voting the chip reads "Vote #" with no count.
+        let chip = app.descendants(matching: .any)["voteFanTotalChip"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 5), "Vote total chip missing.")
+        XCTAssertNil(chip.label.rangeOfCharacter(from: .decimalDigits), "Count was visible before voting: \(chip.label)")
         attach(app, "4-reveal-start")
 
-        // Once revealed a tile stops being a button, so look it up by label and value.
-        let revealedTile = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == 'Look 1' AND value CONTAINS 'percent of votes'")).firstMatch
-        XCTAssertTrue(revealedTile.waitForExistence(timeout: 5), "Result never revealed after voting.")
+        let fan = app.descendants(matching: .any)["voteFan"]
+        XCTAssertTrue(fan.waitForExistence(timeout: 5), "Photo fan missing.")
+        fan.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1.2)
+        XCTAssertTrue(app.buttons["Undo"].firstMatch.waitForExistence(timeout: 5), "No Undo toast after holding to vote.")
+
+        // Once voted, the count is revealed and exposed to accessibility.
+        let revealed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label MATCHES '.*[0-9].*'"), object: chip)
+        XCTAssertEqual(XCTWaiter().wait(for: [revealed], timeout: 5), .completed, "Result never revealed after voting.")
         attach(app, "5-reveal-after")
-        sleep(3)
-        attach(app, "6-reveal-settled")
     }
 }
