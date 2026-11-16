@@ -16,6 +16,7 @@ struct CommentThreadSheet: View {
     @State private var isPosting = false
     @State private var postError: String?
     @FocusState private var isInputFocused: Bool
+    @State private var detent: PresentationDetent = .medium
 
     static let maxLength = 280
     private static let fanPhotoWidth: CGFloat = 72
@@ -37,7 +38,12 @@ struct CommentThreadSheet: View {
             thread
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { inputRow }
-        .presentationDetents([.large])
+        // Opens half height so the feed stays visible while skimming; typing
+        // needs the room, so focusing the input expands it.
+        .presentationDetents([.medium, .large], selection: $detent)
+        .onChange(of: isInputFocused) { _, focused in
+            if focused { detent = .large }
+        }
         .presentationCornerRadius(32)
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.cardElevated)

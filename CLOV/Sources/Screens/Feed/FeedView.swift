@@ -103,7 +103,6 @@ struct FeedView: View {
             CommentThreadSheet(fitCheckId: item.id,
                                photoURLs: PostCardContent.photoURLs(item.fitCheckPhotos).map(\.absoluteString),
                                voterId: appState.userId, canComment: !isExpired(item.expiresAt))
-                .presentationDetents([.large])
         }
         .overlay(alignment: .bottom) { noticeToast }
         .task(id: notice) {
@@ -317,8 +316,9 @@ struct FeedView: View {
         AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
                        emptyText: emptyFeedText, topPadding: 40, hasLoaded: hasLoaded,
                        retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
-                       emptyTitle: "No Fit-Checks yet", emptyActionTitle: "Post a Fit-Check",
-                       emptyAction: { showChallenge = true }, skeleton: .cards) {
+                       // No action here: the daily challenge card above is already
+                       // the one prompt to post, so a second button would compete with it.
+                       emptyTitle: "No Fit-Checks yet", skeleton: .cards) {
             LazyVStack(spacing: Self.postSpacing) {
                 ForEach(visibleItems) { item in
                     FeedPostCard(

@@ -29,6 +29,7 @@ struct FeedPostCard: View {
     private var posterName: String { item.profiles?.nickname ?? "Someone" }
     private var title: String { PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion) }
     private var photoURLs: [URL] { PostCardContent.photoURLs(item.fitCheckPhotos) }
+    private var commentCount: Int { item.fitCheckComments.count }
 
     var body: some View {
         // Photo first: author, full-bleed photo, actions, then one title line.
@@ -150,10 +151,11 @@ struct FeedPostCard: View {
         HStack(spacing: 4) {
             LikeButton(isLiked: isLiked, count: PostCardContent.displayLikeCount(item.likeCount), title: "Like", accessibilityIdentifier: "feed-like-button", perform: onLike)
             Button(action: onComment) {
-                rowLabel("Comment", systemImage: "bubble.left")
+                rowLabel("Comment", systemImage: "bubble.left", count: PostCardContent.displayLikeCount(commentCount))
             }
             .buttonStyle(InstantPressStyle())
             .accessibilityLabel("Comments")
+            .accessibilityValue(commentCount > 0 ? "\(commentCount)" : "")
             .accessibilityIdentifier("feed-comment-button")
             ShareLink(item: PostCardContent.shareText(title: title, url: ShareURL.make(fitCheckId: item.id)),
                       subject: Text(title)) {
@@ -168,10 +170,13 @@ struct FeedPostCard: View {
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    private func rowLabel(_ text: String, systemImage: String) -> some View {
+    private func rowLabel(_ text: String, systemImage: String, count: Int? = nil) -> some View {
         HStack(spacing: 4) {
             Image(systemName: systemImage)
             Text(text).font(Theme.font(.footnote, weight: .semibold)).lineLimit(1)
+            if let count {
+                Text("\(count)").font(Theme.font(.footnote, weight: .semibold)).monospacedDigit()
+            }
         }
         .foregroundStyle(Theme.ink)
         .padding(.horizontal, 6)
@@ -185,7 +190,7 @@ struct FeedPostCard: View {
         if !tags.isEmpty {
             Text(tags.joined(separator: " "))
                 .font(Theme.micro)
-                .foregroundStyle(Theme.accentDeep)
+                .foregroundStyle(Theme.mutedForeground)
                 .lineLimit(1)
                 .accessibilityLabel("Tags: \(tags.joined(separator: ", "))")
         }
