@@ -247,7 +247,18 @@ final class DesignReviewUITests: XCTestCase {
     @discardableResult
     private func tap(_ element: XCUIElement) -> Bool {
         guard element.waitForExistence(timeout: Self.shortWait) else { return false }
-        if element.isHittable { element.tap() } else { element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+        // Calling `isHittable` on an element that is mid-scroll or not laid out yet
+        // raises "Failed to determine hittability", so wait for its centre to sit
+        // inside the window and tap that point instead.
+        let window = XCUIApplication().windows.firstMatch.frame
+        let deadline = Date().addingTimeInterval(Self.shortWait)
+        func isOnScreen() -> Bool {
+            let frame = element.frame
+            return !frame.isEmpty && window.contains(CGPoint(x: frame.midX, y: frame.midY))
+        }
+        while !isOnScreen() && Date() < deadline { Thread.sleep(forTimeInterval: 0.2) }
+        guard isOnScreen() else { return false }
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         return true
     }
 
