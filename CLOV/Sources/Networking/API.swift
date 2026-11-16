@@ -602,7 +602,7 @@ enum API {
     // Accept stored paths and legacy public URLs from this project's bucket.
     // Never persist a signed URL: it expires and is specific to a read request.
     /// Best-effort cleanup: a failure never blocks the caller, but it is logged
-    /// because orphaned files also block self-service account deletion.
+    /// because orphaned files waste storage (account deletion clears them server-side).
     static func removeStorageFiles(bucket: String, paths: [String]) async {
         guard !paths.isEmpty else { return }
         do {
@@ -728,13 +728,24 @@ enum API {
     static func uploadImage(_ image: UIImage, bucket: String, pathPrefix: String,
                                     aspectRatio: CGFloat, persistPublicURL: Bool = true,
                                     preserveAspectRatio: Bool = false) async throws -> String {
+        let data = try preparedJPEG(image, aspectRatio: aspectRatio, preserveAspectRatio: preserveAspectRatio)
+        return try await uploadJPEG(data, bucket: bucket, pathPrefix: pathPrefix, persistPublicURL: persistPublicURL)
+    }
+
+    /// The exact bytes `uploadImage` would send. Split out so a post can fingerprint
+    /// its photos before uploading and skip the ones a failed attempt already stored.
+    static func preparedJPEG(_ image: UIImage, aspectRatio: CGFloat, preserveAspectRatio: Bool = false) throws -> Data {
         let oriented = image.normalizedOrientation()
         let prepared = (preserveAspectRatio ? oriented : oriented.croppedToAspectRatio(aspectRatio))
             .resized(maxDimension: 1600)
-
         guard let data = prepared.jpegData(compressionQuality: 0.85) else {
             throw APIError.message("Couldn't process that image.")
         }
+        return data
+    }
+
+    static func uploadJPEG(_ data: Data, bucket: String, pathPrefix: String,
+                           persistPublicURL: Bool = true) async throws -> String {
         let path = "\(pathPrefix)/\(UUID().storagePathComponent).jpg"
         try await client.storage.from(bucket).upload(path, data: data, options: FileOptions(contentType: "image/jpeg"))
         return bucket == "fit-check-photos" || !persistPublicURL ? path : try client.storage.from(bucket).getPublicURL(path: path).absoluteString

@@ -9,8 +9,9 @@ final class PublishRecoveryTests: XCTestCase {
         XCTAssertEqual(API.publishRecovery(for: .live), .treatAsPublished)
     }
 
-    func testStillDraftIsDiscarded() {
-        XCTAssertEqual(API.publishRecovery(for: .draft), .discard)
+    func testStillDraftIsKeptForRetry() {
+        // Publish is idempotent, so a retry can finish it without re-uploading.
+        XCTAssertEqual(API.publishRecovery(for: .draft), .keepForRetry)
     }
 
     func testMissingRowIsDiscarded() {
@@ -18,9 +19,9 @@ final class PublishRecoveryTests: XCTestCase {
         XCTAssertEqual(API.publishRecovery(for: .missing), .discard)
     }
 
-    func testUnknownStateLeavesThePostAlone() {
+    func testUnknownStateIsKeptNotDeleted() {
         // The status lookup itself failed (e.g. still offline): never delete on a guess.
-        XCTAssertEqual(API.publishRecovery(for: .unknown), .leaveUntouched)
+        XCTAssertEqual(API.publishRecovery(for: .unknown), .keepForRetry)
     }
 
     func testStatusStringsMapToStates() {

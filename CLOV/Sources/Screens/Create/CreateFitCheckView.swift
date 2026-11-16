@@ -17,6 +17,8 @@ struct CreateFitCheckView: View {
     @State private var wardrobeError: String?
     @State private var isPosting = false
     @State private var uploadedCount = 0
+    /// What a failed post left on the server; a retry continues from it instead of re-uploading.
+    @State private var postProgress: PostProgress?
     @State private var postNotice: String?
     @State private var isLoadingOptions = false
     @State private var wardrobeItems: [WardrobeItem] = []
@@ -63,7 +65,7 @@ struct CreateFitCheckView: View {
                 Text("Switching to 2 photos discards the photos you picked in slots 3 and 4.")
             }
             .confirmationDialog("Discard this Fit-Check?", isPresented: $showDiscardConfirmation, titleVisibility: .visible) {
-                Button("Discard", role: .destructive) { dismiss() }
+                Button("Discard", role: .destructive) { discardAndDismiss() }
                 Button("Keep editing", role: .cancel) {}
             } message: {
                 Text("Everything you entered will be lost.")
@@ -73,6 +75,8 @@ struct CreateFitCheckView: View {
                 Button("OK") {}
             } message: { Text(postNotice ?? "") }
             .task { await loadOptions() }
+            // Clears drafts left behind by an earlier interrupted post.
+            .task { await API.sweepStaleDrafts(creatorId: appState.userId) }
             .onChange(of: slots.map { $0.image != nil }, initial: true) { _, filled in
                 model = model.settingFilledSlots(filled)
             }
@@ -242,6 +246,16 @@ struct CreateFitCheckView: View {
         if hasContent { showDiscardConfirmation = true } else { dismiss() }
     }
 
+    /// Abandoning a failed post: remove its draft and photos in the background.
+    private func discardAndDismiss() {
+        if let abandoned = postProgress {
+            let creatorId = appState.userId
+            Task.detached { await API.discardProgress(creatorId: creatorId, abandoned) }
+            postProgress = nil
+        }
+        dismiss()
+    }
+
     private func go(to step: CreateWizardStep?) {
         guard let step else { return }
         submitError = nil
@@ -352,8 +366,8 @@ struct CreateFitCheckView: View {
         isPosting = true
         uploadedCount = 0
         defer { isPosting = false }
-        // createFitCheck drafts, uploads, then publishes; on any failure it
-        // removes the draft, so a retry never leaves a live half-post.
+        // createFitCheck drafts, uploads, then publishes. A failure keeps the draft and the
+        // photos already stored, so "Retry upload" only sends what is missing.
         do {
             let result = try await API.createFitCheck(
                 creatorId: appState.userId,
@@ -366,6 +380,8 @@ struct CreateFitCheckView: View {
                 photos: images,
                 tags: model.postTags,
                 photoDetails: model.photoDetailPayload,
+                resuming: postProgress,
+                onProgress: { postProgress = $0 },
                 onPhotoUploaded: { uploadedCount = $0 }
             )
             appState.contentDidChange()

@@ -21,15 +21,20 @@ enum PostServerState: Equatable {
 
 /// What to do with a post after its publish call failed.
 enum PublishRecovery: Equatable {
-    case treatAsPublished, discard, leaveUntouched
+    /// The server already made it live: report success.
+    case treatAsPublished
+    /// Still a draft, or unknown: keep the draft and photos so a retry can finish it.
+    case keepForRetry
+    /// The draft row is gone: clean up and start over on the next attempt.
+    case discard
 }
 
 extension API {
     static func publishRecovery(for state: PostServerState) -> PublishRecovery {
         switch state {
         case .live: .treatAsPublished
-        case .draft, .missing: .discard
-        case .unknown: .leaveUntouched
+        case .draft, .unknown: .keepForRetry
+        case .missing: .discard
         }
     }
 
@@ -62,11 +67,13 @@ extension API {
         let votePrompt: String?
     }
 
-    /// Drafts, uploads, then publishes. On any failure the draft and uploaded
-    /// photos are removed so a retry never leaves a live half-post.
+    /// Drafts, uploads, then publishes. A failure keeps the draft and the photos already
+    /// stored: pass the latest `onProgress` value back as `resuming` and only the missing
+    /// photos are uploaded. If the caller changed anything meanwhile, the old attempt is
+    /// removed and the post starts fresh. `onProgress(nil)` means nothing is left behind.
     /// `onPhotoUploaded` receives the 1-based count of photos stored so far.
     @discardableResult
-    static func createFitCheck(creatorId: UUID, caption: String?, occasion: String? = nil, groupId: UUID?, audience: String = "public", votePrompt: String? = nil, votingDuration: TimeInterval, photos: [UIImage], tags: [String] = [], photoDetails: [PhotoDetail] = [], onPhotoUploaded: (@MainActor @Sendable (Int) -> Void)? = nil) async throws -> FitCheckPostResult {
+    static func createFitCheck(creatorId: UUID, caption: String?, occasion: String? = nil, groupId: UUID?, audience: String = "public", votePrompt: String? = nil, votingDuration: TimeInterval, photos: [UIImage], tags: [String] = [], photoDetails: [PhotoDetail] = [], resuming: PostProgress? = nil, onProgress: (@MainActor @Sendable (PostProgress?) -> Void)? = nil, onPhotoUploaded: (@MainActor @Sendable (Int) -> Void)? = nil) async throws -> FitCheckPostResult {
 #if DEBUG
         if SampleData.isActive { return FitCheckPostResult(droppedExtras: false) }
 #endif
@@ -79,55 +86,132 @@ extension API {
             votePrompt: FitCheckSubmission.normalizedVotePrompt(votePrompt))
         try await validateAudience(creatorId: creatorId, groupId: groupId, audience: audience)
 
-        // The id is generated here so a draft whose response was lost can still be cleaned up.
+        let prepared = try photos.map { try preparedJPEG($0, aspectRatio: 3.0 / 4.0) }
+        let photoKeys = prepared.indices.map { PostResume.fingerprint(of: prepared[$0]) + "|" + detailKey(clean.details, at: $0) }
+        let draftKey = PostResume.draftFingerprint(caption: caption, occasion: occasion, groupId: groupId,
+                                                   tags: clean.tags, votePrompt: clean.votePrompt, audience: audience)
         let draftParams = DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion,
                                       tags: clean.tags.isEmpty ? nil : clean.tags, votePrompt: clean.votePrompt,
                                       audience: ["friends", "private"].contains(audience) ? audience : nil)
-        let fitCheckId: UUID
-        let draftDropped: Bool
+        let start = try await beginAttempt(creatorId: creatorId, resuming: resuming, draftKey: draftKey,
+                                           photoKeys: photoKeys, draftParams: draftParams, details: clean.details)
+        let progress: PostProgress
+        switch start {
+        case .published(let result):
+            if let onProgress { await onProgress(nil) }
+            return result
+        case .continuing(let current):
+            progress = current
+        }
+        if let onProgress { await onProgress(progress) }
+        let stored = try await storeMissingPhotos(creatorId: creatorId, progress: progress, prepared: prepared,
+                                                  photoKeys: photoKeys, details: clean.details,
+                                                  onProgress: onProgress, onPhotoUploaded: onPhotoUploaded)
+        return try await publishPost(creatorId: creatorId, progress: stored, details: clean.details,
+                                     durationSeconds: Int(votingDuration), onProgress: onProgress)
+    }
+
+    private enum AttemptStart {
+        case continuing(PostProgress)
+        case published(FitCheckPostResult)
+    }
+
+    private static func detailKey(_ details: [PhotoDetail], at index: Int) -> String {
+        guard details.indices.contains(index) else { return "" }
+        return details[index].description + "\u{1F}" + details[index].tags.joined(separator: ",")
+    }
+
+    private static func result(for progress: PostProgress, details: [PhotoDetail]) -> FitCheckPostResult {
+        FitCheckPostResult(droppedExtras: progress.draftDropped || (progress.photoExtrasDropped && hasPhotoExtras(details)))
+    }
+
+    /// Continues a previous attempt when it still matches, otherwise starts a new draft.
+    private static func beginAttempt(creatorId: UUID, resuming: PostProgress?, draftKey: String, photoKeys: [String],
+                                     draftParams: DraftParams, details: [PhotoDetail]) async throws -> AttemptStart {
+        if let resuming {
+            let state = await serverState(ofFitCheck: resuming.draftId)
+            switch PostResume.decide(resuming, draftFingerprint: draftKey, photoFingerprints: photoKeys, serverState: state) {
+            case .alreadyPublished: return .published(result(for: resuming, details: details))
+            case .resume: return .continuing(resuming)
+            case .discardThenFresh, .fresh: await discardProgress(creatorId: creatorId, resuming, knownState: state)
+            }
+        }
         do {
-            (fitCheckId, draftDropped) = try await createDraft(draftParams)
+            let (id, dropped) = try await createDraft(draftParams)
+            return .continuing(PostProgress(draftId: id, draftFingerprint: draftKey, draftDropped: dropped))
         } catch {
+            // The id is generated here so a draft whose response was lost can still be cleaned up.
             await discardDraft(fitCheckId: draftParams.id, creatorId: creatorId, uploadedPaths: [])
             throw error
         }
-        var uploadedPaths: [String] = []
-        var publishStarted = false
-        var photoExtrasDropped = false
-        do {
-            for (index, photo) in photos.enumerated() {
-                let path = try await uploadImage(photo, bucket: "fit-check-photos", pathPrefix: "\(creatorId.storagePathComponent)/\(fitCheckId.storagePathComponent)", aspectRatio: 3.0 / 4.0)
-                uploadedPaths.append(path)
-                let detail = clean.details.indices.contains(index) ? clean.details[index] : nil
-                let insert = PhotoInsert(fitCheckId: fitCheckId, imageUrl: path, position: index + 1,
+    }
+
+    /// Uploads and records each photo not yet stored. Progress is reported after every
+    /// durable step, so a failure at any point leaves an accurate record to resume from.
+    private static func storeMissingPhotos(creatorId: UUID, progress start: PostProgress, prepared: [Data], photoKeys: [String],
+                                           details: [PhotoDetail], onProgress: (@MainActor @Sendable (PostProgress?) -> Void)?,
+                                           onPhotoUploaded: (@MainActor @Sendable (Int) -> Void)?) async throws -> PostProgress {
+        var progress = start
+        let folder = "\(creatorId.storagePathComponent)/\(progress.draftId.storagePathComponent)"
+        for index in prepared.indices {
+            if !progress.photos.indices.contains(index) {
+                let path = try await uploadJPEG(prepared[index], bucket: "fit-check-photos", pathPrefix: folder)
+                progress.photos.append(UploadedPhoto(fingerprint: photoKeys[index], path: path, rowInserted: false))
+                if let onProgress { await onProgress(progress) }
+            }
+            if !progress.photos[index].rowInserted {
+                let detail = details.indices.contains(index) ? details[index] : nil
+                let insert = PhotoInsert(fitCheckId: progress.draftId, imageUrl: progress.photos[index].path, position: index + 1,
                                          description: detail.flatMap { $0.description.isEmpty ? nil : $0.description },
                                          tags: (detail?.tags ?? []).isEmpty ? nil : detail?.tags)
-                photoExtrasDropped = try await insertPhoto(insert, skippingExtras: photoExtrasDropped) || photoExtrasDropped
-                if let onPhotoUploaded { await onPhotoUploaded(index + 1) }
-            }
-            publishStarted = true
-            try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
-        } catch {
-            // Once publishing started, the server may have gone live even though the
-            // response was lost (timeout, dropped signal, cancellation). Deleting a
-            // live post is irreversible, so ask the server before discarding.
-            if publishStarted {
-                let state = await serverState(ofFitCheck: fitCheckId)
-                switch publishRecovery(for: state) {
-                case .treatAsPublished:
-                    Log.app.error("Publish reported \(error.localizedDescription) but \(fitCheckId.uuidString) is live; treating as posted")
-                    return FitCheckPostResult(droppedExtras: draftDropped || (photoExtrasDropped && hasPhotoExtras(clean.details)))
-                case .leaveUntouched:
-                    Log.app.error("Publish failed and post state is unknown; leaving \(fitCheckId.uuidString) untouched")
-                    throw error
-                case .discard:
-                    break
+                do {
+                    let dropped = try await insertPhoto(insert, skippingExtras: progress.photoExtrasDropped)
+                    progress.photoExtrasDropped = progress.photoExtrasDropped || dropped
+                } catch where error.isUniqueViolation {
+                    // The row from an earlier attempt landed even though its response was lost.
                 }
+                progress.photos[index].rowInserted = true
+                if let onProgress { await onProgress(progress) }
             }
-            await discardDraft(fitCheckId: fitCheckId, creatorId: creatorId, uploadedPaths: uploadedPaths)
-            throw error
+            if let onPhotoUploaded { await onPhotoUploaded(index + 1) }
         }
-        return FitCheckPostResult(droppedExtras: draftDropped || (photoExtrasDropped && hasPhotoExtras(clean.details)))
+        return progress
+    }
+
+    /// Publishes the draft. The response can be lost after the server already went live,
+    /// so a failure asks the server before deciding what to do with the draft.
+    private static func publishPost(creatorId: UUID, progress: PostProgress, details: [PhotoDetail], durationSeconds: Int,
+                                    onProgress: (@MainActor @Sendable (PostProgress?) -> Void)?) async throws -> FitCheckPostResult {
+        do {
+            try await client.rpc("publish_fit_check", params: PublishParams(id: progress.draftId, durationSeconds: durationSeconds)).execute()
+        } catch {
+            switch publishRecovery(for: await serverState(ofFitCheck: progress.draftId)) {
+            case .treatAsPublished:
+                Log.app.error("Publish reported \(error.localizedDescription) but \(progress.draftId.uuidString) is live; treating as posted")
+            case .keepForRetry:
+                Log.app.error("Publish failed; keeping draft \(progress.draftId.uuidString) so a retry can finish it")
+                throw error
+            case .discard:
+                await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId, uploadedPaths: progress.uploadedPaths)
+                if let onProgress { await onProgress(nil) }
+                throw error
+            }
+        }
+        if let onProgress { await onProgress(nil) }
+        return result(for: progress, details: details)
+    }
+
+    /// Removes an abandoned attempt. Never deletes a post the server has made live, or one
+    /// whose state could not be read; the stale-draft sweep handles those later.
+    static func discardProgress(creatorId: UUID, _ progress: PostProgress, knownState: PostServerState? = nil) async {
+        let state: PostServerState
+        if let knownState { state = knownState } else { state = await serverState(ofFitCheck: progress.draftId) }
+        switch state {
+        case .draft, .missing:
+            await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId, uploadedPaths: progress.uploadedPaths)
+        case .live, .unknown:
+            Log.app.error("Leaving \(progress.draftId.uuidString) untouched (\(String(describing: state)))")
+        }
     }
 
     private static func validateAudience(creatorId: UUID, groupId: UUID?, audience: String) async throws {

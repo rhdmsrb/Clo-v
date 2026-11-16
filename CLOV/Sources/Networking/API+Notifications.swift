@@ -93,8 +93,8 @@ extension API {
             .eq("creator_id", value: creatorId)
             .execute()
 
-        // Cleanup is best-effort. Until a matching Storage delete policy is
-        // deployed, deleting the database row can leave orphaned objects.
+        // Cleanup is best-effort: the owner-delete storage policy exists, but a failed
+        // removal here leaves orphaned objects (see `sweepStaleDrafts` for drafts).
         let paths = photos.compactMap { photoPath($0.imageUrl) }
         if !paths.isEmpty {
             await removeStorageFiles(bucket: "fit-check-photos", paths: paths)
