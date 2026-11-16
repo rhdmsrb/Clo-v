@@ -46,7 +46,9 @@ struct ExploreFilter: Equatable {
 /// masonry looks staggered; the API sends no real photo dimensions. The ratio
 /// is derived from the post id so a tile keeps its shape across filters/sorts.
 enum ExploreTileRatio {
-    static let ratios: [CGFloat] = [0.8, 1.0, 0.7, 0.9, 0.75, 1.1, 0.65, 0.85]
+    /// Portrait only (outfit photos are tall), so a full-body look is never
+    /// center-cropped into a landscape tile.
+    static let ratios: [CGFloat] = [0.8, 0.9, 0.7, 0.85, 0.75, 0.95, 0.65, 0.88]
 
     static func ratio(for id: UUID) -> CGFloat {
         // Stable FNV-1a over the UUID bytes (Hasher is randomly seeded per launch).
