@@ -13,9 +13,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15))
         app.buttons["accountTab"].tap()
 
-        let settings = app.buttons["settingsButton"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 10))
-        settings.tap()
+        openSettings(app)
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         attach(app, "1-top")
 
@@ -44,7 +42,7 @@ final class SettingsUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15))
         app.buttons["accountTab"].tap()
-        app.buttons["settingsButton"].tap()
+        openSettings(app)
 
         let blocked = app.buttons["settingsBlocked"]
         for _ in 0..<4 where !blocked.isHittable { app.swipeUp() }
@@ -65,6 +63,16 @@ final class SettingsUITests: XCTestCase {
         expectation(for: gone, evaluatedWith: unblock)
         waitForExpectations(timeout: 5)
         XCTAssertTrue(app.buttons["unblock_fit.critic"].exists, "Unblocking removed the wrong person.")
+    }
+
+    /// Settings lives in the Profile hamburger menu.
+    private func openSettings(_ app: XCUIApplication) {
+        let menu = app.buttons["profile.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "Profile menu missing.")
+        menu.tap()
+        let settings = app.buttons["settingsButton"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5), "Settings entry missing from the profile menu.")
+        settings.tap()
     }
 
     private func attach(_ app: XCUIApplication, _ name: String) {

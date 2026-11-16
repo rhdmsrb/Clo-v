@@ -16,6 +16,11 @@ extension SampleData {
         let expiresInHours: Double?
         var status = "live"
         var groupNumber: Int?
+        var tags: [String]?
+        var likeCount: Int?
+        var photoDescriptions: [String] = []
+        /// Index of the photo the sample viewer already voted for.
+        var viewerVotedPhoto: Int?
 
         var id: UUID { SampleData.uuid(1_000 + number) }
         var isPublic: Bool { groupNumber == nil }
@@ -27,15 +32,18 @@ extension SampleData {
             votesPerPhoto.indices.map { index in
                 FitCheckPhoto(id: SampleData.uuid(10_000 + number * 10 + index), fitCheckId: id,
                               imageUrl: SampleData.imageURL(kind: "photo", number: number * 10 + index),
-                              position: index + 1)
+                              position: index + 1,
+                              description: photoDescriptions.indices.contains(index) ? photoDescriptions[index] : nil)
             }
         }
 
         var votes: [VoteRef] {
             photos.enumerated().flatMap { index, photo in
-                (0..<votesPerPhoto[index]).map { voter in
+                let others = (0..<votesPerPhoto[index]).map { voter in
                     VoteRef(photoId: photo.id, voterId: SampleData.uuid(900 + voter))
                 }
+                return viewerVotedPhoto == index
+                    ? others + [VoteRef(photoId: photo.id, voterId: SampleData.me.id)] : others
             }
         }
 
@@ -45,7 +53,8 @@ extension SampleData {
                         createdAt: createdAt, expiresAt: expiresAt, fitCheckPhotos: photos,
                         fitCheckVotes: votes,
                         fitCheckComments: (0..<commentCount).map { CommentRef(id: SampleData.uuid(5_000 + number * 10 + $0)) },
-                        profiles: creator.info, isPublic: isPublic)
+                        profiles: creator.info, isPublic: isPublic,
+                        tags: tags, likeCount: likeCount)
         }
 
         var detail: FitCheckDetailDTO {
@@ -59,17 +68,26 @@ extension SampleData {
     static let fixtures: [Fixture] = [
         Fixture(number: 1, creator: maya, caption: "Soft layers for the gallery opening",
                 occasion: "Date night", votePrompt: "Which one feels more effortless?",
-                votesPerPhoto: [5, 3], commentCount: 3, postedHoursAgo: 2, expiresInHours: 20),
+                votesPerPhoto: [5, 3], commentCount: 3, postedHoursAgo: 2, expiresInHours: 20,
+                tags: ["minimal", "layers"], likeCount: 128,
+                photoDescriptions: ["Cream knit, wide trousers", "Charcoal coat, loafers"]),
         Fixture(number: 2, creator: jun, caption: "Work fit: blazer or bomber?",
                 occasion: "Work", votePrompt: nil,
-                votesPerPhoto: [4, 6, 2], commentCount: 1, postedHoursAgo: 5, expiresInHours: 6),
+                votesPerPhoto: [4, 6, 2, 3], commentCount: 1, postedHoursAgo: 5, expiresInHours: 6,
+                tags: ["workwear", "tailoring", "smart casual"], likeCount: 42,
+                photoDescriptions: ["Navy blazer", "Black bomber", "Grey overshirt", "Camel trench"],
+                viewerVotedPhoto: 1),
         Fixture(number: 3, creator: sora, caption: "Brunch outfit, which one?",
                 occasion: "Brunch", votePrompt: nil,
-                votesPerPhoto: [9, 11], commentCount: 4, postedHoursAgo: 30, expiresInHours: -3),
+                votesPerPhoto: [9, 11], commentCount: 4, postedHoursAgo: 30, expiresInHours: -3,
+                tags: ["brunch", "summer"], likeCount: 306,
+                photoDescriptions: ["Linen set", "Slip dress and cardigan"]),
         Fixture(number: 4, creator: alex,
                 caption: "Trying a much longer caption here to see how the card copes when someone writes a full paragraph about a thrifted jacket, wide trousers and the shoes they almost did not buy.",
                 occasion: nil, votePrompt: nil,
-                votesPerPhoto: [0, 0], commentCount: 0, postedHoursAgo: 8, expiresInHours: nil),
+                votesPerPhoto: [0, 0, 0, 0], commentCount: 0, postedHoursAgo: 8, expiresInHours: nil,
+                tags: ["thrifted", "vintage"], likeCount: 7,
+                photoDescriptions: ["Thrifted jacket", "Wide trousers", "Almost-skipped shoes", "Full look"]),
         Fixture(number: 5, creator: me, caption: "My rainy day commute look",
                 occasion: "Casual", votePrompt: nil,
                 votesPerPhoto: [2, 1], commentCount: 2, postedHoursAgo: 1, expiresInHours: 10),

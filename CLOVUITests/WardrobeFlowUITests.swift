@@ -12,8 +12,10 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(accountTab.waitForExistence(timeout: 15))
         accountTab.tap()
 
-        // The Account shortcut row is titled "Wardrobe" ("Wardrobe, Your pieces" once combined).
-        let wardrobeButton = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Wardrobe'")).firstMatch
+        let menu = app.buttons["profile.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        menu.tap()
+        let wardrobeButton = app.buttons["profileShortcut_Wardrobe"]
         XCTAssertTrue(wardrobeButton.waitForExistence(timeout: 10))
         wardrobeButton.tap()
 
@@ -49,13 +51,11 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(accountTab.waitForExistence(timeout: 15))
         accountTab.tap()
 
-        // The shortcut grid sits below "Your Fit-Checks", so it may need scrolling to.
+        let menu = app.buttons["profile.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "Profile menu should be on the Profile screen")
+        menu.tap()
         let weeklyReport = app.buttons["yourWeekButton"]
-        let visibleBottom = app.windows.firstMatch.frame.height * 0.8
-        for _ in 0..<6 where !(weeklyReport.exists && weeklyReport.frame.maxY < visibleBottom) {
-            app.swipeUp()
-        }
-        XCTAssertTrue(weeklyReport.exists, "Your week shortcut never appeared.")
+        XCTAssertTrue(weeklyReport.waitForExistence(timeout: 5), "Your week shortcut should be in the profile menu")
         weeklyReport.tap()
 
         XCTAssertTrue(app.navigationBars["Your week"].waitForExistence(timeout: 5))

@@ -1,6 +1,11 @@
 @preconcurrency import SwiftUI
 import PhotosUI
 
+/// Where the profile menu and Analytics button navigate.
+private enum ProfileDestination: Hashable {
+    case wardrobe, groups, friends, yourWeek, privacy, appearance, settings
+}
+
 @MainActor
 struct AccountView: View {
     @EnvironmentObject private var appState: AppState
@@ -12,154 +17,111 @@ struct AccountView: View {
     @State private var isUploadingAvatar = false
     @State private var terminateTarget: UUID?
     @State private var deleteTarget: UUID?
+    @State private var isDeletingAccount = false
+    @State private var showingDeleteAccountConfirmation = false
     @State private var showingEditProfile = false
     @State private var followerIDs: Set<UUID> = []
     @State private var followingIDs: Set<UUID> = []
     @State private var selectedFollowList: ProfileFollowList?
+    @State private var destination: ProfileDestination?
+    @State private var openedRoute: FitCheckRoute?
+    @State private var segment: ProfileSegment = .live
+    @State private var groups: [FashionGroup] = []
+    @State private var groupAddMode: GroupAddSheet.Mode?
+    @State private var liveVotes: [MyFitCheck] = []
+    @State private var archivedVotes: [MyFitCheck] = []
+    @State private var savedPosts: [MyFitCheck] = []
+    @State private var savedState: SavedLoadState = .notLoaded
+    @State private var isLoadingSaved = false
 
-    private let profileAccent = Theme.accentDeep
-    private let shortcutColumns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+    private static let heroAvatarSize: CGFloat = 72
+    private static let savedPageSize = 60
 
     var body: some View {
-        let avatarURL = appState.profile?.avatarUrl
-        let nickname = appState.profile?.nickname
-        let uploadingAvatar = isUploadingAvatar
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                header
-                profileHero(avatarURL: avatarURL, nickname: nickname, uploadingAvatar: uploadingAvatar)
-
-                // The user's own posts come first: it is what they open Profile for.
-                SectionHeader(title: "Your Fit-Checks")
-                    .overlay(alignment: .trailing) {
-                        Text("\(liveVotes.count + archivedVotes.count) posts")
-                            .font(Theme.caption)
-                            .foregroundStyle(Theme.mutedForeground)
-                    }
-
+            VStack(alignment: .leading, spacing: 20) {
+                topRow
+                statsAndGroups
+                actionButtons
+                    .padding(.bottom, -12)
+                segmentPicker
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 20, hasLoaded: hasLoaded, retry: { await load() }) {
-                    votesSection(title: "LIVE", items: liveVotes, emptyText: "No live votes yet — post a Fit-Check to get started.")
-                    votesSection(title: "ENDED", items: archivedVotes, emptyText: "Completed Fit-Checks will land here.")
+                    postsGrid
                 }
-
-                SectionHeader(title: "Wardrobe & circle")
-                shortcutGrid
             }
             .padding(20)
-            // Leave room for the floating tab bar so the final section can
-            // scroll fully above it on compact simulator screens.
-            .padding(.bottom, 88)
         }
+        // Leave room for the floating tab bar (counted once, here).
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 82)
         }
         .background(Theme.background)
+        .accessibilityIdentifier("profile.root")
         .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
+        .onChange(of: segment) { _, newSegment in
+            if newSegment == .saved && savedState == .notLoaded { Task { await loadSaved() } }
+        }
+        .navigationDestination(item: $destination) { destinationView($0) }
+        .navigationDestination(item: $openedRoute) { FitCheckVoteLoader(fitCheckId: $0.id) }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView(profile: appState.profile)
+        }
+        .sheet(item: $groupAddMode) { mode in
+            GroupAddSheet(initialMode: mode) { await load() }
         }
         .sheet(item: $selectedFollowList) { list in
             ProfileFollowListView(userId: appState.userId, initialList: list)
                 .environmentObject(appState)
         }
-        .confirmationDialog(
-            "End voting on this Fit-Check?",
-            isPresented: Binding(get: { terminateTarget != nil }, set: { if !$0 { terminateTarget = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button("Terminate", role: .destructive) {
-                if let id = terminateTarget { Task { await terminate(id) } }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Voting closes immediately and can't be reopened.")
-        }
-        .confirmationDialog(
-            "Delete this Fit-Check?",
-            isPresented: Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                if let id = deleteTarget { Task { await delete(id) } }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently removes it along with its photos, votes, and comments. This can't be undone.")
+        .modifier(ProfileConfirmations(
+            showDeleteAccount: $showingDeleteAccountConfirmation,
+            terminateTarget: $terminateTarget,
+            deleteTarget: $deleteTarget,
+            onDeleteAccount: { Task { await deleteAccount() } },
+            onTerminate: { id in Task { await terminate(id) } },
+            onDelete: { id in Task { await delete(id) } }
+        ))
+    }
+
+    private var statsAndGroups: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            ProfileStatsRow(
+                fitChecks: liveVotes.count + archivedVotes.count,
+                followers: followerIDs.count,
+                following: followingIDs.count,
+                onFollowers: { selectedFollowList = .followers },
+                onFollowing: { selectedFollowList = .following }
+            )
+            ProfileGroupsRow(
+                groups: groups,
+                onCreate: { groupAddMode = .create },
+                onJoin: { groupAddMode = .join }
+            )
         }
     }
 
-    // MARK: - My votes (kept separate from FeedItemDTO since status matters here)
-
-    @State private var liveVotes: [MyFitCheck] = []
-    @State private var archivedVotes: [MyFitCheck] = []
-
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Your profile")
-                    .font(Theme.label)
-                    .foregroundStyle(profileAccent)
-                Text("Your style")
-                    .font(Theme.editorialFont(size: 34))
-                    .tracking(-0.5)
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                    .accessibilityAddTraits(.isHeader)
-            }
-            Spacer()
-            Button { showingEditProfile = true } label: {
-                Image(systemName: "pencil")
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                    .background(Theme.muted, in: Circle())
-                    .contentShape(Circle())
-            }
-            .accessibilityLabel("Edit profile")
-            NavigationLink(destination: SettingsView()) {
-                Image(systemName: "gearshape")
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Theme.ink)
-                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                    .background(Theme.muted, in: Circle())
-                    .contentShape(Circle())
-            }
-            .buttonStyle(InstantPressStyle())
-            .accessibilityLabel("Settings")
-            .accessibilityIdentifier("settingsButton")
+    private var segmentPicker: some View {
+        Picker("Posts", selection: $segment) {
+            ForEach(ProfileSegment.allCases) { Text($0.rawValue).tag($0) }
         }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 240)
+        .frame(maxWidth: .infinity)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .accessibilityIdentifier("profile.segment")
     }
 
-    private var shortcutGrid: some View {
-        LazyVGrid(columns: shortcutColumns, spacing: 16) {
-            profileShortcut(title: "Wardrobe", subtitle: "Your pieces", icon: "hanger", tint: Theme.iconCoral) {
-                WardrobeView()
-            }
-            profileShortcut(title: "Groups", subtitle: "Private & public circles", icon: "person.3", tint: Theme.iconPlum) {
-                GroupsView()
-            }
-            profileShortcut(title: "Friends", subtitle: "Your circle", icon: "person.2", tint: Theme.iconApricot) {
-                FriendsView()
-            }
-            profileShortcut(title: "Your week", subtitle: "Style activity", icon: "chart.bar", tint: Theme.iconSage) {
-                StyleInsightsView()
-            }
-        }
-    }
+    // MARK: - Header
 
-    private func profileHero(avatarURL: String?, nickname: String?, uploadingAvatar: Bool) -> some View {
-        VStack(spacing: 14) {
+    @MainActor private var topRow: some View {
+        let nickname = appState.profile?.nickname
+        return HStack(spacing: 14) {
             PhotosPicker(selection: $avatarItem, matching: .images) {
                 ZStack {
-                    AvatarView(url: avatarURL, nickname: nickname, size: 96, ringed: true)
-                    if uploadingAvatar {
-                        ProgressView().tint(.white)
-                    }
+                    AvatarView(url: appState.profile?.avatarUrl, nickname: nickname, size: Self.heroAvatarSize, ringed: true)
+                    if isUploadingAvatar { ProgressView().tint(.white) }
                 }
-                .padding(8)
                 .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
                 .contentShape(Circle())
             }
@@ -168,188 +130,196 @@ struct AccountView: View {
             }
             .accessibilityLabel("Change profile photo")
 
-            VStack(spacing: 4) {
-                Text(nickname ?? "Your style profile")
-                    .font(Theme.editorialFont(size: 30, relativeTo: .title2))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                if let email = appState.email {
-                    Text(email)
-                        .font(Theme.caption)
-                        .foregroundStyle(Color.white.opacity(0.9))
-                        .lineLimit(1)
-                }
-                if let createdAt = appState.profile?.createdAt {
-                    Label("Here since \(createdAt.formatted(.dateTime.month(.abbreviated).year()))", systemImage: "calendar")
-                        .font(Theme.micro)
-                        .foregroundStyle(Color.white.opacity(0.9))
-                }
-            }
-
-            if let styles = appState.profile?.stylePreferences, !styles.isEmpty {
-                Text(styles.joined(separator: "  ·  "))
-                    .font(Theme.label)
-                    .foregroundStyle(Color.white)
-                    .multilineTextAlignment(.center)
-            } else {
-                Text("Add your style preferences to personalize your feed.")
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Color.white.opacity(0.9))
-                    .multilineTextAlignment(.center)
-            }
-
-            ViewThatFits(in: .horizontal) {
-                countCapsules(spacing: 8, horizontal: true)
-                countCapsules(spacing: 8, horizontal: false)
-            }
+            Text(nickname ?? "Your profile")
+                .font(Theme.editorialFont(size: 28, relativeTo: .title))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
+            menu
         }
-        .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: Self.heroRadius, style: .continuous))
-        .elevatedShadow()
+    }
+
+    private var menu: some View {
+        Menu {
+            Button("Wardrobe", systemImage: "hanger") { destination = .wardrobe }
+                .accessibilityIdentifier("profileShortcut_Wardrobe")
+            Button("Groups", systemImage: "person.3") { destination = .groups }
+                .accessibilityIdentifier("profileShortcut_Groups")
+            Button("Friends", systemImage: "person.2") { destination = .friends }
+                .accessibilityIdentifier("profileShortcut_Friends")
+            Button("Your week", systemImage: "chart.bar") { destination = .yourWeek }
+                .accessibilityIdentifier("yourWeekButton")
+            Button("Privacy", systemImage: "lock.shield") { destination = .privacy }
+                .accessibilityIdentifier("profileShortcut_Privacy")
+            Button("Appearance", systemImage: "paintpalette") { destination = .appearance }
+                .accessibilityIdentifier("profileShortcut_Appearance")
+            Button("Settings", systemImage: "gearshape") { destination = .settings }
+                .accessibilityIdentifier("settingsButton")
+            Divider()
+            Button("Log out", systemImage: "rectangle.portrait.and.arrow.right") {
+                Task { await appState.signOut() }
+            }
+            .accessibilityIdentifier("profile.logout")
+            Button("Delete account", systemImage: "trash", role: .destructive) {
+                showingDeleteAccountConfirmation = true
+            }
+            .disabled(isDeletingAccount)
+            .accessibilityIdentifier("profile.deleteAccount")
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(Theme.bodyEmphasis)
+                .foregroundStyle(Theme.ink)
+                .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                .background(Theme.muted, in: Circle())
+                .contentShape(Circle())
+        }
+        .accessibilityLabel("Profile menu")
+        .accessibilityIdentifier("profile.menu")
     }
 
     @ViewBuilder
-    private func countCapsules(spacing: CGFloat, horizontal: Bool) -> some View {
-        let layout = horizontal ? AnyLayout(HStackLayout(spacing: spacing)) : AnyLayout(VStackLayout(spacing: spacing))
-        layout {
-            countCapsule("\(liveVotes.count + archivedVotes.count)", label: "Fit-Checks")
-            Button { selectedFollowList = .followers } label: {
-                countCapsule("\(followerIDs.count)", label: "Followers")
-            }
-            .buttonStyle(.plain)
-            Button { selectedFollowList = .following } label: {
-                countCapsule("\(followingIDs.count)", label: "Following")
-            }
-            .buttonStyle(.plain)
+    private func destinationView(_ destination: ProfileDestination) -> some View {
+        switch destination {
+        case .wardrobe: WardrobeView()
+        case .groups: GroupsView(embedded: true)
+        case .friends: FriendsView()
+        case .yourWeek: StyleInsightsView()
+        case .privacy: PrivacyView()
+        case .appearance: AppearanceView()
+        case .settings: SettingsView()
         }
     }
 
-    private static let heroRadius: CGFloat = 28
-
-    /// Opaque-feeling dark capsule over the gradient so white text stays >= 4.5:1.
-    private func countCapsule(_ value: String, label: String) -> some View {
-        VStack(spacing: 0) {
-            Text(value).font(Theme.headline)
-            Text(label).font(Theme.micro).fixedSize(horizontal: true, vertical: false)
+    private var actionButtons: some View {
+        ProfileActionTabs(
+            onEdit: { showingEditProfile = true },
+            onAnalytics: { destination = .yourWeek }
+        ) {
+            ShareLink(item: shareText) { Text("Share") }
+                .accessibilityLabel("Share profile")
+                .accessibilityIdentifier("profile.share")
         }
-        .foregroundStyle(Color.white)
-        .padding(.horizontal, 14)
-        .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
-        .background(Color.black.opacity(0.35), in: Capsule(style: .continuous))
-        .contentShape(Capsule(style: .continuous))
-        .accessibilityElement(children: .combine)
     }
 
-    private func profileShortcut<Destination: View>(
-        title: String,
-        subtitle: String,
-        icon: String,
-        tint: Color,
-        @ViewBuilder destination: () -> Destination
-    ) -> some View {
-        NavigationLink(destination: destination) {
-            VStack(alignment: .leading, spacing: 10) {
-                Image(systemName: icon)
-                    .font(Theme.headline)
-                    .foregroundStyle(tint)
-                    .frame(width: 44, height: 44)
-                    .background(tint.opacity(0.14), in: Circle())
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(Theme.headline)
-                        .foregroundStyle(Theme.ink)
-                    Text(subtitle)
-                        .font(Theme.caption)
-                        .foregroundStyle(Theme.mutedForeground)
-                        .multilineTextAlignment(.leading)
-                }
-            }
-            .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
-            .elevatedCard(radius: Theme.tileRadius, padding: 14)
-            .contentShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-            .accessibilityElement(children: .combine)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(title == "Your week" ? "yourWeekButton" : "profileShortcut_\(title)")
+    /// No profile deep link exists yet (see ShareURL, spec D12), so share text.
+    private var shareText: String {
+        let name = appState.profile?.nickname ?? "me"
+        return "Check out \(name) on CLO·V"
+    }
+
+    // MARK: - Posts grid
+
+    private var visiblePosts: [MyFitCheck] {
+        ProfilePosts.posts(for: segment, live: liveVotes, ended: archivedVotes, saved: savedPosts)
     }
 
     @ViewBuilder
-    private func votesSection(title: String, items: [MyFitCheck], emptyText: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(Theme.micro).foregroundStyle(Theme.mutedForeground)
-            if items.isEmpty {
-                Text(emptyText)
+    private var postsGrid: some View {
+        if visiblePosts.isEmpty {
+            emptyState
+        } else {
+            let ratios = ProfilePosts.ratios(for: visiblePosts)
+            MasonryGrid(
+                items: visiblePosts,
+                aspectRatio: { ratios[$0.id] ?? ProfilePosts.tileRatios[0] },
+                onTap: { openedRoute = FitCheckRoute(id: $0.id) }
+            ) { post in
+                postTile(post)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        if segment == .saved && isLoadingSaved {
+            ProgressView().frame(maxWidth: .infinity).padding(18)
+        } else {
+            VStack(spacing: 12) {
+                Text(ProfilePosts.emptyText(for: segment, saved: savedState))
                     .font(Theme.bodyEmphasis)
                     .foregroundStyle(Theme.mutedForeground)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(18)
-                    .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-            } else {
-                VStack(spacing: 16) {
-                    ForEach(items) { item in
-                        HStack(spacing: 12) {
-                            RemoteImage(url: item.thumbnailURL ?? "")
-                                .frame(width: 48, height: 48)
-                                .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
-                            NavigationLink {
-                                FitCheckDetailView(fitCheckId: item.id)
-                            } label: {
-                                Text(item.caption ?? "Untitled")
-                                    .font(Theme.bodyEmphasis)
-                                    .foregroundStyle(Theme.ink)
-                                    .lineLimit(1)
-                            }
-                            .buttonStyle(.plain)
-                            Spacer()
-                            Menu {
-                                fitCheckActions(item)
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                                    .font(Theme.headline)
-                                    .foregroundStyle(Theme.mutedForeground)
-                                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                                    .contentShape(Rectangle())
-                            }
-                            .accessibilityLabel("Actions for \(item.caption ?? "Fit-Check")")
-                            .accessibilityIdentifier("fitCheckActions")
-                        }
-                        .softCard(radius: Theme.tileRadius, padding: 12)
-                        .contextMenu { fitCheckActions(item) }
-                    }
+                if segment == .saved && (savedState == .failed || savedState == .unavailable) {
+                    Button("Retry") { Task { await loadSaved() } }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("profile.savedRetry")
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(18)
+            .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
         }
     }
 
-    /// One menu instead of two cramped text buttons side by side, so a
-    /// destructive action can't be hit by accident. Also the long-press menu.
     @ViewBuilder
-    private func fitCheckActions(_ item: MyFitCheck) -> some View {
-        if let url = ShareURL.make(fitCheckId: item.id) {
+    private func postTile(_ post: MyFitCheck) -> some View {
+        let title = post.caption ?? "Fit-Check"
+        let tile = RemoteImage(url: post.thumbnailURL ?? "", label: title)
+        if segment == .saved {
+            tile
+        } else {
+            let canTerminate = post.status == "live" && !isExpired(post.expiresAt)
+            tile
+                .overlay(alignment: .topTrailing) { overflowMenu(post, canTerminate: canTerminate, title: title) }
+                .contextMenu { postActions(post, canTerminate: canTerminate) }
+                .accessibilityAction(named: "Terminate \(title)") { if canTerminate { terminateTarget = post.id } }
+                .accessibilityAction(named: "Delete \(title)") { deleteTarget = post.id }
+        }
+    }
+
+    @ViewBuilder
+    private func postActions(_ post: MyFitCheck, canTerminate: Bool) -> some View {
+        if let url = ShareURL.make(fitCheckId: post.id) {
             ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
         }
-        if item.status == "live" && !isExpired(item.expiresAt) {
-            Button("End voting", systemImage: "stop.circle") { terminateTarget = item.id }
+        if canTerminate {
+            Button("End voting", systemImage: "stop.circle") { terminateTarget = post.id }
         }
-        Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = item.id }
+        Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = post.id }
     }
 
+    /// Visible alternative to the long-press menu.
+    private func overflowMenu(_ post: MyFitCheck, canTerminate: Bool, title: String) -> some View {
+        Menu {
+            postActions(post, canTerminate: canTerminate)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(Theme.bodyEmphasis)
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(.black.opacity(0.45), in: Circle())
+                .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("More options for \(title)")
+        .accessibilityIdentifier("profile.tileMenu")
+    }
+
+    // MARK: - Loading and actions
+
+    /// The grid spinner is released after the main fetch; groups load concurrently
+    /// and Saved loads only while its segment is selected.
     private func load() async {
         isLoading = true
         error = nil
-        defer { isLoading = false }
+        async let groupsLoad: Void = loadGroups()
+        await loadProfileData()
+        isLoading = false
+        if segment == .saved { await loadSaved() }
+        await groupsLoad
+    }
+
+    private func loadProfileData() async {
         async let followersTask = API.fetchFollowerIDs(userId: appState.userId)
         async let followingTask = API.fetchFollowingIDs(userId: appState.userId)
         async let friendsTask = API.fetchFriendIDs(userId: appState.userId)
         do {
             let all = try await API.fetchMyFitChecksWithStatus(creatorId: appState.userId)
-            liveVotes = all.filter { $0.status == "live" && !isExpired($0.expiresAt) }
-            archivedVotes = all.filter { $0.status == "archived" || isExpired($0.expiresAt) }
+            liveVotes = ProfilePosts.live(all, isExpired: isExpired)
+            archivedVotes = ProfilePosts.ended(all, isExpired: isExpired)
             // Friendships are mutual, so friends count as both followers and
             // following (the feed already treats them this way).
             let friendIDs = try await friendsTask
@@ -360,6 +330,33 @@ struct AccountView: View {
             return
         } catch {
             self.error = "Couldn’t load this content. Please try again."
+        }
+    }
+
+    /// Groups and Saved are secondary: failures degrade quietly instead of blocking the profile.
+    private func loadGroups() async {
+        groups = (try? await API.fetchMyGroups(profileId: appState.userId)) ?? groups
+    }
+
+    private func loadSaved() async {
+        isLoadingSaved = true
+        defer { isLoadingSaved = false }
+        do {
+            let page = try await API.fetchSavedFeed(userId: appState.userId, offset: 0, limit: Self.savedPageSize)
+            savedPosts = ProfilePosts.deduplicated(page.items.map { item in
+                MyFitCheck(
+                    id: item.id,
+                    caption: item.votePrompt ?? item.caption,
+                    status: "saved",
+                    thumbnailURL: item.fitCheckPhotos.min(by: { $0.position < $1.position })?.imageUrl
+                )
+            })
+            savedState = .loaded
+        } catch is CancellationError {
+            return
+        } catch {
+            savedPosts = []
+            savedState = SavedLoadState.classify(error)
         }
     }
 
@@ -385,6 +382,18 @@ struct AccountView: View {
         }
     }
 
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        error = nil
+        do {
+            try await API.deleteAccount()
+            appState.accountDeleted()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        isDeletingAccount = false
+    }
+
     private func uploadAvatar(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         isUploadingAvatar = true
@@ -396,198 +405,6 @@ struct AccountView: View {
             await appState.refreshProfile()
         } catch {
             Haptics.error()
-            self.error = error.localizedDescription
-        }
-    }
-}
-
-@MainActor
-struct StyleInsightsView: View {
-    @EnvironmentObject private var appState: AppState
-    @ScaledMetric(relativeTo: .title2) private var streakIconSize: CGFloat = 28
-    @State private var report: WeeklyStyleReport?
-    @State private var isLoading = true
-    @State private var hasLoaded = false
-    @State private var error: String?
-
-    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("YOUR WEEK")
-                    .font(Theme.micro)
-                    .tracking(1.5)
-                    .foregroundStyle(Theme.accentDeep)
-                Text("Style momentum")
-                    .font(Theme.editorialFont(size: 34))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                Text("A quick look at how you showed up this week.")
-                    .font(Theme.font(.subheadline))
-                    .foregroundStyle(Theme.mutedForeground)
-
-                AsyncStateView(isLoading: isLoading, error: error, topPadding: 16, hasLoaded: hasLoaded, retry: { await load() }) {
-                    if let report {
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack(spacing: 14) {
-                                Image(systemName: "flame.fill")
-                                    .font(.system(size: streakIconSize, weight: .bold))
-                                    .foregroundStyle(Theme.iconCoral)
-                                    .accessibilityHidden(true)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("\(report.currentStreak)-day streak")
-                                        .font(Theme.title)
-                                        .foregroundStyle(Theme.ink)
-                                    Text(report.currentStreak == 0 ? "Start with one small style action today." : "Keep the momentum going.")
-                                        .font(Theme.font(.caption))
-                                        .foregroundStyle(Theme.mutedForeground)
-                                }
-                                Spacer()
-                            }
-                            .accessibilityElement(children: .combine)
-                            .softCard()
-
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                metric("Votes", value: report.votesCast, icon: "hand.thumbsup.fill")
-                                metric("Fit-Checks", value: report.fitChecksPosted, icon: "camera.fill")
-                                metric("Comments", value: report.commentsWritten, icon: "bubble.left.fill")
-                                metric("New pieces", value: report.wardrobePiecesAdded, icon: "hanger")
-                            }
-
-                            if let occasion = report.topOccasion {
-                                HStack {
-                                    Text("Your top vibe: \(occasion)")
-                                        .font(Theme.bodyEmphasis)
-                                        .foregroundStyle(Theme.ink)
-                                    Spacer()
-                                }
-                                .softCard(radius: Theme.tileRadius, padding: 14)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(20)
-        }
-        .background(Theme.background)
-        .navigationTitle("Your week")
-        .navigationBarTitleDisplayMode(.inline)
-        .revisionTask(appState.contentRevision) { await load() }
-        .refreshable { await load() }
-    }
-
-    private func metric(_ title: String, value: Int, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon)
-                .foregroundStyle(Theme.accentDeep)
-                .accessibilityHidden(true)
-            Text("\(value)")
-                .font(Theme.editorialFont(size: 28, relativeTo: .title2))
-                .foregroundStyle(Theme.ink)
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-            Text(title)
-                .font(Theme.font(.caption))
-                .foregroundStyle(Theme.mutedForeground)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .softCard(radius: Theme.tileRadius, padding: 14)
-    }
-
-    private func load() async {
-        isLoading = true
-        error = nil
-        defer { isLoading = false }
-        do {
-            report = try await API.fetchWeeklyStyleReport(userId: appState.userId)
-            hasLoaded = true
-        } catch is CancellationError {
-            return
-        } catch {
-            self.error = "Couldn’t load your weekly report. Please try again."
-        }
-    }
-}
-
-/// My-votes row shape — needs `status` and a position-1 thumbnail,
-/// which the shared FeedItemDTO doesn't carry.
-struct MyFitCheck: Identifiable {
-    let id: UUID
-    let caption: String?
-    let status: String
-    var expiresAt: Date? = nil
-    let thumbnailURL: String?
-}
-
-@MainActor
-struct EditProfileView: View {
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var appState: AppState
-
-    @State private var nickname: String
-    @State private var styles: Set<String>
-    @State private var isSaving = false
-    @State private var error: String?
-
-    private static let styleOptions = ["Streetwear", "Casual", "Formal", "Athletic", "Vintage", "Minimalist", "Bohemian", "Glam"]
-
-    init(profile: Profile?) {
-        _nickname = State(initialValue: profile?.nickname ?? "")
-        _styles = State(initialValue: Set(profile?.stylePreferences ?? []))
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    LabeledField(label: "NICKNAME") {
-                        TextField("Your nickname", text: $nickname)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    }
-                    Text("WHAT'S YOUR STYLE?")
-                        .font(Theme.micro)
-                        .foregroundStyle(Theme.mutedForeground)
-                    FlowLayout(spacing: 8) {
-                        ForEach(Self.styleOptions, id: \.self) { style in
-                            ChipToggle(label: style, selected: styles.contains(style)) {
-                                if styles.contains(style) { styles.remove(style) }
-                                else { styles.insert(style) }
-                            }
-                        }
-                    }
-                    if let error { Text(error).font(Theme.label).foregroundStyle(Theme.danger) }
-                    Button(isSaving ? "Saving…" : "Save profile") { Task { await save() } }
-                        .buttonStyle(PrimaryButtonStyle(isDisabled: isSaving))
-                        .disabled(isSaving)
-                }
-                .padding(20)
-            }
-            .background(Theme.background)
-            .navigationTitle("Edit profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-        }
-    }
-
-    private func save() async {
-        let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.range(of: "^[A-Za-z0-9_]{3,20}$", options: .regularExpression) != nil else {
-            error = "Nickname must be 3–20 letters, numbers, or underscores."
-            return
-        }
-        guard !styles.isEmpty else { error = "Pick at least one style."; return }
-        isSaving = true
-        error = nil
-        defer { isSaving = false }
-        do {
-            try await API.saveOnboarding(nickname: trimmed, styles: styles.sorted())
-            await appState.refreshProfile()
-            dismiss()
-        } catch {
             self.error = error.localizedDescription
         }
     }

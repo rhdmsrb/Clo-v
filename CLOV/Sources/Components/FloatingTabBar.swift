@@ -1,12 +1,13 @@
 import SwiftUI
 
 enum MainTab: Hashable {
-    case feed, search, activity, account
+    case feed, groups, search, account
 }
 
 /// Keep the core loops visible in one thumb-reachable navigation bar.
-/// Opaque elevated capsule (no blur under text), sliding selection pill,
-/// and a gradient Post button rising above the bar.
+/// One opaque pill holding oval chips (Feed, Group, Search, Profile) and a
+/// flat circular Post button in the centre, per the hand sketch. The selected
+/// chip fills with a sliding capsule; the others are outlined.
 struct FloatingTabBar: View {
     let selection: MainTab
     let onSelect: (MainTab) -> Void
@@ -15,27 +16,30 @@ struct FloatingTabBar: View {
     @Namespace private var selectionNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @ScaledMetric(relativeTo: .body) private var tabIconSize: CGFloat = 22
-    @ScaledMetric(relativeTo: .body) private var tabHitHeight: CGFloat = 56
-    @ScaledMetric(relativeTo: .body) private var createDiameter: CGFloat = 52
-    @ScaledMetric(relativeTo: .body) private var createIconSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var createIconSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .body) private var badgeSize: CGFloat = 14
 
     private static let labelMinScale: CGFloat = 0.7
+    private static let chipSpacing: CGFloat = 6
+    private static let outlineWidth: CGFloat = 1
+    /// Beyond this size the Search icon is dropped so labels never truncate.
+    private static let iconHiddenFrom: DynamicTypeSize = .xLarge
 
     var body: some View {
-        HStack(spacing: 0) {
-            tabButton(.feed, systemImage: "house", activeSystemImage: "house.fill", label: "For You")
+        HStack(spacing: Self.chipSpacing) {
+            tabChip(.feed, label: "Feed")
                 .accessibilityIdentifier("feedTab")
-            tabButton(.search, systemImage: "magnifyingglass", activeSystemImage: "magnifyingglass", label: "Search")
-                .accessibilityIdentifier("searchTab")
+            tabChip(.groups, label: "Group", showsBadge: true)
+                .accessibilityIdentifier("groupsTab")
 
             createButton
 
-            tabButton(.activity, systemImage: "bell", activeSystemImage: "bell.fill", label: "Activity")
-                .accessibilityIdentifier("activityTab")
-
-            tabButton(.account, systemImage: "person.crop.circle", activeSystemImage: "person.crop.circle.fill", label: "Profile")
+            tabChip(.search, label: "Search", systemImage: "magnifyingglass")
+                .accessibilityIdentifier("searchTab")
+            tabChip(.account, label: "Profile")
                 .accessibilityIdentifier("accountTab")
         }
         .motionSafeAnimation(Theme.quick, value: selection)
@@ -58,25 +62,15 @@ struct FloatingTabBar: View {
 
     private var createButton: some View {
         Button(action: onCreate) {
-            VStack(spacing: 2) {
-                Image(systemName: "plus")
-                    .font(.system(size: createIconSize, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .frame(width: createDiameter, height: createDiameter)
-                    .background(Theme.heroGradient, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5))
-                    .elevatedShadow()
-                Text("Post")
-                    .font(Theme.font(.caption2, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(Self.labelMinScale)
-                    .foregroundStyle(Theme.ink)
-            }
-            .contentShape(Rectangle())
-            .frame(maxWidth: .infinity, minHeight: tabHitHeight, maxHeight: tabHitHeight, alignment: .bottom)
+            Image(systemName: "plus")
+                .font(.system(size: createIconSize, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: chipHeight, height: chipHeight)
+                .background(Theme.heroGradient, in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5))
+                .contentShape(Circle())
         }
         .buttonStyle(PostPressStyle())
-        .frame(maxWidth: .infinity)
         .accessibilityIdentifier("tabPlusButton")
         .accessibilityLabel("Post a Fit-Check")
         .accessibilityShowsLargeContentViewer {
@@ -85,42 +79,60 @@ struct FloatingTabBar: View {
     }
 
     @ViewBuilder
-    private func tabButton(_ target: MainTab, systemImage: String, activeSystemImage: String, label: String) -> some View {
+    private func tabChip(_ target: MainTab, label: String, systemImage: String? = nil, showsBadge: Bool = false) -> some View {
         let isSelected = selection == target
+        let showsIcon = systemImage != nil && dynamicTypeSize < Self.iconHiddenFrom
         Button { onSelect(target) } label: {
-            VStack(spacing: 3) {
-                Image(systemName: isSelected ? activeSystemImage : systemImage)
-                    .font(.system(size: tabIconSize, weight: isSelected ? .semibold : .regular))
-                    .symbolEffect(.bounce, options: .nonRepeating, value: isSelected && !reduceMotion)
+            HStack(spacing: 4) {
+                if showsIcon, let systemImage {
+                    Image(systemName: systemImage)
+                        .font(Theme.font(.caption, weight: .semibold))
+                }
                 Text(label)
-                    .font(Theme.font(.caption2, weight: isSelected ? .bold : .medium))
+                    .font(Theme.font(.caption, weight: isSelected ? .bold : .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(Self.labelMinScale)
             }
             .foregroundStyle(isSelected ? Theme.accentDeep : Theme.mutedForeground)
-            .frame(maxWidth: .infinity, minHeight: tabHitHeight)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, minHeight: chipHeight, maxHeight: chipHeight)
             .background {
-                if isSelected {
+                ZStack {
                     Capsule(style: .continuous)
-                        .fill(Theme.accentTint)
-                        .matchedGeometryEffect(id: "selection", in: selectionNamespace)
+                        .strokeBorder(Theme.controlBorder.opacity(isSelected ? 0 : 0.6), lineWidth: Self.outlineWidth)
+                    if isSelected {
+                        Capsule(style: .continuous)
+                            .fill(Theme.accentTint)
+                            .matchedGeometryEffect(id: "selection", in: selectionNamespace)
+                    }
                 }
             }
-            .contentShape(Rectangle())
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(TabPressStyle())
-        .frame(maxWidth: .infinity)
-        // `.combine` alone would fold the SF Symbol's own auto-generated
-        // description into the label too (e.g. "two people, Groups")
-        // instead of leaving it exactly `label` — pin it explicitly so
-        // VoiceOver reads just the tab name, and so tests/automation
-        // that look up this button by its plain label keep working.
+        .overlay(alignment: .topTrailing) {
+            if showsBadge { plusBadge }
+        }
+        // Pin the label so VoiceOver reads just the tab name (no auto-generated
+        // symbol description) and label-based automation keeps working.
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityShowsLargeContentViewer {
-            Label(label, systemImage: isSelected ? activeSystemImage : systemImage)
+            Label(label, systemImage: systemImage ?? "circle")
         }
+    }
+
+    /// Decorative corner badge (not wired to unread state yet).
+    private var plusBadge: some View {
+        Image(systemName: "plus")
+            .font(.system(size: badgeSize * 0.55, weight: .heavy))
+            .foregroundStyle(Theme.accentDeep)
+            .frame(width: badgeSize, height: badgeSize)
+            .background(Theme.cardElevated, in: Circle())
+            .overlay(Circle().strokeBorder(Theme.accentDeep, lineWidth: 1))
+            .offset(x: -2, y: -2)
+            .accessibilityHidden(true)
     }
 }
 

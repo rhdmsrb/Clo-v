@@ -8,19 +8,25 @@ struct FeedView: View {
     @State private var visibleItems: [FeedItemDTO] = []
     @State private var sort: FeedSortOption = .forYou
     @State private var mode: FeedMode = .forYou
+    @State private var searchText = ""
+    @State private var committedSearch = ""
+    @State private var selectedOccasion: String?
+    @State private var isSearchExpanded = false
+    @State private var searchTask: Task<Void, Never>?
+    @State private var commentItem: FeedItemDTO?
+    @State private var notice: String?
+    @Namespace private var occasionIndicator
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
     @State private var actionError: String?
     @State private var unreadCount = 0
-    @State private var searchText = ""
-    @State private var committedSearch = ""
-    @State private var selectedOccasion: String?
+    @State private var likedIDs: Set<UUID> = []
+    @State private var openedRoute: FitCheckRoute?
     @State private var showChallenge = false
     // Open on the browsable Fit-Check feed. The immersive, one-look-at-a-time
     // reel remains available from the feed's Watch Fit-Checks control.
     @State private var showSwipeFeed = false
-    @State private var isSearchExpanded = false
     @State private var followingIDs: Set<UUID> = []
     @State private var friendIDs: Set<UUID> = []
     @State private var graphRevision: Int?
@@ -33,15 +39,15 @@ struct FeedView: View {
     @State private var isLoadingMore = false
     @State private var loadMoreFailed = false
     @State private var pendingFollowIDs: Set<UUID> = []
-    @State private var searchTask: Task<Void, Never>?
     @State private var loadID = UUID()
-    @Namespace private var occasionIndicator
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tabBarClearance) private var tabBarClearance
 
     private static let pagePadding: CGFloat = 20
     private static let pageSize = 24
-    private static let searchDebounce: Duration = .milliseconds(300)
     private static let cardSpacing: CGFloat = 16
+    private static let searchDebounce: Duration = .milliseconds(300)
+    private static let noticeDuration: Duration = .seconds(3)
     private static let occasionOptions: [(label: String, symbol: String)] = [
         ("Everyday", "sun.max"), ("Work", "briefcase"), ("Date", "heart"), ("Interview", "person.text.rectangle"),
         ("Party", "party.popper"), ("Travel", "airplane"), ("Wedding", "sparkles")
@@ -78,22 +84,52 @@ struct FeedView: View {
             if showSwipeFeed { swipeFeed } else { editorialFeed }
         }
         .navigationBarHidden(true)
-        .navigationDestination(for: FitCheckRoute.self) { route in
-            FitCheckDetailView(fitCheckId: route.id)
-        }
+        .navigationDestination(for: FitCheckRoute.self) { route in routeDestination(route) }
+        .navigationDestination(item: $openedRoute) { route in routeDestination(route) }
         .revisionTask(reloadKey) { await load(refreshGraph: graphRevision != appState.contentRevision) }
         .onChange(of: sort) { _, _ in refreshVisibleItems() }
         .onChange(of: mode) { _, _ in refreshVisibleItems() }
         .onChange(of: selectedOccasion) { _, _ in refreshVisibleItems() }
-        .onChange(of: appState.profile?.stylePreferences) { _, _ in refreshVisibleItems() }
         .onChange(of: searchText) { _, _ in
             refreshVisibleItems()
             debounceSearch()
         }
+        .sheet(item: $commentItem) { item in
+            CommentThreadSheet(fitCheckId: item.id,
+                               photoURLs: PostCardContent.photoURLs(item.fitCheckPhotos).map(\.absoluteString),
+                               voterId: appState.userId, canComment: !isExpired(item.expiresAt))
+                .presentationDetents([.large])
+        }
+        .overlay(alignment: .bottom) { noticeToast }
+        .task(id: notice) {
+            guard notice != nil else { return }
+            try? await Task.sleep(for: Self.noticeDuration)
+            if !Task.isCancelled { notice = nil }
+        }
+        .onChange(of: appState.profile?.stylePreferences) { _, _ in refreshVisibleItems() }
         .alert("Couldn’t update", isPresented: actionErrorBinding) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(actionError ?? "")
+        }
+    }
+
+    /// The hold-to-vote screen when the post is in the loaded feed (the usual
+    /// case for a card tap); the detail screen for links from elsewhere.
+    @ViewBuilder
+    private func routeDestination(_ route: FitCheckRoute) -> some View {
+        if let item = items.first(where: { $0.id == route.id }) {
+            FitCheckReelView(
+                item: item,
+                voterId: appState.userId,
+                isFollowing: followingIDs.contains(item.creatorId),
+                initialPhotoIndex: route.photoIndex,
+                onToggleFollow: { toggleFollow(item.creatorId, follow: $0) },
+                onEvent: { logEvent(item, event: $0) },
+                onImpression: { logImpression(for: item) }
+            )
+        } else {
+            FitCheckDetailView(fitCheckId: route.id)
         }
     }
 
@@ -143,6 +179,7 @@ struct FeedView: View {
             .padding(.horizontal, Self.pagePadding)
             .padding(.vertical, Self.cardSpacing)
         }
+        .safeAreaPadding(.bottom, tabBarClearance)
         .background(Theme.background)
         .safeAreaInset(edge: .top, spacing: 0) { pinnedFilters }
         .refreshable { await load(refreshGraph: true) }
@@ -185,7 +222,10 @@ struct FeedView: View {
                 withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { isSearchExpanded.toggle() }
             }
             NavigationLink {
-                NotificationsView(onRead: { Task { await loadUnreadCount() } })
+                NotificationsView(onRead: {
+                    appState.contentDidChange()
+                    Task { await loadUnreadCount() }
+                })
             } label: {
                 FeedBellIcon(unreadCount: unreadCount)
             }
@@ -227,19 +267,33 @@ struct FeedView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 FeedOccasionChip(label: "All", symbol: "square.grid.2x2", isSelected: selectedOccasion == nil,
-                                 namespace: occasionIndicator) { select(occasion: nil) }
+                                 namespace: occasionIndicator) { selectedOccasion = nil }
                 ForEach(Self.occasionOptions, id: \.label) { option in
                     FeedOccasionChip(label: option.label, symbol: option.symbol,
                                      isSelected: selectedOccasion == option.label,
-                                     namespace: occasionIndicator) {
-                        select(occasion: option.label)
-                    }
+                                     namespace: occasionIndicator) { selectedOccasion = option.label }
                 }
             }
         }
-        // Run the chip row edge to edge so the last visible chip is clearly
-        // cut by the screen, not by the page padding.
+        // Edge to edge so the last visible chip is cut by the screen, not the page padding.
         .contentMargins(.horizontal, Self.pagePadding, for: .scrollContent)
+    }
+
+    @ViewBuilder
+    private var noticeToast: some View {
+        if let notice {
+            Text(notice)
+                .font(Theme.bodyEmphasis)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Theme.ink.opacity(0.92), in: Capsule())
+                .padding(.bottom, tabBarClearance + 12)
+                .transition(.opacity)
+                .accessibilityIdentifier("feed-notice")
+                .onAppear { AccessibilityNotification.Announcement(notice).post() }
+        }
     }
 
     private var feedList: some View {
@@ -250,11 +304,16 @@ struct FeedView: View {
                        emptyAction: { showChallenge = true }, skeleton: .cards) {
             LazyVStack(spacing: Self.cardSpacing) {
                 ForEach(visibleItems) { item in
-                    FitCheckCardView(
+                    FeedPostCard(
                         item: item,
-                        voterId: appState.userId,
+                        isLiked: likedIDs.contains(item.id),
+                        viewerId: appState.userId,
                         isFollowing: followingIDs.contains(item.creatorId),
-                        onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) }
+                        showsFollow: item.creatorId != appState.userId,
+                        onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) },
+                        onLike: { like in try await setLiked(like, item: item) },
+                        onOpen: { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) },
+                        onComment: { commentItem = item }
                     )
                     .scrollTransition(.animated(Theme.settle), axis: .vertical) { [reduceMotion] view, phase in
                         view
@@ -309,10 +368,6 @@ struct FeedView: View {
     private func select(_ newMode: FeedMode) {
         guard mode != newMode else { return }
         mode = newMode
-    }
-
-    private func select(occasion: String?) {
-        selectedOccasion = occasion
     }
 
     private func refreshVisibleItems() {
@@ -402,6 +457,7 @@ struct FeedView: View {
             canLoadMore = page.fetchedCount == Self.pageSize
             setItems(page.items)
             hasLoaded = true
+            Task { await loadLikedState(for: page.items) }
             if needsGraph { refreshSideData() }
         } catch is CancellationError {
             return
@@ -431,7 +487,9 @@ struct FeedView: View {
                                                    friendIDs: friendIDs)
             guard loadID == requestID else { return }
             let existing = Set(items.map(\.id))
-            setItems(items + page.items.filter { !existing.contains($0.id) })
+            let fresh = page.items.filter { !existing.contains($0.id) }
+            setItems(items + fresh)
+            Task { await loadLikedState(for: fresh) }
             nextOffset += page.fetchedCount
             canLoadMore = page.fetchedCount == Self.pageSize
         } catch is CancellationError {
@@ -441,6 +499,39 @@ struct FeedView: View {
             // Pagination is additive. Keep the loaded feed usable and offer an
             // explicit retry instead of re-requesting in a loop.
             if loadID == requestID { loadMoreFailed = true }
+        }
+    }
+
+    // MARK: - Likes
+
+    /// Likes are best-effort: if the engagement tables are unavailable the feed
+    /// still works and every post simply shows as not liked.
+    private func loadLikedState(for loaded: [FeedItemDTO]) async {
+        let ids = loaded.map(\.id)
+        guard let liked = await Log.attempt("Load liked posts", {
+            try await API.fetchLikedFitCheckIDs(among: ids, userId: appState.userId)
+        }) else { return }
+        likedIDs.formUnion(liked)
+    }
+
+    /// Throws so `LikeButton` can roll back its optimistic state.
+    private func setLiked(_ like: Bool, item: FeedItemDTO) async throws {
+        do {
+            if like {
+                try await API.likeFitCheck(id: item.id, userId: appState.userId)
+                likedIDs.insert(item.id)
+            } else {
+                try await API.unlikeFitCheck(id: item.id, userId: appState.userId)
+                likedIDs.remove(item.id)
+            }
+        } catch {
+            if !(error is CancellationError) {
+                Log.app.error("Like toggle failed: \(error.localizedDescription)")
+                withAnimation(Theme.animation(Theme.quick, reduceMotion: reduceMotion)) {
+                    notice = friendlyMessage(for: error, fallback: "Couldn’t update your like. Please try again.")
+                }
+            }
+            throw error
         }
     }
 

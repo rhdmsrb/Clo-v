@@ -45,12 +45,11 @@ final class DevLoginUITests: XCTestCase {
         if logInButton.exists { return }
         XCTAssertTrue(accountTab.exists, "Neither the auth screen nor the main tabs appeared.")
         accountTab.tap()
-        let settings = app.buttons["settingsButton"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 5), "Settings button missing on the Account screen.")
-        settings.tap()
-        let logOut = app.buttons["settingsLogOut"]
-        for _ in 0..<8 where !logOut.isHittable { app.swipeUp() }
-        XCTAssertTrue(logOut.isHittable, "Log out row not reachable in Settings.")
+        let menu = app.buttons["profile.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5), "Profile menu missing on the Account screen.")
+        menu.tap()
+        let logOut = app.buttons["profile.logout"]
+        XCTAssertTrue(logOut.waitForExistence(timeout: 5), "Log out entry missing from the profile menu.")
         logOut.tap()
     }
 }

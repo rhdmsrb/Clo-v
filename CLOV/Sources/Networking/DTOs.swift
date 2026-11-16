@@ -29,6 +29,11 @@ struct FeedItemDTO: Codable, Identifiable {
     /// From fit_checks.is_public. Nil when the server did not send it, which
     /// callers must treat as "not public".
     var isPublic: Bool?
+    /// Post-level tags and like total; nil until migrations 20261107* are live.
+    var tags: [String]? = nil
+    var likeCount: Int? = nil
+    /// fit_checks.vote_count (publicly readable total); nil on older rows.
+    var voteCount: Int? = nil
 }
 
 struct FitCheckDetailDTO: Codable {
@@ -51,6 +56,8 @@ struct CommentDTO: Codable, Identifiable {
     let body: String
     var createdAt: Date
     var profiles: AuthorInfo?
+    /// The photo this comment is about; nil for a general comment on the whole Fit-Check.
+    var photoId: UUID? = nil
 }
 
 struct MembershipGroupDTO: Codable {

@@ -18,6 +18,33 @@ final class DesignReviewUITests: XCTestCase {
 
     // MARK: - Walks
 
+    func testGroupFeedOpensVotingScreen() {
+        let app = launchApp()
+        let groups = app.buttons["groupsTab"]
+        XCTAssertTrue(groups.waitForExistence(timeout: 10))
+        groups.tap()
+        let group = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sunday Stylists'")).firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout: 10))
+        group.tap()
+        XCTAssertTrue(app.staticTexts["Sunday Stylists"].firstMatch.waitForExistence(timeout: 10))
+        let post = app.buttons["groupFeed.card"].firstMatch
+        XCTAssertTrue(post.waitForExistence(timeout: 10))
+        post.tap()
+        XCTAssertTrue(app.buttons["reelBackButton"].waitForExistence(timeout: 10))
+        app.buttons["reelBackButton"].tap()
+        XCTAssertTrue(app.buttons["groupFeed.card"].firstMatch.waitForExistence(timeout: 10))
+    }
+
+    func testExploreSearchAcceptsText() {
+        let app = launchApp()
+        app.buttons["searchTab"].tap()
+        let field = app.textFields["search.query"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("fit")
+        XCTAssertEqual(field.value as? String, "fit")
+    }
+
     func testWalkMainScreens() {
         let app = launchApp()
         walkFeed(app, prefix: "feed")
@@ -57,9 +84,7 @@ final class DesignReviewUITests: XCTestCase {
         attach(app, name: "\(prefix)-02-scrolled")
         scroll(app, up: false, times: 2)
 
-        voteOnFirstLook(app, prefix: prefix)
-        openPhotoZoom(app, prefix: prefix)
-        openFirstDetail(app, prefix: prefix)
+        openCommentSheet(app, prefix: prefix)
     }
 
     /// Voting opens the "why did you vote" sheet, which doubles as the
@@ -86,14 +111,19 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     private func openCommentSheet(_ app: XCUIApplication, prefix: String) {
-        guard let look = scrollToVisible(app, buttons(app, labeled: "Look 1")), tap(look) else {
+        let comment = app.buttons["feed-comment-button"].firstMatch
+        guard comment.waitForExistence(timeout: Self.shortWait), tap(comment),
+              app.buttons["reelBackButton"].waitForExistence(timeout: Self.shortWait) else {
             attach(app, name: "\(prefix)-comment-sheet-missing"); return
         }
-        confirmVoteIfAsked(app)
-        settle()
-        attach(app, name: "\(prefix)-comment-sheet")
-        dismissSheet(app)
-        attach(app, name: "\(prefix)-after-vote")
+        attach(app, name: "\(prefix)-vote-screen")
+        let comments = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Comments'")).firstMatch
+        if tap(comments) {
+            settle()
+            attach(app, name: "\(prefix)-comment-sheet")
+            app.swipeDown()
+        }
+        _ = tap(app.buttons["reelBackButton"])
     }
 
     private func openPhotoZoom(_ app: XCUIApplication, prefix: String) {
@@ -154,12 +184,7 @@ final class DesignReviewUITests: XCTestCase {
     private func walkSearch(_ app: XCUIApplication, prefix: String = "search") {
         tapTab(app, "searchTab", shot: "\(prefix)-01-tab")
         let field = app.textFields["search.query"]
-        if field.waitForExistence(timeout: Self.shortWait) {
-            field.tap()
-            field.typeText("fit")
-            settle()
-            attach(app, name: "\(prefix)-02-results")
-        }
+        if field.waitForExistence(timeout: Self.shortWait) { attach(app, name: "\(prefix)-02-search") }
     }
 
     private func walkAccount(_ app: XCUIApplication, prefix: String = "account") {
@@ -176,12 +201,7 @@ final class DesignReviewUITests: XCTestCase {
         goBack(app)
         openShortcut(app, "Friends", shot: "\(prefix)-07-friends")
         goBack(app)
-        if let yourWeek = scrollToVisible(app, app.buttons.matching(identifier: "yourWeekButton")) {
-            yourWeek.tap()
-            settle()
-            attach(app, name: "\(prefix)-08-your-week")
-            goBack(app)
-        }
+        if tap(app.buttons["profile.menu"]), tap(app.buttons["yourWeekButton"]) { settle(); attach(app, name: "\(prefix)-08-your-week"); goBack(app) }
     }
 
     private func walkCreate(_ app: XCUIApplication) {
@@ -190,7 +210,7 @@ final class DesignReviewUITests: XCTestCase {
         attach(app, name: "create-01-sheet")
         scroll(app)
         attach(app, name: "create-02-scrolled")
-        _ = tap(app.buttons["Cancel"].firstMatch)
+        _ = tap(app.buttons["createCloseButton"])
         settle()
     }
 
@@ -207,12 +227,11 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     private func openShortcut(_ app: XCUIApplication, _ title: String, shot: String) {
-        // The shortcut grid sits below "Your Fit-Checks", so scroll a tile into view first.
-        guard let row = scrollToVisible(app, app.buttons.matching(identifier: "profileShortcut_\(title)")) else {
-            attach(app, name: "\(shot)-missing")
-            return
-        }
-        row.tap()
+        // Shortcuts live in the Profile menu; open it first.
+        _ = tap(app.buttons["profile.menu"])
+        let row = app.buttons["profileShortcut_\(title)"].firstMatch
+        let fallback = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", title)).firstMatch
+        if !tap(row) && !tap(fallback) { attach(app, name: "\(shot)-missing"); return }
         settle()
         attach(app, name: shot)
     }

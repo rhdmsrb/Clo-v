@@ -3,23 +3,36 @@ import SwiftUI
 struct GroupsView: View {
     @EnvironmentObject private var appState: AppState
 
+    /// True when pushed inside another NavigationStack (e.g. from Profile).
+    /// As a tab root (default) the view owns its NavigationStack.
+    var embedded = false
+
     @State private var groups: [FashionGroup] = []
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
-
-    @State private var showCreateSheet = false
-    @State private var joinCode = ""
-    @State private var joinError: String?
-    @State private var isJoining = false
+    @State private var addMode: GroupAddSheet.Mode?
 
     var body: some View {
+        if embedded {
+            content
+        } else {
+            NavigationStack { content }
+        }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
-                Button("Create a private circle") { showCreateSheet = true }
-                    .buttonStyle(PrimaryButtonStyle())
-                joinCard
+                HStack(spacing: 8) {
+                    Button("+ Create") { addMode = .create }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .accessibilityIdentifier("groups.create")
+                    Button("+ Join") { addMode = .join }
+                        .buttonStyle(OutlineButtonStyle())
+                        .accessibilityIdentifier("groups.join")
+                }
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 20, hasLoaded: hasLoaded, retry: { await load() }) {
                     circlesSection
                 }
@@ -27,11 +40,12 @@ struct GroupsView: View {
             .padding(20)
         }
         .background(Theme.background)
+        .accessibilityIdentifier("groups.root")
         .navigationDestination(for: UUID.self) { id in
-            GroupDetailView(groupId: id)
+            GroupDetailView(groupId: id, groupName: groups.first(where: { $0.id == id })?.name)
         }
-        .sheet(isPresented: $showCreateSheet) {
-            NewGroupSheet { await load() }
+        .sheet(item: $addMode) { mode in
+            GroupAddSheet(initialMode: mode) { await load() }
         }
         .revisionTask(appState.contentRevision) { await load() }
         .refreshable { await load() }
@@ -39,7 +53,7 @@ struct GroupsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Style Circles")
+            Text("Groups")
                 .font(Theme.editorialFont(size: 34, relativeTo: .largeTitle))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
@@ -52,73 +66,22 @@ struct GroupsView: View {
         }
     }
 
-    private var joinCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Join a private circle")
-                .font(Theme.headline)
-                .foregroundStyle(Theme.ink)
-                .accessibilityAddTraits(.isHeader)
-            TextField("ABC123", text: $joinCode)
-                .font(Theme.body)
-                .accessibilityLabel("Invite code")
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .padding(.horizontal, 16)
-                .frame(minHeight: Theme.minTapSize)
-                .background(Theme.muted, in: Capsule(style: .continuous))
-                .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
-            if let joinError {
-                Text(joinError).font(Theme.caption).foregroundStyle(Theme.danger)
-            }
-            Button(isJoining ? "Joining…" : "Join with invite code") { Task { await join() } }
-                .buttonStyle(PrimaryButtonStyle(isDisabled: isJoining))
-                .disabled(isJoining)
-        }
-        .elevatedCard()
-    }
-
     @ViewBuilder private var circlesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            SectionHeader(title: "Private circles")
             if groups.isEmpty {
                 EmptyStateView(
                     icon: "person.2",
-                    title: "No circles yet",
-                    message: "Create one or join with an invite code above.",
-                    actionTitle: "Create a circle"
-                ) { showCreateSheet = true }
+                    title: "No groups yet",
+                    message: "Create one or join with an invite code.",
+                    actionTitle: "Create a group"
+                ) { addMode = .create }
                 .padding(.vertical, 12)
             } else {
                 ForEach(groups) { group in
-                    NavigationLink(value: group.id) { GroupCard(group: group) }
-                        .buttonStyle(.plain)
+                    GroupCard(group: group)
                 }
             }
-            SectionHeader(title: "Public circles")
-            publicPlaceholder
         }
-    }
-
-    private var publicPlaceholder: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "globe.americas")
-                .font(.title3)
-                .foregroundStyle(Theme.accentDeep)
-                .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                .background(Theme.accentTint, in: Circle())
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Discover public style circles")
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Theme.ink)
-                Text("Public circles will appear here when discovery is available.")
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.mutedForeground)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .softCard()
-        .accessibilityElement(children: .combine)
     }
 
     private func load() async {
@@ -134,80 +97,6 @@ struct GroupsView: View {
             self.error = "Couldn’t load this content. Please try again."
         }
     }
-
-    private func join() async {
-        joinError = nil
-        isJoining = true
-        defer { isJoining = false }
-        do {
-            _ = try await API.joinGroup(code: joinCode)
-            Haptics.success()
-            joinCode = ""
-            await load()
-        } catch {
-            Haptics.error()
-            joinError = error.localizedDescription
-        }
-    }
-}
-
-private struct NewGroupSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var appState: AppState
-    let onCreated: () async -> Void
-
-    @State private var name = ""
-    @State private var error: String?
-    @State private var isSaving = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("New private circle")
-                .font(Theme.displayFont)
-                .foregroundStyle(Theme.ink)
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .accessibilityAddTraits(.isHeader)
-            Text("Name your circle, then invite friends with a private code.")
-                .font(Theme.body)
-                .foregroundStyle(Theme.mutedForeground)
-            TextField("Name your circle", text: $name)
-                .font(Theme.body)
-                .padding(.horizontal, 16)
-                .frame(minHeight: Theme.minTapSize)
-                .background(Theme.muted, in: Capsule(style: .continuous))
-                .overlay(Capsule(style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
-            if let error {
-                Text(error).font(Theme.caption).foregroundStyle(Theme.danger)
-            }
-            Button(isSaving ? "Please wait…" : "Create private circle") { Task { await create() } }
-                .buttonStyle(PrimaryButtonStyle(isDisabled: isSaving))
-                .disabled(isSaving)
-            Spacer()
-        }
-        .padding(24)
-        .presentationCornerRadius(32)
-        .presentationBackground(Theme.cardElevated)
-    }
-
-    private func create() async {
-        guard name.trimmingCharacters(in: .whitespaces).count >= 2 else {
-            error = "Group name must be 2-40 characters."
-            return
-        }
-        isSaving = true
-        defer { isSaving = false }
-        do {
-            _ = try await API.createGroup(name: name, creatorId: appState.userId)
-            Haptics.success()
-            await onCreated()
-            dismiss()
-        } catch {
-            Haptics.error()
-            self.error = error.localizedDescription
-        }
-    }
 }
 
 /// Elevated list card for one circle: icon, name, and a copyable invite-code capsule.
@@ -216,28 +105,32 @@ private struct GroupCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: "person.2.fill")
-                    .font(.title3)
-                    .foregroundStyle(Theme.accentDeep)
-                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                    .background(Theme.accentTint, in: Circle())
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(group.name)
-                        .font(Theme.headline)
-                        .foregroundStyle(Theme.ink)
-                    Text("Private circle")
+            NavigationLink(value: group.id) {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.2.fill")
+                        .font(.title3)
+                        .foregroundStyle(Theme.accentDeep)
+                        .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                        .background(Theme.accentTint, in: Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(group.name)
+                            .font(Theme.headline)
+                            .foregroundStyle(Theme.ink)
+                        Text("Private circle")
+                            .font(Theme.caption)
+                            .foregroundStyle(Theme.mutedForeground)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
                         .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
+                        .accessibilityHidden(true)
                 }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.mutedForeground)
-                    .accessibilityHidden(true)
+                .contentShape(Rectangle())
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
+            .buttonStyle(.plain)
             InviteCodeCapsule(code: group.inviteCode)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

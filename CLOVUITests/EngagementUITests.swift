@@ -29,14 +29,16 @@ final class EngagementUITests: XCTestCase {
         XCTAssertTrue(app.buttons["searchTab"].waitForExistence(timeout: 15))
         app.buttons["searchTab"].tap()
 
-        // Fresh install: ideas to try, no history yet.
+        // Focusing the empty field shows ideas to try (no history yet).
+        let field = app.textFields["search.query"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "Search field missing.")
+        field.tap()
         let suggestion = app.buttons["suggestion_Brunch"]
         XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "Suggestions missing.")
         attach(app, "1-suggestions")
         suggestion.tap()
 
         // Searching puts the term into the field; clearing the field shows it as a recent.
-        let field = app.textFields["search.query"]
         XCTAssertEqual(field.value as? String, "Brunch")
         app.buttons["Clear search"].tap()
         let recent = app.buttons["recent_Brunch"]

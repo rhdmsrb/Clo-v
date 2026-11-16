@@ -1,0 +1,30 @@
+create role anon nologin; create role authenticated nologin;
+create schema auth;
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+grant usage on schema auth, public to anon, authenticated;
+create table public.profiles(id uuid primary key, nickname text unique, style_preferences text[]);
+create table public.friend_requests(id uuid primary key default gen_random_uuid(), requester_id uuid, addressee_id uuid, status text default 'pending', responded_at timestamptz);
+create table public.friendships(user_low uuid, user_high uuid, created_at timestamptz default now(), primary key(user_low,user_high));
+create table public.notifications(recipient_id uuid, actor_id uuid, type text);
+create table public.blocked_users(blocker_id uuid, blocked_id uuid);
+create table public.fit_checks(id uuid primary key default gen_random_uuid(), creator_id uuid, is_public bool, status text, expires_at timestamptz, created_at timestamptz default now(), vote_count int default 0, comment_count int default 0);
+create table public.wardrobe_items(id uuid, owner_id uuid, image_url text);
+create table public.device_tokens(token text primary key, user_id uuid);
+create table public.content_reports(id uuid primary key default gen_random_uuid(), reporter_id uuid, fit_check_id uuid, comment_id uuid, reported_user_id uuid, reason text, details text, created_at timestamptz default now(), unique(reporter_id,fit_check_id,comment_id,reported_user_id));
+create function public.is_blocked_pair(o uuid) returns boolean language sql stable security definer set search_path='' as $$
+ select o <> auth.uid() and exists(select 1 from public.blocked_users b where (b.blocker_id=auth.uid() and b.blocked_id=o) or (b.blocker_id=o and b.blocked_id=auth.uid())) $$;
+create function public.cancel_friend_request(uuid) returns void language sql as 'select';
+create function public.save_vote_reason(uuid,uuid,text[],text) returns void language sql as 'select';
+create function public.send_friend_request(uuid) returns void language sql as 'select';
+create function public.respond_friend_request(uuid, boolean) returns public.friendships language sql as 'select null::public.friendships';
+create function public.get_mutual_friend_counts(uuid[]) returns table(user_id uuid, mutual_count bigint) language sql as 'select null::uuid, 0::bigint';
+create function public.popular_fit_checks(integer,integer,integer) returns table(id uuid, score bigint) language sql as 'select null::uuid, 0::bigint';
+create function public.save_onboarding(text,text[]) returns public.profiles language sql as 'select null::public.profiles';
+create function public.submit_content_report(uuid,uuid,uuid,text,text) returns public.content_reports language sql as 'select null::public.content_reports';
+grant all on all tables in schema public to anon, authenticated;
+-- columns/tables added for 20261103000200
+alter table public.profiles add column avatar_url text, add column account_code text, add column created_at timestamptz default now();
+alter table public.notifications add column fit_check_id uuid, add column photo_id uuid, add column comment_id uuid;
+create table public.fit_check_votes(fit_check_id uuid, photo_id uuid, voter_id uuid);
+create table public.fit_check_comments(id uuid primary key default gen_random_uuid(), fit_check_id uuid, photo_id uuid, commenter_id uuid, body text);
+grant all on all tables in schema public to anon, authenticated;

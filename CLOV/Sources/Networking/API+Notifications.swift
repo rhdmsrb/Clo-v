@@ -60,9 +60,11 @@ extension API {
 #if DEBUG
         if SampleData.isActive { return }
 #endif
-        try await client.from("fit_checks")
-            .update(["status": "archived", "ended_at": ISO8601DateFormatter().string(from: Date())])
-            .eq("id", value: id).eq("creator_id", value: creatorId).execute()
+        // Clients have no UPDATE privilege on fit_checks; the definer RPC checks
+        // ownership and picks the right end state (archived vs expired).
+        let session = try await client.auth.session
+        guard creatorId == session.user.id else { throw APIError.message("Please sign in again.") }
+        try await client.rpc("terminate_fit_check", params: ["p_id": id]).execute()
     }
 
     /// Permanently removes a Fit-Check the caller owns — live or archived —

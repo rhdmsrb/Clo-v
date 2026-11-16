@@ -50,6 +50,9 @@ targets:
         DEVELOPMENT_TEAM: ""
         CODE_SIGN_ENTITLEMENTS: CLOV/CLOV.entitlements
       configs:
+        Debug:
+          # No push / Sign in with Apple, so a free personal team can sign device builds.
+          CODE_SIGN_ENTITLEMENTS: CLOV/CLOVDebug.entitlements
         Release:
           # Release builds register for production APNs.
           CODE_SIGN_ENTITLEMENTS: CLOV/CLOVRelease.entitlements

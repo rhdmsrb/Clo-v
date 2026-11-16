@@ -1,0 +1,60 @@
+import Foundation
+
+/// Pure display rules for the feed post card, kept out of the view so they
+/// can be unit tested.
+enum PostCardContent {
+    static let fallbackTitle = "Fit-Check"
+
+    /// The vote prompt, else the occasion, else a generic title.
+    static func title(votePrompt: String?, occasion: String?) -> String {
+        for candidate in [votePrompt, occasion] {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return fallbackTitle
+    }
+
+    /// Photo URLs in display order; photos with unusable URLs are dropped.
+    static func photoURLs(_ photos: [FitCheckPhoto]) -> [URL] {
+        photos.sorted { $0.position < $1.position }
+            .compactMap { URL(string: $0.imageUrl) }
+            .filter { $0.scheme?.hasPrefix("http") == true && $0.host != nil }
+    }
+
+    /// "@CODE" when the account code is known, else "@nickname", else "@someone".
+    static func handle(accountCode: String?, nickname: String?) -> String {
+        for candidate in [accountCode, nickname] {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty { return "@\(trimmed)" }
+        }
+        return "@someone"
+    }
+
+    /// The photo's own description, else the post caption, else nil.
+    static func overlayDescription(photoDescription: String?, caption: String?) -> String? {
+        for candidate in [photoDescription, caption] {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
+    }
+
+    /// Up to `limit` non-blank tags, in order, shown as "#tag".
+    static func displayTags(_ tags: [String]?, limit: Int = 4) -> [String] {
+        (tags ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }.prefix(limit).map { "#\($0)" }
+    }
+
+    /// Text shared from the Send action. With a link: "<title>\n\nVote on CLO·V: <url>";
+    /// without one (share domain not configured): "<title>\n\nCheck out this Fit-Check on CLO·V".
+    static func shareText(title: String, url: URL?) -> String {
+        guard let url else { return "\(title)\n\nCheck out this Fit-Check on CLO·V" }
+        return "\(title)\n\nVote on CLO·V: \(url.absoluteString)"
+    }
+
+    /// Like total to show next to the Like button; nil (hidden) when unknown or zero.
+    static func displayLikeCount(_ count: Int?) -> Int? {
+        guard let count, count > 0 else { return nil }
+        return count
+    }
+}

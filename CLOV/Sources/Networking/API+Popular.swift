@@ -26,15 +26,18 @@ extension API {
             .execute().value
         guard !ranked.isEmpty else { return FeedPageResult(items: [], fetchedCount: 0) }
 
-        let rows: [FeedItemDTO] = try await client.from("fit_checks")
-            .select(feedColumns)
-            .in("id", values: ranked.map(\.id))
-            .execute().value
+        async let blockedTask = fetchBlockedUserIDs()
+        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
+            try await client.from("fit_checks")
+                .select(columns)
+                .in("id", values: ranked.map(\.id))
+                .execute().value
+        }
         // The IN query has no order; restore the server's popularity order.
-        let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+        let byID = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let ordered = ranked.compactMap { byID[$0.id] }
 
-        let blocked = try await fetchBlockedUserIDs()
+        let blocked = try await blockedTask
         let withPrompts = await attachVotePrompts(ordered)
         let visible = try await signFeedPhotos(withPrompts.filter { !blocked.contains($0.creatorId) })
         return FeedPageResult(items: visible, fetchedCount: ranked.count)
