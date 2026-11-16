@@ -284,6 +284,7 @@ struct FitCheckDetailView: View {
         } catch is CancellationError {
             return
         } catch {
+            Log.app.error("Fit-Check detail load failed: \(String(describing: error))")
             self.error = "Couldn’t load this content. Please try again."
         }
     }
