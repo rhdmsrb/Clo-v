@@ -40,7 +40,7 @@ enum VoteReveal {
 struct RevealCounter: View {
     enum Style { case count, percent }
 
-    static let duration: Double = 0.9
+    static let duration: Double = 3.0
     static let window: TimeInterval = duration + 0.6
 
     let target: Int

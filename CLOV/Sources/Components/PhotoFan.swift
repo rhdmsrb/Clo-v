@@ -77,7 +77,9 @@ struct PhotoFan: View {
             }
     }
 
-    private static let staggerStep: Double = 0.12
+    private static let staggerStep: Double = 0.8
+    /// Caps the stagger so a photo deep in the fan never waits several seconds to count.
+    private static let maxStaggerDelay: Double = 2.4
 
     private func resultChip(_ photo: FitCheckPhoto, index: Int) -> some View {
         let isLeading = leadingIds.contains(photo.id)
@@ -89,7 +91,7 @@ struct PhotoFan: View {
                     .accessibilityHidden(true)
             }
             RevealCounter(target: percent(photo.id), isRevealed: isResultsRevealed, style: .percent,
-                          delay: reduceMotion ? 0 : Double(index) * Self.staggerStep)
+                          delay: reduceMotion ? 0 : min(Double(index) * Self.staggerStep, Self.maxStaggerDelay))
         }
         .font(Theme.font(.subheadline, weight: photo.id == myVote ? .black : .bold))
         .foregroundStyle(.white)
