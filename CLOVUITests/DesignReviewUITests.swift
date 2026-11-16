@@ -162,7 +162,7 @@ final class DesignReviewUITests: XCTestCase {
         // The swipe feed has no close control while it shows items; the
         // selected tab is the only way back (reported as a UX finding).
         tapTab(app, "feedTab", shot: "swipe-04-after-feed-tab")
-        if !app.staticTexts["Discover"].firstMatch.exists {
+        if !app.buttons["watchFeedButton"].firstMatch.exists {
             attach(app, name: "swipe-05-still-in-swipe-feed")
             let explore = app.buttons["Explore Fit-Checks"]
             _ = tap(explore)
@@ -220,7 +220,7 @@ final class DesignReviewUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument] + arguments
         app.launch()
-        XCTAssertTrue(app.staticTexts["Discover"].firstMatch.waitForExistence(timeout: 10),
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10),
                       "Sample-data feed never appeared")
         settle()
         return app
@@ -247,7 +247,18 @@ final class DesignReviewUITests: XCTestCase {
     @discardableResult
     private func tap(_ element: XCUIElement) -> Bool {
         guard element.waitForExistence(timeout: Self.shortWait) else { return false }
-        if element.isHittable { element.tap() } else { element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+        // Calling `isHittable` on an element that is mid-scroll or not laid out yet
+        // raises "Failed to determine hittability", so wait for its centre to sit
+        // inside the window and tap that point instead.
+        let window = XCUIApplication().windows.firstMatch.frame
+        let deadline = Date().addingTimeInterval(Self.shortWait)
+        func isOnScreen() -> Bool {
+            let frame = element.frame
+            return !frame.isEmpty && window.contains(CGPoint(x: frame.midX, y: frame.midY))
+        }
+        while !isOnScreen() && Date() < deadline { Thread.sleep(forTimeInterval: 0.2) }
+        guard isOnScreen() else { return false }
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         return true
     }
 

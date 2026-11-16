@@ -39,6 +39,7 @@ struct GroupsView: View {
             }
             .padding(20)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .accessibilityIdentifier("groups.root")
         .navigationDestination(for: UUID.self) { id in

@@ -9,7 +9,46 @@ struct FitCheckPostResult: Equatable {
     let droppedExtras: Bool
 }
 
+/// What the server holds for a post whose publish call failed.
+enum PostServerState: Equatable {
+    case live, draft, missing
+    /// The status lookup itself failed, so nothing is known.
+    case unknown
+
+    /// Any status other than `draft` means the post was published.
+    init(status: String) { self = status == "draft" ? .draft : .live }
+}
+
+/// What to do with a post after its publish call failed.
+enum PublishRecovery: Equatable {
+    case treatAsPublished, discard, leaveUntouched
+}
+
 extension API {
+    static func publishRecovery(for state: PostServerState) -> PublishRecovery {
+        switch state {
+        case .live: .treatAsPublished
+        case .draft, .missing: .discard
+        case .unknown: .leaveUntouched
+        }
+    }
+
+    /// Looks the post up by id; `.unknown` when the lookup fails. Detached so a
+    /// cancelled caller still gets an answer.
+    private static func serverState(ofFitCheck id: UUID) async -> PostServerState {
+        struct StatusRow: Decodable { let status: String }
+        return await Task.detached {
+            do {
+                let rows: [StatusRow] = try await client.from("fit_checks").select("status")
+                    .eq("id", value: id).limit(1).execute().value
+                return rows.first.map { PostServerState(status: $0.status) } ?? .missing
+            } catch {
+                Log.app.error("Post status lookup failed: \(error.localizedDescription)")
+                return .unknown
+            }
+        }.value
+    }
+
     private struct PublishParams: Encodable {
         let id: UUID
         let durationSeconds: Int
@@ -42,7 +81,8 @@ extension API {
 
         // The id is generated here so a draft whose response was lost can still be cleaned up.
         let draftParams = DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion,
-                                      tags: clean.tags.isEmpty ? nil : clean.tags, votePrompt: clean.votePrompt)
+                                      tags: clean.tags.isEmpty ? nil : clean.tags, votePrompt: clean.votePrompt,
+                                      audience: ["friends", "private"].contains(audience) ? audience : nil)
         let fitCheckId: UUID
         let draftDropped: Bool
         do {
@@ -68,11 +108,21 @@ extension API {
             publishStarted = true
             try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
         } catch {
-            // Cancelled while publishing: the server may already have made the post
-            // live. Deleting it would destroy a real post, so leave it alone.
-            if publishStarted, error is CancellationError {
-                Log.app.error("Post cancelled during publish; leaving \(fitCheckId.uuidString) untouched")
-                throw error
+            // Once publishing started, the server may have gone live even though the
+            // response was lost (timeout, dropped signal, cancellation). Deleting a
+            // live post is irreversible, so ask the server before discarding.
+            if publishStarted {
+                let state = await serverState(ofFitCheck: fitCheckId)
+                switch publishRecovery(for: state) {
+                case .treatAsPublished:
+                    Log.app.error("Publish reported \(error.localizedDescription) but \(fitCheckId.uuidString) is live; treating as posted")
+                    return FitCheckPostResult(droppedExtras: draftDropped || (photoExtrasDropped && hasPhotoExtras(clean.details)))
+                case .leaveUntouched:
+                    Log.app.error("Publish failed and post state is unknown; leaving \(fitCheckId.uuidString) untouched")
+                    throw error
+                case .discard:
+                    break
+                }
             }
             await discardDraft(fitCheckId: fitCheckId, creatorId: creatorId, uploadedPaths: uploadedPaths)
             throw error
@@ -88,10 +138,9 @@ extension API {
                 .eq("group_id", value: groupId).eq("profile_id", value: creatorId).execute().value
             guard !memberships.isEmpty else { throw APIError.message("You're not a member of that group.") }
         }
-        // The live create_fit_check_draft RPC only understands public vs group
-        // (is_public = group_id is null). Friends/private would be stored as
-        // public, so reject them until the server supports them.
-        guard ["public", "group"].contains(audience), (audience == "group") == (groupId != nil) else {
+        // Server (20261108000100) enforces the same rule: group needs a group id,
+        // every other audience must not have one.
+        guard ["public", "friends", "group", "private"].contains(audience), (audience == "group") == (groupId != nil) else {
             throw APIError.message("Choose a valid audience for this Fit-Check.")
         }
     }
@@ -105,7 +154,8 @@ extension API {
         } catch where isMissingColumnError(error) && hasDraftExtras(params) {
             Log.app.error("create_fit_check_draft lacks tags/vote prompt; retrying without: \(error.localizedDescription)")
             let plain = DraftParams(id: params.id, caption: params.caption, groupId: params.groupId,
-                                    occasion: params.occasion, tags: nil, votePrompt: nil)
+                                    occasion: params.occasion, tags: nil, votePrompt: nil,
+                                    audience: params.audience)  // never dropped: it would widen visibility
             let id: UUID = try await client.rpc("create_fit_check_draft", params: plain).execute().value
             return (id, true)
         }

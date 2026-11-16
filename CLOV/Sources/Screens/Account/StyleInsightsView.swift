@@ -71,6 +71,7 @@ struct StyleInsightsView: View {
             }
             .padding(20)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationTitle("Your week")
         .navigationBarTitleDisplayMode(.inline)

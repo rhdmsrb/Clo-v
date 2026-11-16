@@ -19,7 +19,8 @@ struct FeedView: View {
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
-    @State private var actionError: String?
+    /// Set while pull-to-refresh is running, so its own spinner isn't doubled.
+    @State private var isPullRefreshing = false
     @State private var unreadCount = 0
     @State private var likedIDs: Set<UUID> = []
     @State private var openedRoute: FitCheckRoute?
@@ -46,8 +47,12 @@ struct FeedView: View {
     private static let pagePadding: CGFloat = 20
     private static let pageSize = 24
     private static let cardSpacing: CGFloat = 16
+    /// Posts have no card surface any more, so they need more air between them.
+    private static let postSpacing: CGFloat = 28
     private static let searchDebounce: Duration = .milliseconds(300)
     private static let noticeDuration: Duration = .seconds(3)
+    private static let reloadingOpacity = 0.5
+    private static let reloadingIndicatorTopPadding: CGFloat = 24
     private static let occasionOptions: [(label: String, symbol: String)] = [
         ("Everyday", "sun.max"), ("Work", "briefcase"), ("Date", "heart"), ("Interview", "person.text.rectangle"),
         ("Party", "party.popper"), ("Travel", "airplane"), ("Wedding", "sparkles")
@@ -75,9 +80,9 @@ struct FeedView: View {
             : "Your feed is waiting for its first look. Post a Fit-Check to get started."
     }
 
-    private var actionErrorBinding: Binding<Bool> {
-        Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })
-    }
+    /// A filter, search or mode change is fetching while the previous results
+    /// are still on screen.
+    private var isReloadingFilters: Bool { isLoading && hasLoaded && !isPullRefreshing }
 
     var body: some View {
         Group {
@@ -98,7 +103,6 @@ struct FeedView: View {
             CommentThreadSheet(fitCheckId: item.id,
                                photoURLs: PostCardContent.photoURLs(item.fitCheckPhotos).map(\.absoluteString),
                                voterId: appState.userId, canComment: !isExpired(item.expiresAt))
-                .presentationDetents([.large])
         }
         .overlay(alignment: .bottom) { noticeToast }
         .task(id: notice) {
@@ -107,11 +111,6 @@ struct FeedView: View {
             if !Task.isCancelled { notice = nil }
         }
         .onChange(of: appState.profile?.stylePreferences) { _, _ in refreshVisibleItems() }
-        .alert("Couldn’t update", isPresented: actionErrorBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(actionError ?? "")
-        }
     }
 
     /// The hold-to-vote screen when the post is in the loaded feed (the usual
@@ -162,49 +161,59 @@ struct FeedView: View {
 
     private var editorialFeed: some View {
         ScrollView {
+            // Posts run edge to edge, so the page padding is applied per
+            // section instead of on the whole column.
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
-                headerRow
-                DailyChallengeCard(
-                    challenge: localWeather.conditions.map(DailyChallenge.forWeather) ?? .today,
-                    weather: localWeather.conditions,
-                    isWeatherLoading: localWeather.isLoading,
-                    locationDenied: localWeather.locationDenied,
-                    errorMessage: localWeather.errorMessage,
-                    onUseWeather: { localWeather.requestWeather() },
-                    onJoin: { showChallenge = true }
-                )
+                occasionRow
+                // With posts on screen the challenge sits after the first one
+                // (see `feedList`), so a photo is the first thing people see.
+                if visibleItems.isEmpty { challengeCard.padding(.horizontal, Self.pagePadding) }
                 feedList
-                olderFitChecksButton
+                    .opacity(isReloadingFilters ? Self.reloadingOpacity : 1)
+                    .overlay(alignment: .top) { reloadingIndicator }
+                    .animation(Theme.animation(Theme.quick, reduceMotion: reduceMotion), value: isReloadingFilters)
+                olderFitChecksButton.padding(.horizontal, Self.pagePadding)
             }
-            .padding(.horizontal, Self.pagePadding)
             .padding(.vertical, Self.cardSpacing)
         }
         .safeAreaPadding(.bottom, tabBarClearance)
         .background(Theme.background)
         .safeAreaInset(edge: .top, spacing: 0) { pinnedFilters }
-        .refreshable { await load(refreshGraph: true) }
+        .refreshable {
+            isPullRefreshing = true
+            defer { isPullRefreshing = false }
+            await load(refreshGraph: true)
+        }
         .onDisappear { flushImpressions() }
         .sheet(isPresented: $showChallenge) {
             CreateFitCheckView(initialOccasion: DailyChallenge.today.occasion)
         }
     }
 
-    private var headerRow: some View {
-        HStack(spacing: 10) {
-            Text("Discover")
-                .font(Theme.displayFont)
-                .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .accessibilityAddTraits(.isHeader)
-                .layoutPriority(1)
-            Spacer(minLength: 0)
-            headerButtons
+    /// Shown over the dimmed list while new results load, so a filter change
+    /// never looks like the app ignored the tap.
+    @ViewBuilder
+    private var reloadingIndicator: some View {
+        if isReloadingFilters {
+            ProgressView()
+                .padding(.top, Self.reloadingIndicatorTopPadding)
+                .accessibilityLabel("Updating Fit-Checks")
         }
     }
 
-    /// Icon buttons stop growing past `xxxLarge` so they never crowd the title.
+    private var challengeCard: some View {
+        DailyChallengeCard(
+            challenge: localWeather.conditions.map(DailyChallenge.forWeather) ?? .today,
+            weather: localWeather.conditions,
+            isWeatherLoading: localWeather.isLoading,
+            locationDenied: localWeather.locationDenied,
+            errorMessage: localWeather.errorMessage,
+            onUseWeather: { localWeather.requestWeather() },
+            onJoin: { showChallenge = true }
+        )
+    }
+
+    /// Icon buttons stop growing past `xxxLarge` so they never crowd the segments.
     private var headerButtons: some View {
         HStack(spacing: 8) {
             FeedIconButton(
@@ -239,11 +248,15 @@ struct FeedView: View {
     /// sits on a blur.
     private var pinnedFilters: some View {
         VStack(alignment: .leading, spacing: 8) {
-            modeRow.padding(.horizontal, Self.pagePadding)
+            // One row: For You / Following on the left, tools on the right.
+            HStack(spacing: 8) {
+                modeRow
+                headerButtons
+            }
+            .padding(.horizontal, Self.pagePadding)
             if isSearchExpanded {
                 FeedSearchField(text: $searchText).padding(.horizontal, Self.pagePadding)
             }
-            occasionRow
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -254,7 +267,6 @@ struct FeedView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 FeedModeSegments(mode: $mode) { select($0) }
-                if mode == .forYou { FeedSortMenu(sort: $sort) }
             }
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
@@ -266,6 +278,8 @@ struct FeedView: View {
     private var occasionRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                // Sort lives with the other filters, so the top row stays short.
+                if mode == .forYou { FeedSortMenu(sort: $sort) }
                 FeedOccasionChip(label: "All", symbol: "square.grid.2x2", isSelected: selectedOccasion == nil,
                                  namespace: occasionIndicator) { selectedOccasion = nil }
                 ForEach(Self.occasionOptions, id: \.label) { option in
@@ -277,6 +291,8 @@ struct FeedView: View {
         }
         // Edge to edge so the last visible chip is cut by the screen, not the page padding.
         .contentMargins(.horizontal, Self.pagePadding, for: .scrollContent)
+        // Keeps the sort button's soft shadow from being cut into a faint box.
+        .scrollClipDisabled()
     }
 
     @ViewBuilder
@@ -300,9 +316,10 @@ struct FeedView: View {
         AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
                        emptyText: emptyFeedText, topPadding: 40, hasLoaded: hasLoaded,
                        retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
-                       emptyTitle: "No Fit-Checks yet", emptyActionTitle: "Post a Fit-Check",
-                       emptyAction: { showChallenge = true }, skeleton: .cards) {
-            LazyVStack(spacing: Self.cardSpacing) {
+                       // No action here: the daily challenge card above is already
+                       // the one prompt to post, so a second button would compete with it.
+                       emptyTitle: "No Fit-Checks yet", skeleton: .cards) {
+            LazyVStack(spacing: Self.postSpacing) {
                 ForEach(visibleItems) { item in
                     FeedPostCard(
                         item: item,
@@ -321,6 +338,9 @@ struct FeedView: View {
                             .scaleEffect(reduceMotion || phase.isIdentity ? 1 : 0.97)
                     }
                     .onAppear { logImpression(for: item) }
+                    if item.id == visibleItems.first?.id {
+                        challengeCard.padding(.horizontal, Self.pagePadding)
+                    }
                 }
                 loadMoreFooter
             }
@@ -548,7 +568,9 @@ struct FeedView: View {
             } catch {
                 // Only undo our own optimistic change.
                 if followingIDs.contains(creatorId) == follow { setFollowing(creatorId, !follow) }
-                actionError = "Couldn’t update your following list. Please try again."
+                withAnimation(Theme.animation(Theme.quick, reduceMotion: reduceMotion)) {
+                    notice = "Couldn’t update your following list. Please try again."
+                }
             }
         }
     }

@@ -16,6 +16,7 @@ struct VoteFanScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: ReelVoteModel
     @StateObject private var commentsModel: VoteFanCommentsModel
+    @StateObject private var celebration = CelebrationState()
     @State private var undoLookPosition: Int?
     @State private var undoDismissTask: Task<Void, Never>?
     @State private var isLiked = false
@@ -93,6 +94,7 @@ struct VoteFanScreen: View {
         .onDisappear {
             setTabBarHidden(false)
             undoDismissTask?.cancel()
+            celebration.cancel()
         }
         .task { await commentsModel.load() }
         .task { await model.loadSummary() }
@@ -131,7 +133,8 @@ struct VoteFanScreen: View {
     private var totalChip: some View {
         HStack(spacing: 6) {
             Text("Vote #").font(Theme.font(.caption, weight: .black))
-            Text("\(model.total)").font(Theme.font(.caption, weight: .black)).monospacedDigit()
+            RevealCounter(target: model.total, isRevealed: model.isResultsRevealed)
+                .font(Theme.font(.caption, weight: .black))
                 .blurReveal(isRevealed: model.isResultsRevealed)
         }
         .foregroundStyle(.white)
@@ -150,8 +153,13 @@ struct VoteFanScreen: View {
         } else {
             PhotoFan(photos: model.photos, selection: lookBinding, canVote: model.canVote,
                      isResultsRevealed: model.isResultsRevealed, percent: { model.percent(for: $0) },
-                     myVote: model.myVote, onVote: castVote)
+                     myVote: model.myVote, leadingIds: leadingIds, onVote: castVote)
                 .padding(.horizontal, -16)
+                .overlay {
+                    if celebration.burstId != nil, !reduceMotion {
+                        ConfettiBurst().id(celebration.burstId)
+                    }
+                }
         }
     }
 
@@ -248,8 +256,24 @@ struct VoteFanScreen: View {
 
     // MARK: Voting
 
+    private var photoIds: [UUID] { model.photos.map(\.id) }
+
+    /// Crowns only show once results are visible.
+    private var leadingIds: Set<UUID> {
+        model.isResultsRevealed ? VoteReveal.leadingIds(photoIds: photoIds, counts: model.counts) : []
+    }
+
+    /// Runs once the server has confirmed the vote. The success haptic already played in the model.
+    private func voteRecorded() {
+        appState.contentDidChange()
+        guard model.error == nil, !reduceMotion,
+              VoteReveal.shouldCelebrate(myVote: model.myVote, photoIds: photoIds, counts: model.counts, total: model.total)
+        else { return }
+        celebration.celebrate()
+    }
+
     private func castVote() {
-        let started = model.voteForCurrentLook { appState.contentDidChange() }
+        let started = model.voteForCurrentLook { voteRecorded() }
         guard started, let position = model.currentPhoto?.position else {
             AccessibilityNotification.Announcement("Vote not recorded").post()
             return
@@ -261,6 +285,7 @@ struct VoteFanScreen: View {
     private func undoVote() {
         hideUndoToast()
         guard model.canRetract else { return }
+        celebration.cancel()
         Haptics.impact(.light)
         model.retractVote { appState.contentDidChange() }
         AccessibilityNotification.Announcement("Vote undone. Pick again.").post()

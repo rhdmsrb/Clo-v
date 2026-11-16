@@ -407,18 +407,6 @@ enum API {
         return detail
     }
 
-    static func fetchVotes(fitCheckId: UUID) async throws -> [VoteRef] {
-#if DEBUG
-        if SampleData.isActive { return SampleData.votes(fitCheckId: fitCheckId) }
-#endif
-        return try await client
-            .from("fit_check_votes")
-            .select("photo_id, voter_id")
-            .eq("fit_check_id", value: fitCheckId)
-            .execute()
-            .value
-    }
-
     static func fetchComments(fitCheckId: UUID) async throws -> [CommentDTO] {
 #if DEBUG
         if SampleData.isActive { return SampleData.comments(fitCheckId: fitCheckId) }

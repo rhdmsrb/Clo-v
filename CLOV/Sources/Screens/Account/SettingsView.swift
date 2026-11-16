@@ -47,9 +47,8 @@ struct SettingsView: View {
                 }
             }
             .padding(20)
-            // Leave room for the floating tab bar.
-            .padding(.bottom, 88)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)

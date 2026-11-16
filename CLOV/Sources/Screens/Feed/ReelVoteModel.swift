@@ -28,6 +28,9 @@ final class ReelVoteModel: ObservableObject {
     private let item: FeedItemDTO
     private let voterId: UUID
     private let service: ReelVoteService
+    /// False for a post whose status is not `live` (e.g. archived) even if its timer
+    /// has not run out; such a post is closed to voting and shows its results.
+    private let isLive: Bool
     private var pendingTask: Task<Void, Never>?
 
     let photos: [FitCheckPhoto]
@@ -40,10 +43,13 @@ final class ReelVoteModel: ObservableObject {
     @Published private(set) var streak: VoteStreak
     @Published var error: String?
 
-    init(item: FeedItemDTO, voterId: UUID, initialLook: Int? = nil,
-         service: ReelVoteService = .live) {
+    /// `initialSummary` is a summary the caller already fetched from the server; it
+    /// replaces the seeds taken from the item's embedded rows.
+    init(item: FeedItemDTO, voterId: UUID, initialLook: Int? = nil, isLive: Bool = true,
+         initialSummary: VoteSummary? = nil, service: ReelVoteService = .live) {
         self.item = item
         self.voterId = voterId
+        self.isLive = isLive
         self.service = service
         photos = item.fitCheckPhotos.sorted { $0.position < $1.position }
         lookIndex = Self.clampedLook(initialLook, count: photos.count)
@@ -53,6 +59,7 @@ final class ReelVoteModel: ObservableObject {
         total = item.voteCount ?? item.fitCheckVotes.count
         myVote = item.fitCheckVotes.first { $0.voterId == voterId }?.photoId
         streak = VoteStreakStore.load(for: voterId)
+        if let initialSummary { apply(initialSummary) }
     }
 
     /// An out-of-range or missing index opens on the first look.
@@ -63,18 +70,15 @@ final class ReelVoteModel: ObservableObject {
 
     var currentPhoto: FitCheckPhoto? { photos.indices.contains(lookIndex) ? photos[lookIndex] : photos.first }
     /// False while a vote or an undo is in flight so the two never overlap.
-    var canVote: Bool {
-        item.creatorId != voterId && myVote == nil && !isExpired(item.expiresAt) && !isVoting && !isRetracting
-    }
+    var canVote: Bool { isVotingOpen && myVote == nil && !isWriteInFlight }
     /// A cast vote can be taken back while the post is live.
-    var canRetract: Bool {
-        item.creatorId != voterId && myVote != nil
-            && !isExpired(item.expiresAt) && !isVoting && !isRetracting
-    }
+    var canRetract: Bool { isVotingOpen && myVote != nil && !isWriteInFlight }
+    /// The post is live and this viewer is not its creator, whether or not they have voted yet.
+    var isVotingOpen: Bool { !isCreator && !isEnded }
     /// First-time voters get a hint about the hold gesture.
     var isFirstTimeVoter: Bool { streak.lastVoteDay == nil }
     var isCreator: Bool { item.creatorId == voterId }
-    var isEnded: Bool { isExpired(item.expiresAt) }
+    var isEnded: Bool { isExpired(item.expiresAt) || !isLive }
     /// Vote totals and the per-photo split stay blurred until this is true.
     var isResultsRevealed: Bool {
         BlurReveal.isRevealed(hasVoted: myVote != nil, isCreator: isCreator, ended: isEnded)
@@ -109,28 +113,35 @@ final class ReelVoteModel: ObservableObject {
     /// Votes for the look on screen. Returns whether a vote was started.
     @discardableResult
     func voteForCurrentLook(onRecorded: @escaping () -> Void) -> Bool {
-        guard canVote, let photo = currentPhoto else { return false }
+        guard let photo = currentPhoto else { return false }
+        return vote(for: photo.id, onRecorded: onRecorded)
+    }
+
+    /// Votes for a specific photo (a tapped tile). Returns whether a vote was started.
+    @discardableResult
+    func vote(for photoId: UUID, onRecorded: @escaping () -> Void) -> Bool {
+        guard canVote, photos.contains(where: { $0.id == photoId }) else { return false }
         let before = (counts: counts, total: total)
         error = nil
         isVoting = true
-        myVote = photo.id // optimistic
-        counts = counts.merging([photo.id: 1], uniquingKeysWith: +)
+        myVote = photoId // optimistic
+        counts = counts.merging([photoId: 1], uniquingKeysWith: +)
         total = before.total + 1
 
         pendingTask = Task {
             defer { isVoting = false }
             do {
-                try await service.cast(item, photo.id, voterId)
+                try await service.cast(item, photoId, voterId)
                 Haptics.success()
                 streak = VoteStreakStore.recordVote(for: voterId)
-                await syncAfterWrite(fallbackVote: photo.id)
+                await syncAfterWrite(fallbackVote: photoId)
                 onRecorded()
             } catch APIError.alreadyVoted {
                 // The server already had a vote: drop our optimistic increment, then resync.
                 error = APIError.alreadyVoted.localizedDescription
                 counts = before.counts
                 total = before.total
-                await resyncFromServer(fallbackVote: photo.id)
+                await resyncFromServer(fallbackVote: photoId)
                 onRecorded()
             } catch {
                 Haptics.error()
@@ -188,7 +199,20 @@ final class ReelVoteModel: ObservableObject {
         }
     }
 
+    /// Takes a summary the parent screen just loaded from the server as the truth, so a
+    /// screen-level reload and this model never disagree. Ignored while a write is in
+    /// flight (that write resyncs itself). Unlike `refreshSummary`, a summary with no
+    /// vote clears a stale local one.
+    func adopt(_ summary: VoteSummary) {
+        guard !isWriteInFlight else { return }
+        apply(summary)
+    }
+
     private var isWriteInFlight: Bool { isVoting || isRetracting }
+
+    private func apply(_ summary: VoteSummary) {
+        apply(summary, fallbackVote: summary.myVote)
+    }
 
     /// Applies a server summary. Counts and totals are taken only when it is revealed.
     private func apply(_ summary: VoteSummary, fallbackVote: UUID?) {

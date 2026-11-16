@@ -10,8 +10,12 @@ struct PhotoCarousel: View {
     var autoAdvance: Bool = false
     var contentMode: ContentMode = .fill
     var accessibilityIdentifier: String = "photo-carousel"
+    /// Called on a tap, from the carousel's own gesture (a parent's tap gesture is not reliably reached through the paged TabView).
+    var onTap: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControlEnabled
     @State private var logic: CarouselAutoAdvance
     @Environment(\.scenePhase) private var scenePhase
     /// Inactive tabs stay mounted at opacity 0, so `onDisappear` never fires for them.
@@ -23,20 +27,24 @@ struct PhotoCarousel: View {
         currentIndex: Binding<Int>,
         autoAdvance: Bool = false,
         contentMode: ContentMode = .fill,
-        accessibilityIdentifier: String = "photo-carousel"
+        accessibilityIdentifier: String = "photo-carousel",
+        onTap: (() -> Void)? = nil
     ) {
         self.urls = urls
         self._currentIndex = currentIndex
         self.autoAdvance = autoAdvance
         self.contentMode = contentMode
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.onTap = onTap
         _logic = State(initialValue: CarouselAutoAdvance(pageCount: urls.count, index: currentIndex.wrappedValue))
     }
 
     private static let holdDuration: TimeInterval = 0.4
 
     private var shouldRun: Bool {
-        logic.shouldRun(enabled: autoAdvance, reduceMotion: reduceMotion, isOnScreen: isOnScreen && isTabActive && scenePhase == .active)
+        logic.shouldRun(enabled: autoAdvance, reduceMotion: reduceMotion,
+                        isOnScreen: isOnScreen && isTabActive && scenePhase == .active,
+                        assistiveTechActive: voiceOverEnabled || switchControlEnabled)
     }
 
     var body: some View {
@@ -53,7 +61,7 @@ struct PhotoCarousel: View {
             DragGesture(minimumDistance: CarouselAutoAdvance.swipeThreshold)
                 .onChanged { if CarouselAutoAdvance.isHorizontalSwipe($0.translation) { stopForGood() } }
         )
-        .simultaneousGesture(TapGesture().onEnded { stopForGood() })
+        .simultaneousGesture(TapGesture().onEnded { stopForGood(); onTap?() })
         .simultaneousGesture(
             LongPressGesture(minimumDuration: Self.holdDuration, maximumDistance: CarouselAutoAdvance.swipeThreshold)
                 .onEnded { _ in stopForGood() }

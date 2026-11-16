@@ -27,6 +27,7 @@ final class VoteFanUITests: XCTestCase {
 
         // A full hold votes and shows the Undo toast.
         centre.press(forDuration: Self.holdSeconds)
+        if !undo.waitForExistence(timeout: 3) { centre.press(forDuration: Self.holdSeconds) }
         XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo toast after holding to vote")
 
         // Undo clears the toast and retracts the vote.
@@ -53,7 +54,7 @@ final class VoteFanUITests: XCTestCase {
         app.buttons["voteFanCommentSend"].tap()
 
         app.buttons["reelBackButton"].tap()
-        XCTAssertTrue(app.staticTexts["Discover"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
     }
 
     // MARK: - Helpers
@@ -63,11 +64,43 @@ final class VoteFanUITests: XCTestCase {
         return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
     }
 
+    /// The feed pins its search/chip header over the list, so a tap on a
+    /// carousel that XCUITest auto-scrolled to the very top lands on the
+    /// header. Drag the list from its left margin (so the drag never starts
+    /// on a card's paged carousel) until the carousel's centre sits in the
+    /// open area between the header and the tab bar.
+    private func bringIntoOpenArea(_ element: XCUIElement, in app: XCUIApplication) {
+        let height = app.windows.firstMatch.frame.height
+        let openArea = (height * 0.25)...(height * 0.8)
+        for _ in 0..<12 {
+            waitUntilStill(element)
+            let midY = element.frame.midY
+            if openArea.contains(midY) { return }
+            let down = midY > openArea.upperBound
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: down ? 0.7 : 0.3))
+            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: down ? 0.3 : 0.7))
+            from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.1)
+        }
+        XCTFail("could not scroll the carousel into view (centre at \(element.frame.midY))")
+    }
+
+    /// A tap during scroll deceleration only stops the scroll, so wait until
+    /// the element has stopped moving before interacting with it.
+    private func waitUntilStill(_ element: XCUIElement) {
+        var last = element.frame.midY
+        for _ in 0..<10 {
+            Thread.sleep(forTimeInterval: 0.4)
+            let now = element.frame.midY
+            if abs(now - last) < 0.5 { return }
+            last = now
+        }
+    }
+
     private func openMayasVoteScreen() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Discover"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
@@ -75,8 +108,17 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 10), "maya's post not found")
         let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
         XCTAssertTrue(carousel.waitForExistence(timeout: 5), "no feed carousel on maya's post")
-        carousel.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 10), "vote screen did not open")
+        bringIntoOpenArea(carousel, in: app)
+        // A tap that lands while the carousel is auto-advancing only stops the
+        // animation, so retry rather than depend on the timing.
+        let screen = app.descendants(matching: .any)["voteFanScreen"]
+        var taps = 0
+        while !screen.exists && taps < 3 {
+            carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            _ = screen.waitForExistence(timeout: 4)
+            taps += 1
+        }
+        XCTAssertTrue(screen.exists, "vote screen did not open")
         return app
     }
 }

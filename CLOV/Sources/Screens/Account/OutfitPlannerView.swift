@@ -144,6 +144,7 @@ struct OutfitPlannerView: View {
             }
             .padding(20)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationTitle("Outfit planner")
         .navigationBarTitleDisplayMode(.inline)

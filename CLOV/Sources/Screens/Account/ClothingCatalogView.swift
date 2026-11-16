@@ -92,6 +92,7 @@ struct ClothingCatalogView: View {
                     .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground).padding(.top, 4)
             }.padding(20)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationTitle("Explore clothes")
         .navigationBarTitleDisplayMode(.inline)

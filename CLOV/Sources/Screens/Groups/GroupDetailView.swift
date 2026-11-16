@@ -78,9 +78,10 @@ struct GroupDetailView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 100)
+            .padding(.bottom, 16)
             .background(GeometryReader { Color.clear.preference(key: ContentHeightKey.self, value: $0.size.height) })
         }
+        .clearsTabBar()
         .background(GeometryReader { Color.clear.preference(key: ViewportHeightKey.self, value: $0.size.height) })
         .coordinateSpace(name: Self.scrollSpace)
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
@@ -391,9 +392,9 @@ private struct GroupFeedCard: View {
 
     private static let photoAspect: CGFloat = 4.0 / 3.0
 
-    private var firstPhotoURL: String? {
-        item.fitCheckPhotos.min(by: { $0.position < $1.position })?.imageUrl
-    }
+    @State private var photoIndex = 0
+
+    private var photoURLs: [URL] { PostCardContent.photoURLs(item.fitCheckPhotos) }
 
     private var title: String {
         let prompt = item.votePrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -411,11 +412,15 @@ private struct GroupFeedCard: View {
     var body: some View {
         NavigationLink(value: FitCheckRoute(id: item.id)) {
             VStack(alignment: .leading, spacing: 10) {
-                Color.clear
-                    .aspectRatio(Self.photoAspect, contentMode: .fit)
-                    .overlay { RemoteImage(url: firstPhotoURL ?? "") }
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-                    .accessibilityHidden(true)
+                // Ticks once at expiry so ended posts stop rotating.
+                TimelineView(.expiry(item.expiresAt)) { _ in
+                    PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
+                                  autoAdvance: !isExpired(item.expiresAt),
+                                  accessibilityIdentifier: "groupFeed.photoCarousel")
+                        .aspectRatio(Self.photoAspect, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+                }
+                .accessibilityHidden(true)
                 HStack(alignment: .top, spacing: 10) {
                     AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: avatarSize)
                     VStack(alignment: .leading, spacing: 2) {

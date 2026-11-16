@@ -13,6 +13,7 @@ struct SwipeFitCheckPage: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: ReelVoteModel
+    @StateObject private var celebration = CelebrationState()
     /// Brief "Voted · Undo" toast shown after a vote; nil when hidden.
     @State private var undoLookPosition: Int?
     @State private var undoDismissTask: Task<Void, Never>?
@@ -69,6 +70,11 @@ struct SwipeFitCheckPage: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, Self.bottomInset)
             }
+            .overlay {
+                if celebration.burstId != nil, !reduceMotion {
+                    ConfettiBurst().id(celebration.burstId)
+                }
+            }
             .overlay(alignment: .top) { lookIndicator }
             .overlay(alignment: .bottom) { undoToast.padding(.bottom, Self.bottomInset + 8) }
             .onAppear(perform: onImpression)
@@ -123,7 +129,7 @@ struct SwipeFitCheckPage: View {
     }
 
     private func castVote() {
-        let started = model.voteForCurrentLook { appState.contentDidChange() }
+        let started = model.voteForCurrentLook { voteRecorded() }
         guard started, let position = model.currentPhoto?.position else {
             AccessibilityNotification.Announcement("Vote not recorded").post()
             return
@@ -135,6 +141,7 @@ struct SwipeFitCheckPage: View {
     private func undoVote() {
         hideUndoToast()
         guard model.canRetract else { return }
+        celebration.cancel()
         Haptics.impact(.light)
         model.retractVote { appState.contentDidChange() }
         AccessibilityNotification.Announcement("Vote undone. Pick again.").post()
@@ -228,16 +235,50 @@ struct SwipeFitCheckPage: View {
     /// created the post, or voting ended.
     private var resultsChip: some View {
         HStack(spacing: 10) {
-            Text("VOTES \(model.total)").font(Theme.font(.caption, weight: .black))
-            ForEach(model.photos) { photo in
-                Text("Look \(photo.position) \(model.percent(for: photo.id))%")
-                    .font(Theme.font(.caption, weight: photo.id == model.myVote ? .black : .medium))
+            HStack(spacing: 4) {
+                Text("VOTES")
+                RevealCounter(target: model.total, isRevealed: model.isResultsRevealed)
+            }
+            .font(Theme.font(.caption, weight: .black))
+            ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
+                lookResult(photo, index: index, leading: leadingIds.contains(photo.id))
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(.black.opacity(0.45), in: Capsule())
         .blurReveal(isRevealed: model.isResultsRevealed)
         .accessibilityElement(children: .combine)
+    }
+
+    private func lookResult(_ photo: FitCheckPhoto, index: Int, leading: Bool) -> some View {
+        HStack(spacing: 3) {
+            if leading {
+                Image(systemName: "crown.fill").foregroundStyle(Theme.win)
+                    .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? false : model.isResultsRevealed)
+                    .accessibilityHidden(true)
+            }
+            Text("Look \(photo.position)")
+            RevealCounter(target: model.percent(for: photo.id), isRevealed: model.isResultsRevealed, style: .percent,
+                          delay: reduceMotion ? 0 : Double(index) * 0.12)
+        }
+        .font(Theme.font(.caption, weight: photo.id == model.myVote ? .black : .medium))
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(leading ? "leading" : "")
+    }
+
+    private var photoIds: [UUID] { model.photos.map(\.id) }
+
+    private var leadingIds: Set<UUID> {
+        model.isResultsRevealed ? VoteReveal.leadingIds(photoIds: photoIds, counts: model.counts) : []
+    }
+
+    /// Runs once the server confirmed the vote; the success haptic already played in the model.
+    private func voteRecorded() {
+        appState.contentDidChange()
+        guard model.error == nil, !reduceMotion,
+              VoteReveal.shouldCelebrate(myVote: model.myVote, photoIds: photoIds, counts: model.counts, total: model.total)
+        else { return }
+        celebration.celebrate()
     }
 
     @ViewBuilder

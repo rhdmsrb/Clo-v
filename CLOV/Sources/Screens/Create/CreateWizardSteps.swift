@@ -161,7 +161,7 @@ struct CreatePreviewStep: View {
                     ForEach(shown, id: \.self) { Text($0).font(Theme.caption).foregroundStyle(Theme.accentDeep) }
                 }
             }
-            Label(model.audience == .group ? (groupName ?? "A group") : "Everyone", systemImage: model.audience.symbol)
+            Label(model.audience == .group ? (groupName ?? "A group") : model.audience.title, systemImage: model.audience.symbol)
                 .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         }
     }

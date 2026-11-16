@@ -20,26 +20,26 @@ struct FloatingTabBar: View {
 
     @ScaledMetric(relativeTo: .body) private var chipHeight: CGFloat = 44
     @ScaledMetric(relativeTo: .body) private var createIconSize: CGFloat = 20
-    @ScaledMetric(relativeTo: .body) private var badgeSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var tabIconSize: CGFloat = 17
 
     private static let labelMinScale: CGFloat = 0.7
     private static let chipSpacing: CGFloat = 6
-    private static let outlineWidth: CGFloat = 1
-    /// Beyond this size the Search icon is dropped so labels never truncate.
+    private static let iconLabelSpacing: CGFloat = 2
+    /// Beyond this size the icons are dropped so the stacked chip never outgrows its height.
     private static let iconHiddenFrom: DynamicTypeSize = .xLarge
 
     var body: some View {
         HStack(spacing: Self.chipSpacing) {
-            tabChip(.feed, label: "Feed")
+            tabChip(.feed, label: "Feed", systemImage: "house")
                 .accessibilityIdentifier("feedTab")
-            tabChip(.groups, label: "Group", showsBadge: true)
+            tabChip(.groups, label: "Group", systemImage: "person.3")
                 .accessibilityIdentifier("groupsTab")
 
             createButton
 
-            tabChip(.search, label: "Search", systemImage: "magnifyingglass")
+            tabChip(.search, label: "Search", systemImage: "magnifyingglass", hasFilledVariant: false)
                 .accessibilityIdentifier("searchTab")
-            tabChip(.account, label: "Profile")
+            tabChip(.account, label: "Profile", systemImage: "person")
                 .accessibilityIdentifier("accountTab")
         }
         .motionSafeAnimation(Theme.quick, value: selection)
@@ -78,61 +78,46 @@ struct FloatingTabBar: View {
         }
     }
 
+    /// Icon above label, the layout people already know from other apps. The
+    /// selected tab gets a soft fill and a filled icon; the others have no outline.
     @ViewBuilder
-    private func tabChip(_ target: MainTab, label: String, systemImage: String? = nil, showsBadge: Bool = false) -> some View {
+    private func tabChip(_ target: MainTab, label: String, systemImage: String, hasFilledVariant: Bool = true) -> some View {
         let isSelected = selection == target
-        let showsIcon = systemImage != nil && dynamicTypeSize < Self.iconHiddenFrom
+        let showsIcon = dynamicTypeSize < Self.iconHiddenFrom
+        let iconName = isSelected && hasFilledVariant ? "\(systemImage).fill" : systemImage
         Button { onSelect(target) } label: {
-            HStack(spacing: 4) {
-                if showsIcon, let systemImage {
-                    Image(systemName: systemImage)
-                        .font(Theme.font(.caption, weight: .semibold))
+            VStack(spacing: Self.iconLabelSpacing) {
+                if showsIcon {
+                    Image(systemName: iconName)
+                        .font(.system(size: tabIconSize, weight: isSelected ? .semibold : .regular))
+                        .frame(height: tabIconSize + 2)
                 }
                 Text(label)
-                    .font(Theme.font(.caption, weight: isSelected ? .bold : .medium))
+                    .font(Theme.font(.caption2, weight: isSelected ? .bold : .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(Self.labelMinScale)
             }
             .foregroundStyle(isSelected ? Theme.accentDeep : Theme.mutedForeground)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: chipHeight, maxHeight: chipHeight)
             .background {
-                ZStack {
+                if isSelected {
                     Capsule(style: .continuous)
-                        .strokeBorder(Theme.controlBorder.opacity(isSelected ? 0 : 0.6), lineWidth: Self.outlineWidth)
-                    if isSelected {
-                        Capsule(style: .continuous)
-                            .fill(Theme.accentTint)
-                            .matchedGeometryEffect(id: "selection", in: selectionNamespace)
-                    }
+                        .fill(Theme.accentTint)
+                        .matchedGeometryEffect(id: "selection", in: selectionNamespace)
                 }
             }
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(TabPressStyle())
-        .overlay(alignment: .topTrailing) {
-            if showsBadge { plusBadge }
-        }
         // Pin the label so VoiceOver reads just the tab name (no auto-generated
         // symbol description) and label-based automation keeps working.
         .accessibilityElement(children: .combine)
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityShowsLargeContentViewer {
-            Label(label, systemImage: systemImage ?? "circle")
+            Label(label, systemImage: systemImage)
         }
-    }
-
-    /// Decorative corner badge (not wired to unread state yet).
-    private var plusBadge: some View {
-        Image(systemName: "plus")
-            .font(.system(size: badgeSize * 0.55, weight: .heavy))
-            .foregroundStyle(Theme.accentDeep)
-            .frame(width: badgeSize, height: badgeSize)
-            .background(Theme.cardElevated, in: Circle())
-            .overlay(Circle().strokeBorder(Theme.accentDeep, lineWidth: 1))
-            .offset(x: -2, y: -2)
-            .accessibilityHidden(true)
     }
 }
 
