@@ -51,10 +51,7 @@ struct AccountView: View {
             }
             .padding(20)
         }
-        // Leave room for the floating tab bar (counted once, here).
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: 82)
-        }
+        .clearsTabBar()
         .background(Theme.background)
         .accessibilityIdentifier("profile.root")
         .revisionTask(appState.contentRevision) { await load() }

@@ -29,9 +29,8 @@ struct AppearanceView: View {
                 }
             }
             .padding(20)
-            // Clear the floating tab bar so the last control scrolls fully above it.
-            .padding(.bottom, 88)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationTitle("Appearance")
         .navigationBarTitleDisplayMode(.inline)

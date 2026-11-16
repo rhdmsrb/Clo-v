@@ -207,6 +207,7 @@ struct WardrobeView: View {
                 }
             }.padding(20)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

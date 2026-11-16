@@ -78,9 +78,10 @@ struct GroupDetailView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 100)
+            .padding(.bottom, 16)
             .background(GeometryReader { Color.clear.preference(key: ContentHeightKey.self, value: $0.size.height) })
         }
+        .clearsTabBar()
         .background(GeometryReader { Color.clear.preference(key: ViewportHeightKey.self, value: $0.size.height) })
         .coordinateSpace(name: Self.scrollSpace)
         .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }

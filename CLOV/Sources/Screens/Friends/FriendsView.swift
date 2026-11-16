@@ -25,6 +25,7 @@ struct FriendsView: View {
             }
             .padding(20)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .task { await load() }
         .refreshable { await load() }

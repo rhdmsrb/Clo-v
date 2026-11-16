@@ -190,6 +190,23 @@ extension EnvironmentValues {
     @Entry var setTabBarHidden: (Bool) -> Void = { _ in }
 }
 
+extension View {
+    /// Insets a tab's scrolling screen so its last row clears the floating
+    /// tab bar. The single place that spacing is defined; zero outside the
+    /// tabs (sheets and full-screen covers).
+    func clearsTabBar() -> some View {
+        modifier(TabBarClearanceModifier())
+    }
+}
+
+private struct TabBarClearanceModifier: ViewModifier {
+    @Environment(\.tabBarClearance) private var clearance
+
+    func body(content: Content) -> some View {
+        content.safeAreaPadding(.bottom, clearance)
+    }
+}
+
 private struct BarHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {

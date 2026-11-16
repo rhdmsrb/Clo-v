@@ -67,8 +67,8 @@ struct SearchExploreView: View {
                 loadMoreFooter
             }
             .padding(Self.pagePadding)
-            .padding(.bottom, 90)
         }
+        .clearsTabBar()
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
         .statusBarBackdrop()
