@@ -105,6 +105,7 @@
 		8CE0EC902CE4F64D6D574296 /* CreateWizardSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F3BBDC628A2B97D6B701C3 /* CreateWizardSteps.swift */; };
 		8F64255164B081F976F6637A /* SearchTerm.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8FFAFBF345FE9C4E26D1B21 /* SearchTerm.swift */; };
 		92813FBCDA784C9CED1C8294 /* OutfitPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BEF6EF3AFAAFC3E3ECA0374 /* OutfitPlannerView.swift */; };
+		92E17653A4EC64A913D25FE1 /* VoteReveal.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBB06C3D75237D93978BF798 /* VoteReveal.swift */; };
 		93AD4CAB25E43115329A5639 /* CreateWizardModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FEFA2FD5CD789F1D3C12E70 /* CreateWizardModel.swift */; };
 		93D8A46B50A06CF2DD00FD64 /* SettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FB42377A3C78A15AC85682 /* SettingsUITests.swift */; };
 		93F153B31B81D111BC4B8F99 /* CreateFitCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9204CB72B4895178303DE6AE /* CreateFitCheckView.swift */; };
@@ -179,6 +180,7 @@
 		F2EA045766E4F9D76B7AF142 /* PhotoZoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0514F5598774370EF2A44C18 /* PhotoZoomView.swift */; };
 		F3452636B3D81FE981377993 /* DesignReviewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06784B8B6DFAE2CA57F529C0 /* DesignReviewUITests.swift */; };
 		F367E06AE299EF2182443E6C /* PushPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D23D63A1AA1DBB95BB79DA8 /* PushPayloadTests.swift */; };
+		F4C44B4A4AA79936E25419E2 /* VoteRevealTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F6AB97983C3372673771D /* VoteRevealTests.swift */; };
 		F5E5D4F77D34EA15F3780709 /* SampleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A63D9B4048EAA7B80738075 /* SampleData.swift */; };
 		F9930FE8EE8A4C181F287FA5 /* PostCardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BDC94BACD100FC356B89AF7 /* PostCardContent.swift */; };
 		FAE7A5CE63FE67231F86F67B /* ReleaseConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA18B18C24444C2A9399DA0 /* ReleaseConfigTests.swift */; };
@@ -353,6 +355,7 @@
 		C687350ECCEB5117B6280F6C /* InviteCode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteCode.swift; sourceTree = "<group>"; };
 		C7C282C41D33150223469B12 /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
 		C8FFAFBF345FE9C4E26D1B21 /* SearchTerm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTerm.swift; sourceTree = "<group>"; };
+		CBB06C3D75237D93978BF798 /* VoteReveal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoteReveal.swift; sourceTree = "<group>"; };
 		CC7240E1C9881EAE405CD7BE /* SettingsRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRows.swift; sourceTree = "<group>"; };
 		CD42487669ECD95B68C20455 /* AuthCallbackGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCallbackGate.swift; sourceTree = "<group>"; };
 		CE87AB7EE22CF1F540214571 /* SearchExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchExploreView.swift; sourceTree = "<group>"; };
@@ -388,6 +391,7 @@
 		FA143C0CF4F6CF7ADAC4A742 /* AppearanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceView.swift; sourceTree = "<group>"; };
 		FA3F99FC034982B6A963448A /* FitCheckSubmission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheckSubmission.swift; sourceTree = "<group>"; };
 		FA8A723C526218280376187B /* FitCheckSubmissionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheckSubmissionTests.swift; sourceTree = "<group>"; };
+		FB4F6AB97983C3372673771D /* VoteRevealTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoteRevealTests.swift; sourceTree = "<group>"; };
 		FED9C5BD98E79FE4B46C54B7 /* NewPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewPasswordView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -445,6 +449,7 @@
 				69705CD846BB7B59E7AFF204 /* SharedComponentsLogicTests.swift */,
 				BE0A2A7F2DF0052DD0FCED47 /* ShareURLTests.swift */,
 				5F62083D585C1AB5AF4B95BB /* VoteInsightTests.swift */,
+				FB4F6AB97983C3372673771D /* VoteRevealTests.swift */,
 				AB073648D4A2FAFE598091E5 /* VoteSummaryTests.swift */,
 				7F7C94567C3F4D91EF0CAF65 /* WardrobeFilterTests.swift */,
 				C2467194F7ED24A8CEB03300 /* WeatherOutfitSuggesterTests.swift */,
@@ -670,6 +675,7 @@
 				842873626A48148DB51CAB8D /* ThemeControls.swift */,
 				DBF72860F1846D86B22A8580 /* ThemePalette.swift */,
 				51224EAFAD181B0054720D77 /* ToggleIconButtons.swift */,
+				CBB06C3D75237D93978BF798 /* VoteReveal.swift */,
 				EE3B73DE16BAEC943388DDF4 /* VoteTile.swift */,
 				DFA6728CE76690AA838208CB /* VotingEndedView.swift */,
 				AFFEDE6F073525B208761314 /* VotingPhotoGridView.swift */,
@@ -923,6 +929,7 @@
 				D1AD45144C3287BBD1E49DC2 /* ShareURLTests.swift in Sources */,
 				7365D0F1FFB82D4D4BD2C012 /* SharedComponentsLogicTests.swift in Sources */,
 				3DD382CF1FB17027B2C698E4 /* VoteInsightTests.swift in Sources */,
+				F4C44B4A4AA79936E25419E2 /* VoteRevealTests.swift in Sources */,
 				DE15C210BB5F9B11F5388E7F /* VoteSummaryTests.swift in Sources */,
 				2993AD99E082D2920AD13BA3 /* WardrobeFilterTests.swift in Sources */,
 				142BA3EAA3B19DB3DE0A9844 /* WeatherOutfitSuggesterTests.swift in Sources */,
@@ -1059,6 +1066,7 @@
 				D1DEA96DC6ECD9B45C1DCABC /* VoteFanSafetyMenu.swift in Sources */,
 				B659C47E04F997F382070E25 /* VoteFanScreen.swift in Sources */,
 				D3D83FDAA4F75A892CC82CDF /* VoteInsight.swift in Sources */,
+				92E17653A4EC64A913D25FE1 /* VoteReveal.swift in Sources */,
 				C3B4F6B6520DDFAFEEDE3FB5 /* VoteStreak.swift in Sources */,
 				83A741362F783DACDE09BF68 /* VoteTile.swift in Sources */,
 				3D9DCAB29A00D71CE16AE798 /* VotingEndedView.swift in Sources */,
