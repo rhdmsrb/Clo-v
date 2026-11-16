@@ -307,10 +307,18 @@ final class DesignReviewUITests: XCTestCase {
     private func scrollToVisible(_ app: XCUIApplication, _ query: XCUIElementQuery, maxSteps: Int = 14) -> XCUIElement? {
         let window = app.windows.firstMatch.frame
         func visibleMatch() -> XCUIElement? {
-            query.allElementsBoundByIndex.first { element in
+            // The lazy feed drops off-screen cards while we scroll, so an element
+            // from an earlier snapshot can vanish; reading its frame would then
+            // fail the test. Re-check each element right before using it.
+            for index in 0..<query.count {
+                let element = query.element(boundBy: index)
+                guard element.exists else { continue }
                 let frame = element.frame
-                return frame.height > 0 && frame.minY > window.height * 0.12 && frame.maxY < window.height * 0.8
+                if frame.height > 0 && frame.minY > window.height * 0.12 && frame.maxY < window.height * 0.8 {
+                    return element
+                }
             }
+            return nil
         }
         scrollToTop(app)
         for _ in 0..<maxSteps {
