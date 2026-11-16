@@ -305,7 +305,7 @@ private struct WardrobeItemCard: View {
                 .font(Theme.bodyEmphasis).foregroundStyle(Theme.ink).lineLimit(1)
             if let wearSummary = item.wearSummary {
                 Text(wearSummary)
-                    .font(Theme.micro).foregroundStyle(Theme.accentDeep)
+                    .font(Theme.micro).foregroundStyle(Theme.mutedForeground)
             }
             HStack(spacing: 4) {
                 if let color = item.color, !color.isEmpty { Text(color) }
@@ -332,7 +332,7 @@ private struct WardrobeItemCard: View {
                 if !styles.isEmpty {
                     Text(styles.prefix(2).map { "#\($0)" }.joined(separator: "  "))
                     .font(Theme.micro)
-                    .foregroundStyle(Theme.accentDeep)
+                    .foregroundStyle(Theme.mutedForeground)
                     .lineLimit(1)
                 }
             }
