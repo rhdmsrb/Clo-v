@@ -37,14 +37,39 @@ extension API {
                                           hasVoted: myVote != nil)
         guard plan != .hidden else { return .hidden(myVote: nil) }
         do {
-            let tally = plan == .closed
-                ? try await fetchClosedResults(fitCheckId: fitCheckId)
-                : try await fetchLiveVoteTally(fitCheckId: fitCheckId)
-            return .from(tally: tally, myVote: myVote)
+            return try await loadSummary(plan: plan, fitCheckId: fitCheckId, myVote: myVote,
+                                         isCreator: voterId == creatorId)
         } catch where isMissingFunctionError(error) {
             // RPC not deployed yet: derive from whatever rows the vote policy exposes.
             return try await legacyVoteSummary(fitCheckId: fitCheckId, voterId: voterId, myVote: myVote)
         }
+    }
+
+    private static func loadSummary(plan: VoteSummaryPlan, fitCheckId: UUID, myVote: UUID?,
+                                    isCreator: Bool) async throws -> VoteSummary {
+        guard plan == .closed else {
+            return .from(tally: try await fetchLiveVoteTally(fitCheckId: fitCheckId), myVote: myVote)
+        }
+        let closed = try await fetchClosedResults(fitCheckId: fitCheckId)
+        switch closedTallyOutcome(closed: closed, isCreator: isCreator, hasVoted: myVote != nil) {
+        case .revealed:
+            return .from(tally: closed, myVote: myVote)
+        case .useLiveTally:
+            return .from(tally: try await fetchLiveVoteTally(fitCheckId: fitCheckId), myVote: myVote)
+        case .stayHidden:
+            return .hidden(myVote: myVote)
+        }
+    }
+
+    enum ClosedTallyOutcome: Equatable { case revealed, useLiveTally, stayHidden }
+
+    /// `get_fit_check_results` returns rows only once the server considers the post ended.
+    /// The caller picked it from the device clock, so an empty answer may mean the clock
+    /// is ahead. A creator or voter may see the live tally either way; anyone else stays
+    /// hidden rather than being shown a false "0 votes".
+    static func closedTallyOutcome(closed: [LivePhotoTally], isCreator: Bool, hasVoted: Bool) -> ClosedTallyOutcome {
+        if !closed.isEmpty { return .revealed }
+        return isCreator || hasVoted ? .useLiveTally : .stayHidden
     }
 
     /// True for undefined_function (42883) and PGRST202 only.
