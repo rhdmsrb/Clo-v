@@ -34,8 +34,31 @@ struct CreateWizardModelTests {
         #expect(model.canAdvance(from: .details))
         model.audience = .everyone
         #expect(model.effectiveGroupId == nil)
-        model.audience = .friends
-        #expect(!model.audienceIsValid)
+    }
+
+    @Test("Friends and Only me are valid and never carry a group")
+    func friendsAndOnlyMeAreValid() {
+        var model = CreateWizardModel()
+        model.groupId = UUID()
+        for audience in [FitCheckAudience.friends, .onlyMe] {
+            model.audience = audience
+            #expect(model.audienceIsValid)
+            #expect(model.canAdvance(from: .details))
+            #expect(model.effectiveGroupId == nil)
+        }
+        #expect(CreateWizardModel.audiences.count == 4)
+    }
+
+    @Test("Only friends and private are sent as an explicit server audience")
+    func draftParamsAudience() throws {
+        func json(_ audience: String?) throws -> [String: Any] {
+            let params = DraftParams(id: UUID(), caption: nil, groupId: nil, occasion: nil,
+                                     tags: nil, votePrompt: nil, audience: audience)
+            return try JSONSerialization.jsonObject(with: JSONEncoder().encode(params)) as? [String: Any] ?? [:]
+        }
+        #expect(try json("friends")["p_audience"] as? String == "friends")
+        #expect(try json("private")["p_audience"] as? String == "private")
+        #expect(try json(nil)["p_audience"] == nil)
     }
 
     @Test("Preselected group starts on the group audience")

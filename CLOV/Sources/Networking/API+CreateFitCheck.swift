@@ -42,7 +42,8 @@ extension API {
 
         // The id is generated here so a draft whose response was lost can still be cleaned up.
         let draftParams = DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion,
-                                      tags: clean.tags.isEmpty ? nil : clean.tags, votePrompt: clean.votePrompt)
+                                      tags: clean.tags.isEmpty ? nil : clean.tags, votePrompt: clean.votePrompt,
+                                      audience: ["friends", "private"].contains(audience) ? audience : nil)
         let fitCheckId: UUID
         let draftDropped: Bool
         do {
@@ -88,10 +89,9 @@ extension API {
                 .eq("group_id", value: groupId).eq("profile_id", value: creatorId).execute().value
             guard !memberships.isEmpty else { throw APIError.message("You're not a member of that group.") }
         }
-        // The live create_fit_check_draft RPC only understands public vs group
-        // (is_public = group_id is null). Friends/private would be stored as
-        // public, so reject them until the server supports them.
-        guard ["public", "group"].contains(audience), (audience == "group") == (groupId != nil) else {
+        // Server (20261108000100) enforces the same rule: group needs a group id,
+        // every other audience must not have one.
+        guard ["public", "friends", "group", "private"].contains(audience), (audience == "group") == (groupId != nil) else {
             throw APIError.message("Choose a valid audience for this Fit-Check.")
         }
     }
@@ -105,7 +105,8 @@ extension API {
         } catch where isMissingColumnError(error) && hasDraftExtras(params) {
             Log.app.error("create_fit_check_draft lacks tags/vote prompt; retrying without: \(error.localizedDescription)")
             let plain = DraftParams(id: params.id, caption: params.caption, groupId: params.groupId,
-                                    occasion: params.occasion, tags: nil, votePrompt: nil)
+                                    occasion: params.occasion, tags: nil, votePrompt: nil,
+                                    audience: params.audience)  // never dropped: it would widen visibility
             let id: UUID = try await client.rpc("create_fit_check_draft", params: plain).execute().value
             return (id, true)
         }
