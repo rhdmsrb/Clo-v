@@ -75,7 +75,10 @@ struct MainTabView: View {
         // show/hide/change notifications got it there.
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             guard let endFrame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
-            isKeyboardVisible = endFrame.minY < UIScreen.main.bounds.height
+            // The notification carries the screen the keyboard is on, so no
+            // global `UIScreen.main` lookup is needed.
+            guard let screen = note.object as? UIScreen else { return }
+            isKeyboardVisible = endFrame.minY < screen.bounds.height
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             isKeyboardVisible = false
