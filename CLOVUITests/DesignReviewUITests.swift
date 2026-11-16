@@ -12,6 +12,7 @@ final class DesignReviewUITests: XCTestCase {
     private static let colorSchemeArgument = "-appearance.colorScheme"
     private static let extraLargeAccessibilitySize = "UICTContentSizeCategoryAccessibilityXL"
     private static let shortWait: TimeInterval = 5
+    private static let bellWait: TimeInterval = 15
     private static let settleDelay: TimeInterval = 1
 
     override func setUpWithError() throws {
@@ -197,6 +198,9 @@ final class DesignReviewUITests: XCTestCase {
         tapTab(app, "feedTab", shot: nil)
         scrollToTop(app)
         let bell = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch
+        // The feed reloads after a tab switch, so the header can take longer than
+        // `shortWait` to reappear on a slow simulator.
+        _ = bell.waitForExistence(timeout: Self.bellWait)
         guard tap(bell) else { attach(app, name: "\(prefix)-00-bell-missing"); return }
         settle()
         attach(app, name: "\(prefix)-01-notifications")
