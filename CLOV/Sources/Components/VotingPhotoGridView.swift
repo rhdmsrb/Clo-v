@@ -14,12 +14,9 @@ struct VotingPhotoGridView: View {
     let prompt: String?
     let expiresAt: Date?
 
-    @State private var counts: [UUID: Int]
-    @State private var total: Int
-    @State private var myVote: UUID?
-    @State private var error: String?
-    @State private var isVoting = false
-    @State private var isRetracting = false
+    /// Owns the tally, the viewer's vote and every write. The detail screen used to carry
+    /// its own copy of this logic, which skipped the post-vote resync.
+    @StateObject private var model: ReelVoteModel
     @State private var showsReactions = false
     @State private var isSendingReaction = false
     @State private var commentPhotoId: UUID?
@@ -27,7 +24,6 @@ struct VotingPhotoGridView: View {
     /// A tapped photo waits here until the voter confirms, so a stray tap never casts a vote.
     @State private var photoAwaitingConfirmation: FitCheckPhoto?
     @State private var reactionMessage: String?
-    @State private var streak = VoteStreak()
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set (to a fresh id) when the voter backs the leading look; drives the confetti and its haptic.
@@ -61,17 +57,30 @@ struct VotingPhotoGridView: View {
         incomingCounts = voteCounts
         incomingTotal = totalVotes
         incomingVote = myVote
-        _counts = State(initialValue: voteCounts)
-        _total = State(initialValue: totalVotes)
-        _myVote = State(initialValue: myVote)
+        let item = FeedItemDTO(
+            id: fitCheckId, creatorId: creatorId, createdAt: Date(), expiresAt: expiresAt,
+            fitCheckPhotos: photos,
+            fitCheckVotes: myVote.map { [VoteRef(photoId: $0, voterId: voterId)] } ?? [],
+            fitCheckComments: [], voteCount: totalVotes)
+        _model = StateObject(wrappedValue: ReelVoteModel(
+            item: item, voterId: voterId, isLive: status == "live",
+            initialSummary: VoteSummary(counts: voteCounts, total: totalVotes, myVote: myVote, isRevealed: true)))
     }
 
-    // Evaluated against the current time on every timeline tick (and again at
-    // vote time), so a card left on screen stops accepting votes once it expires.
-    private var canVote: Bool { status == "live" && creatorId != voterId && !isExpired(expiresAt) }
-    private var revealed: Bool { myVote != nil || !canVote }
+    private var counts: [UUID: Int] { model.counts }
+    private var total: Int { model.total }
+    private var myVote: UUID? { model.myVote }
+    private var error: String? { model.error }
+    private var isVoting: Bool { model.isVoting }
+    private var isRetracting: Bool { model.isRetracting }
+    private var streak: VoteStreak { model.streak }
+
+    // Evaluated against the current time on every timeline tick, so a card left
+    // on screen stops accepting votes once it expires.
+    private var canVote: Bool { model.isVotingOpen }
+    private var revealed: Bool { model.isResultsRevealed }
     /// A voter (not the creator) who has already picked a look.
-    private var hasVoted: Bool { myVote != nil && creatorId != voterId }
+    private var hasVoted: Bool { myVote != nil && !model.isCreator }
     private var showsShare: Bool { revealed && total > 0 && canShareResult }
     private var leadingCount: Int { counts.values.max() ?? 0 }
 
@@ -101,12 +110,11 @@ struct VotingPhotoGridView: View {
         } message: { _ in
             Text("You can change your vote while voting is open.")
         }
-        .task {
-            Haptics.prepare()
-            streak = VoteStreakStore.load(for: voterId)
+        .task { Haptics.prepare() }
+        // The model plays the success and failure haptics; the grid only announces errors.
+        .onChange(of: model.error) { _, new in
+            if let new { AccessibilityNotification.Announcement(new).post() }
         }
-        .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
-        .sensoryFeedback(.success, trigger: celebration) { _, new in new != nil }
     }
 
     // Re-reads `canVote`/`revealed` whenever the clock ticks.
@@ -402,40 +410,16 @@ struct VotingPhotoGridView: View {
         AccessibilityNotification.Announcement(message).post()
     }
 
-    private func setError(_ message: String) {
-        error = message
-        AccessibilityNotification.Announcement(message).post()
-    }
-
     private func vote(on photoId: UUID) {
         guard !revealed, !isVoting else { return }
-        error = nil
-        isVoting = true
         Haptics.impact(.medium)
-        myVote = photoId // optimistic
-        counts[photoId, default: 0] += 1
-        total += 1
-
-        Task {
-            defer { isVoting = false }
-            do {
-                try await API.castVote(fitCheckId: fitCheckId, photoId: photoId, voterId: voterId, creatorId: creatorId, status: status, expiresAt: expiresAt)
+        model.vote(for: photoId) {
+            // Runs after the server confirmed (or already had) a vote, with its tally applied.
+            if model.error == nil {
                 celebrateIfLeading(photoId)
-                streak = VoteStreakStore.recordVote(for: voterId)
                 AccessibilityNotification.Announcement("Vote recorded, results shown").post()
-                appState.contentDidChange()
-            } catch APIError.alreadyVoted {
-                // The vote exists on the server (another device, or a retry
-                // after a lost response); refetch instead of rolling back.
-                setError(APIError.alreadyVoted.localizedDescription)
-                appState.contentDidChange()
-            } catch {
-                // The `.sensoryFeedback(.error, trigger: error)` above plays the failure haptic.
-                setError(friendlyMessage(for: error, fallback: "Couldn’t record your vote. Please try again."))
-                myVote = nil
-                counts[photoId, default: 1] -= 1
-                total -= 1
             }
+            appState.contentDidChange()
         }
     }
 
@@ -452,35 +436,17 @@ struct VotingPhotoGridView: View {
     }
 
     private func retractVote() {
-        guard let previous = myVote, canVote, !isRetracting, !isVoting else { return }
-        error = nil
-        isRetracting = true
+        guard model.canRetract else { return }
         Haptics.impact(.light)
-        myVote = nil // optimistic
-        counts[previous, default: 1] -= 1
-        total -= 1
-
-        Task {
-            defer { isRetracting = false }
-            do {
-                try await API.retractVote(fitCheckId: fitCheckId, voterId: voterId, status: status, expiresAt: expiresAt)
-                streak = VoteStreakStore.unrecordVote(for: voterId)
-                AccessibilityNotification.Announcement("Vote cancelled. Pick again.").post()
-                appState.contentDidChange()
-            } catch {
-                setError(friendlyMessage(for: error, fallback: "Couldn’t cancel your vote. Please try again."))
-                myVote = previous
-                counts[previous, default: 0] += 1
-                total += 1
-            }
+        model.retractVote {
+            AccessibilityNotification.Announcement("Vote cancelled. Pick again.").post()
+            appState.contentDidChange()
         }
     }
 
+    /// Takes the parent's freshly loaded server tally; the model ignores it mid-write.
     private func syncVotes() {
-        guard !isVoting, !isRetracting else { return }
-        counts = incomingCounts
-        total = incomingTotal
-        myVote = incomingVote
+        model.adopt(VoteSummary(counts: incomingCounts, total: incomingTotal, myVote: incomingVote, isRevealed: true))
     }
 }
 
