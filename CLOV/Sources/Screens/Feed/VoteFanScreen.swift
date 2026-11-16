@@ -24,8 +24,13 @@ struct VoteFanScreen: View {
     @State private var isBookmarked = false
     @State private var draft = ""
     @FocusState private var isInputFocused: Bool
+    /// Bumped by the comment button; the scroll view jumps to the comments panel.
+    @State private var commentsScrollRequest = 0
+    @ScaledMetric(relativeTo: .body) private var backButtonSize: CGFloat = 34
+    @ScaledMetric(relativeTo: .body) private var authorAvatarSize: CGFloat = 30
 
     private static let undoToastDuration: Duration = .seconds(5)
+    private static let commentsAnchor = "voteFanCommentsAnchor"
 
     init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, initialPhotoIndex: Int? = nil,
          onToggleFollow: @escaping (Bool) -> Void,
@@ -56,20 +61,26 @@ struct VoteFanScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            ScrollView {
-                VStack(spacing: 14) {
-                    fan
-                    voteStatus
-                    infoLine
-                    actionRow
-                    VoteFanCommentsPanel(model: commentsModel, photoId: model.currentPhoto?.id)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 14) {
+                        fan
+                        voteStatus
+                        infoLine
+                        actionRow
+                        VoteFanCommentsPanel(model: commentsModel, photoId: model.currentPhoto?.id)
+                            .id(Self.commentsAnchor)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .scrollDismissesKeyboard(.interactively)
+                .onChange(of: commentsScrollRequest) { _, _ in
+                    withAnimation(reduceMotion ? nil : Theme.settle) { proxy.scrollTo(Self.commentsAnchor, anchor: .top) }
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) { commentInput }
+                .overlay(alignment: .bottom) { undoToast.padding(.bottom, 80) }
             }
-            .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .bottom, spacing: 0) { commentInput }
-            .overlay(alignment: .bottom) { undoToast.padding(.bottom, 80) }
         }
         .background(Color.black.ignoresSafeArea())
         .environment(\.colorScheme, .dark)
@@ -109,7 +120,7 @@ struct VoteFanScreen: View {
                 Image(systemName: "chevron.left")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
+                    .frame(width: backButtonSize, height: backButtonSize)
                     .background(.black.opacity(0.55), in: Circle())
                     .frame(minWidth: FeedLayout.minHitSize, minHeight: FeedLayout.minHitSize)
                     .contentShape(Rectangle())
@@ -171,9 +182,10 @@ struct VoteFanScreen: View {
             Text("Voting ended").font(Theme.font(.footnote, weight: .bold)).foregroundStyle(Theme.mutedForeground)
         } else if model.isCreator {
             Text("This is your Fit-Check").font(Theme.font(.footnote, weight: .bold)).foregroundStyle(Theme.mutedForeground)
-        } else if model.canVote {
-            Label(model.isFirstTimeVoter ? "Hold the centre photo to vote · swipe for the next look" : "Hold to vote",
-                  systemImage: "hand.tap")
+        } else if model.canVote, model.isFirstTimeVoter {
+            // A teaching hint for the first vote only; after that the gesture
+            // is known and the pill would just be chrome over the photos.
+            Label("Hold the centre photo to vote · swipe for the next look", systemImage: "hand.tap")
                 .font(Theme.font(.caption, weight: .bold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12).padding(.vertical, 8)
@@ -187,7 +199,7 @@ struct VoteFanScreen: View {
     private var infoLine: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 30, ringed: true)
+                AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: authorAvatarSize, ringed: true)
                 Text(nickname).font(Theme.font(.subheadline, weight: .bold)).lineLimit(1)
                 Text(handle).font(Theme.font(.caption, weight: .medium)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
                 Spacer(minLength: 0)
@@ -224,6 +236,7 @@ struct VoteFanScreen: View {
                 else { try await API.unlikeFitCheck(id: item.id, userId: voterId) }
                 onEvent(wantsLike ? "like" : "unlike")
             }
+            commentButton
             BookmarkButton(isBookmarked: isBookmarked) { wantsSave in
                 if wantsSave { try await API.bookmarkFitCheck(id: item.id, userId: voterId) }
                 else { try await API.unbookmarkFitCheck(id: item.id, userId: voterId) }
@@ -232,6 +245,31 @@ struct VoteFanScreen: View {
                 .simultaneousGesture(TapGesture().onEnded { onEvent("share") })
             Spacer(minLength: 0)
         }
+    }
+
+    /// Comments for the photo on screen, same filter as the panel below.
+    private var visibleCommentCount: Int {
+        PhotoComments.visible(commentsModel.comments, photoId: model.currentPhoto?.id).count
+    }
+
+    /// Scrolls to the comments so they are one tap away from the photos.
+    private var commentButton: some View {
+        Button { commentsScrollRequest += 1 } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "bubble.left")
+                if visibleCommentCount > 0 {
+                    Text("\(visibleCommentCount)").font(Theme.font(.footnote, weight: .semibold))
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(minWidth: FeedLayout.minHitSize, minHeight: FeedLayout.minHitSize)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(InstantPressStyle())
+        .accessibilityLabel("Comments")
+        .accessibilityValue(visibleCommentCount == 1 ? "1 comment" : "\(visibleCommentCount) comments")
+        .accessibilityHint("Jumps to the comments")
+        .accessibilityIdentifier("voteFanCommentButton")
     }
 
     // MARK: Comments input

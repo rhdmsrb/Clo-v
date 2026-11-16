@@ -483,6 +483,7 @@ struct FeedView: View {
             return
         } catch {
             if Task.isCancelled || (error as? URLError)?.code == .cancelled { return }
+            Log.app.error("Feed load failed: \(String(describing: error))")
             if loadID == requestID { self.error = "Couldn’t load this content. Please try again." }
         }
     }

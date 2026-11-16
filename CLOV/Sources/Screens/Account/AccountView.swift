@@ -326,6 +326,7 @@ struct AccountView: View {
         } catch is CancellationError {
             return
         } catch {
+            Log.app.error("Account load failed: \(String(describing: error))")
             self.error = "Couldn’t load this content. Please try again."
         }
     }

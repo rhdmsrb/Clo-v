@@ -15,3 +15,7 @@ supabase/.temp/
 clov-*-preview.png
 output/
 tmp/
+
+# Local secrets and Python caches for the seed scripts
+scripts/.env.local
+__pycache__/

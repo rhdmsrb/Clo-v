@@ -8,6 +8,8 @@ import XCTest
 /// a missing element is recorded as a failure but never stops the walk.
 final class DesignReviewUITests: XCTestCase {
     private static let sampleDataArgument = "--uiTestSampleData"
+    /// Mirrors the app's `appearance.colorScheme` setting (system / light / dark).
+    private static let colorSchemeArgument = "-appearance.colorScheme"
     private static let extraLargeAccessibilitySize = "UICTContentSizeCategoryAccessibilityXL"
     private static let shortWait: TimeInterval = 5
     private static let settleDelay: TimeInterval = 1
@@ -69,7 +71,9 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     func testWalkDarkMode() {
-        let app = launchApp(arguments: ["-AppleInterfaceStyle", "Dark"])
+        // `-AppleInterfaceStyle` is ignored on iOS, so the walk was light. The
+        // app's own appearance setting (read from the launch arguments) is what works.
+        let app = launchApp(arguments: [Self.colorSchemeArgument, "dark"])
         walkFeed(app, prefix: "dark-feed")
         walkNotifications(app, prefix: "dark")
         walkAccount(app, prefix: "dark")

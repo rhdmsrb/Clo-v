@@ -45,6 +45,13 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["voteFanComments"].exists, "comments panel missing")
         XCTAssertTrue(app.buttons["voteFanCommentSend"].exists, "send button missing")
         XCTAssertFalse(app.buttons["feedTab"].isHittable, "floating tab bar should be hidden on the vote screen")
+        attach(app, name: "vote-01-top")
+
+        // The action row has a comment button that scrolls the comments into view.
+        let commentButton = app.buttons["voteFanCommentButton"]
+        XCTAssertTrue(commentButton.exists, "comment button missing from the action row")
+        commentButton.tap()
+        attach(app, name: "vote-02-after-comment-button")
 
         let input = app.textViews["voteFanCommentInput"].exists
             ? app.textViews["voteFanCommentInput"] : app.textFields["voteFanCommentInput"]
@@ -58,6 +65,13 @@ final class VoteFanUITests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private func attach(_ app: XCUIApplication, name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
 
     private func waitUntilGone(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
