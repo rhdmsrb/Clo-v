@@ -10,6 +10,8 @@ struct PhotoFan: View {
     let isResultsRevealed: Bool
     let percent: (UUID) -> Int
     let myVote: UUID?
+    /// Photos currently ahead; they get a crown on their result chip.
+    var leadingIds: Set<UUID> = []
     let onVote: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -66,7 +68,7 @@ struct PhotoFan: View {
             .frame(width: width, height: width * Self.cardAspect)
             .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             .holdToVote(isEnabled: canVote && index == selection, onVote: onVote)
-            .overlay(alignment: .bottom) { resultChip(photo) }
+            .overlay(alignment: .bottom) { resultChip(photo, index: index) }
             .scrollTransition(axis: .horizontal) { content, phase in
                 content
                     .scaleEffect(phase.isIdentity ? 1 : sideScale)
@@ -75,15 +77,28 @@ struct PhotoFan: View {
             }
     }
 
-    private func resultChip(_ photo: FitCheckPhoto) -> some View {
-        Text("\(percent(photo.id))%")
-            .font(Theme.font(.subheadline, weight: photo.id == myVote ? .black : .bold))
-            .monospacedDigit()
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(.black.opacity(0.55), in: Capsule())
-            .blurReveal(isRevealed: isResultsRevealed)
-            .padding(.bottom, 10)
-            .allowsHitTesting(false)
+    private static let staggerStep: Double = 0.12
+
+    private func resultChip(_ photo: FitCheckPhoto, index: Int) -> some View {
+        let isLeading = leadingIds.contains(photo.id)
+        return HStack(spacing: 5) {
+            if isLeading {
+                Image(systemName: "crown.fill")
+                    .foregroundStyle(Theme.win)
+                    .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? false : isResultsRevealed)
+                    .accessibilityHidden(true)
+            }
+            RevealCounter(target: percent(photo.id), isRevealed: isResultsRevealed, style: .percent,
+                          delay: reduceMotion ? 0 : Double(index) * Self.staggerStep)
+        }
+        .font(Theme.font(.subheadline, weight: photo.id == myVote ? .black : .bold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(.black.opacity(0.55), in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(isLeading ? "leading" : "")
+        .blurReveal(isRevealed: isResultsRevealed)
+        .padding(.bottom, 10)
+        .allowsHitTesting(false)
     }
 }
