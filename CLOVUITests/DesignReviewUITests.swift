@@ -64,6 +64,7 @@ final class DesignReviewUITests: XCTestCase {
         attach(app, name: "ax-02-feed-scrolled")
         scrollToTop(app)
         openCommentSheet(app, prefix: "ax")
+        openVoteScreen(app, prefix: "ax")
         dismissSheet(app)
         tapTab(app, "searchTab", shot: "ax-04-search-tab")
         tapTab(app, "accountTab", shot: "ax-05-account-tab")
@@ -89,6 +90,7 @@ final class DesignReviewUITests: XCTestCase {
         scroll(app, up: false, times: 2)
 
         openCommentSheet(app, prefix: prefix)
+        openVoteScreen(app, prefix: prefix)
     }
 
     /// Voting opens the "why did you vote" sheet, which doubles as the
@@ -114,20 +116,38 @@ final class DesignReviewUITests: XCTestCase {
         if confirm.waitForExistence(timeout: 2) { confirm.tap() }
     }
 
+    /// The feed's Comment button opens a half-height comment sheet (not the
+    /// vote screen). Capture it, then dismiss it by swiping its photo fan down.
     private func openCommentSheet(_ app: XCUIApplication, prefix: String) {
-        let comment = app.buttons["feed-comment-button"].firstMatch
-        guard comment.waitForExistence(timeout: Self.shortWait), tap(comment),
-              app.buttons["reelBackButton"].waitForExistence(timeout: Self.shortWait) else {
+        // Scroll the button into the band above the floating tab bar first: at
+        // large text sizes its centre sits behind the bar, and the tap would
+        // land on the tab bar's + button and open Create instead.
+        let sheetFan = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label ENDSWITH 'in this Fit-Check'")).firstMatch
+        guard let comment = scrollToVisible(app, app.buttons.matching(identifier: "feed-comment-button")),
+              tap(comment), sheetFan.waitForExistence(timeout: Self.shortWait) else {
             attach(app, name: "\(prefix)-comment-sheet-missing"); return
         }
+        settle()
+        attach(app, name: "\(prefix)-comment-sheet")
+        sheetFan.swipeDown(velocity: .fast)
+        settle()
+    }
+
+    /// Tapping the feed photos opens the vote screen; its action row has a
+    /// comment button that scrolls to the comments.
+    private func openVoteScreen(_ app: XCUIApplication, prefix: String) {
+        guard let photos = scrollToVisible(app, app.buttons.matching(identifier: "feed-photo-carousel")),
+              tap(photos), app.buttons["reelBackButton"].waitForExistence(timeout: Self.shortWait) else {
+            attach(app, name: "\(prefix)-vote-screen-missing"); return
+        }
         attach(app, name: "\(prefix)-vote-screen")
-        let comments = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Comments'")).firstMatch
-        if tap(comments) {
+        if tap(app.buttons["voteFanCommentButton"]) {
             settle()
-            attach(app, name: "\(prefix)-comment-sheet")
-            app.swipeDown()
+            attach(app, name: "\(prefix)-vote-comments")
         }
         _ = tap(app.buttons["reelBackButton"])
+        settle()
     }
 
     private func openPhotoZoom(_ app: XCUIApplication, prefix: String) {
