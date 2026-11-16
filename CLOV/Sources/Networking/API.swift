@@ -182,6 +182,10 @@ enum API {
     /// exist only after migrations 20261107000100+; see `selectingFeedColumns`.
     static let feedColumns = "id, creator_id, caption, occasion, is_public, tags, like_count, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position, description, tags), fit_check_votes(photo_id, voter_id), fit_check_comments(id), vote_count, profiles!fit_checks_creator_id_fkey(nickname, avatar_url, account_code)"
 
+    /// Audiences that belong in the Home and Following feeds. Group posts stay in
+    /// their group feed, and "Only me" posts never reach another person's feed.
+    static let mainFeedAudiences = ["public", "friends"]
+
     static var notExpiredFilter: String {
         "expires_at.is.null,expires_at.gt.\(ISO8601DateFormatter().string(from: Date()))"
     }
@@ -195,7 +199,10 @@ enum API {
         async let friendTask = fetchFriendIDs(userId: userId)
         let friendIDs = try await friendTask
         let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
-            var query = client.from("fit_checks").select(columns).eq("status", value: "live").or(notExpiredFilter)
+            var query = client.from("fit_checks")
+                .select(columns).eq("status", value: "live")
+                .in("audience", values: mainFeedAudiences)
+                .or(notExpiredFilter)
             if friendIDs.isEmpty { query = query.eq("is_public", value: true) }
             else { query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))") }
             return try await query.order("created_at", ascending: false).limit(50).execute().value
@@ -215,6 +222,7 @@ enum API {
         let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
             var query = client.from("fit_checks")
                 .select(columns).eq("status", value: "live")
+                .in("audience", values: mainFeedAudiences)
                 .or(notExpiredFilter)
             if followingIDs != nil {
                 query = query.in("creator_id", values: Array(followedOrFriends))
@@ -249,6 +257,7 @@ enum API {
         let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
             try await client.from("fit_checks")
                 .select(columns).eq("status", value: "live")
+                .in("audience", values: mainFeedAudiences)
                 .in("creator_id", values: Array(visibleAuthors))
                 .or(notExpiredFilter)
                 .order("created_at", ascending: false).limit(50).execute().value
