@@ -248,12 +248,7 @@ struct FeedView: View {
     /// sits on a blur.
     private var pinnedFilters: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // One row: For You / Following on the left, tools on the right.
-            HStack(spacing: 8) {
-                modeRow
-                headerButtons
-            }
-            .padding(.horizontal, Self.pagePadding)
+            topControls.padding(.horizontal, Self.pagePadding)
             if isSearchExpanded {
                 FeedSearchField(text: $searchText).padding(.horizontal, Self.pagePadding)
             }
@@ -261,6 +256,23 @@ struct FeedView: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.background.ignoresSafeArea(edges: .top))
+    }
+
+    /// One row (For You / Following on the left, tools on the right) when it
+    /// fits. At large text sizes the tools drop under the segments instead of
+    /// covering them.
+    private var topControls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                FeedModeSegments(mode: $mode) { select($0) }
+                Spacer(minLength: 0)
+                headerButtons
+            }
+            VStack(alignment: .trailing, spacing: 8) {
+                modeRow
+                headerButtons
+            }
+        }
     }
 
     private var modeRow: some View {

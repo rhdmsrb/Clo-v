@@ -14,6 +14,7 @@ struct VoteFanScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.setTabBarHidden) private var setTabBarHidden
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var model: ReelVoteModel
     @StateObject private var commentsModel: VoteFanCommentsModel
     @StateObject private var celebration = CelebrationState()
@@ -31,6 +32,8 @@ struct VoteFanScreen: View {
 
     private static let undoToastDuration: Duration = .seconds(5)
     private static let commentsAnchor = "voteFanCommentsAnchor"
+    /// The scaled author avatar stops growing here so it never crowds the name.
+    private static let maxAuthorAvatarSize: CGFloat = 44
 
     init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, initialPhotoIndex: Int? = nil,
          onToggleFollow: @escaping (Bool) -> Void,
@@ -198,13 +201,7 @@ struct VoteFanScreen: View {
 
     private var infoLine: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: authorAvatarSize, ringed: true)
-                Text(nickname).font(Theme.font(.subheadline, weight: .bold)).lineLimit(1)
-                Text(handle).font(Theme.font(.caption, weight: .medium)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
-                Spacer(minLength: 0)
-                if !model.isCreator { followPill }
-            }
+            authorRow
             if let title {
                 Text(title).font(Theme.font(.headline, weight: .bold)).lineLimit(2)
             }
@@ -216,9 +213,49 @@ struct VoteFanScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Author and Follow on one line; at accessibility text sizes the pill drops
+    /// under the name so neither truncates or wraps.
+    @ViewBuilder
+    private var authorRow: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 6) {
+                authorIdentity
+                if !model.isCreator { followPill }
+            }
+        } else {
+            HStack(spacing: 8) {
+                authorIdentity
+                Spacer(minLength: 0)
+                if !model.isCreator { followPill }
+            }
+        }
+    }
+
+    private var authorIdentity: some View {
+        HStack(spacing: 8) {
+            AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname,
+                       size: min(authorAvatarSize, Self.maxAuthorAvatarSize), ringed: true)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 2) { nameText; handleText }
+            } else {
+                HStack(spacing: 8) { nameText; handleText }
+            }
+        }
+    }
+
+    private var nameText: some View {
+        Text(nickname).font(Theme.font(.subheadline, weight: .bold)).lineLimit(1)
+    }
+
+    private var handleText: some View {
+        Text(handle).font(Theme.font(.caption, weight: .medium)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
+    }
+
     private var followPill: some View {
         Button(isFollowing ? "Following" : "+ Follow") { onToggleFollow(!isFollowing) }
             .font(Theme.font(.caption, weight: .bold))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .foregroundStyle(isFollowing ? Color.white : Theme.accentForeground)
             .padding(.horizontal, 10).padding(.vertical, 6)
             .background(isFollowing ? .white.opacity(0.18) : Theme.accent, in: Capsule())
