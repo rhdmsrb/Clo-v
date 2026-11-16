@@ -42,9 +42,11 @@ final class ReelVoteModel: ObservableObject {
     @Published private(set) var isRetracting = false
     @Published private(set) var streak: VoteStreak
     @Published var error: String?
+    @Published private(set) var summaryLoaded: Bool
+    @Published private(set) var summaryLoadFailed = false
 
     /// `initialSummary` is a summary the caller already fetched from the server; it
-    /// replaces the seeds taken from the item's embedded rows.
+    /// replaces any seeds supplied by an in-memory caller.
     init(item: FeedItemDTO, voterId: UUID, initialLook: Int? = nil, isLive: Bool = true,
          initialSummary: VoteSummary? = nil, service: ReelVoteService = .live) {
         self.item = item
@@ -53,11 +55,12 @@ final class ReelVoteModel: ObservableObject {
         self.service = service
         photos = item.fitCheckPhotos.sorted { $0.position < $1.position }
         lookIndex = Self.clampedLook(initialLook, count: photos.count)
-        // Seeds only: the vote policy may expose just the viewer's own row, so the
-        // authoritative numbers come from `refreshSummary()`.
+        // Feed queries omit vote rows. In-memory seeds are used only until the
+        // authoritative summary arrives; voting waits for that summary.
         counts = Dictionary(grouping: item.fitCheckVotes, by: \.photoId).mapValues(\.count)
         total = item.voteCount ?? item.fitCheckVotes.count
         myVote = item.fitCheckVotes.first { $0.voterId == voterId }?.photoId
+        summaryLoaded = initialSummary != nil
         streak = VoteStreakStore.load(for: voterId)
         if let initialSummary { apply(initialSummary) }
     }
@@ -70,9 +73,9 @@ final class ReelVoteModel: ObservableObject {
 
     var currentPhoto: FitCheckPhoto? { photos.indices.contains(lookIndex) ? photos[lookIndex] : photos.first }
     /// False while a vote or an undo is in flight so the two never overlap.
-    var canVote: Bool { isVotingOpen && myVote == nil && !isWriteInFlight }
+    var canVote: Bool { isVotingOpen && summaryLoaded && myVote == nil && !isWriteInFlight }
     /// A cast vote can be taken back while the post is live.
-    var canRetract: Bool { isVotingOpen && myVote != nil && !isWriteInFlight }
+    var canRetract: Bool { isVotingOpen && summaryLoaded && myVote != nil && !isWriteInFlight }
     /// The post is live and this viewer is not its creator, whether or not they have voted yet.
     var isVotingOpen: Bool { !isCreator && !isEnded }
     /// First-time voters get a hint about the hold gesture.
@@ -210,7 +213,10 @@ final class ReelVoteModel: ObservableObject {
             guard !isWriteInFlight else { return }
             // Idle, so the server is the truth: a summary with no vote clears a stale local one.
             apply(summary)
+            summaryLoaded = true
+            summaryLoadFailed = false
         } catch {
+            summaryLoadFailed = true
             Log.app.error("ReelVoteModel summary refresh failed: \(error.localizedDescription)")
         }
     }
@@ -222,6 +228,8 @@ final class ReelVoteModel: ObservableObject {
     func adopt(_ summary: VoteSummary) {
         guard !isWriteInFlight else { return }
         apply(summary)
+        summaryLoaded = true
+        summaryLoadFailed = false
     }
 
     private var isWriteInFlight: Bool { isVoting || isRetracting }

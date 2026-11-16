@@ -34,8 +34,26 @@ final class ReelVoteModelGridTests: XCTestCase {
 
     private final class Counter { var value = 0 }
 
+    func testVoteWaitsForServerStateAndCanRetryAfterFailure() async {
+        var shouldFail = true
+        let retryService = ReelVoteService(cast: { _, _, _ in }, retract: { _, _ in },
+            fetchSummary: { _, _ in
+                if shouldFail { throw URLError(.notConnectedToInternet) }
+                return .hidden(myVote: nil)
+            })
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, service: retryService)
+        XCTAssertFalse(model.canVote)
+        await model.loadSummary()
+        XCTAssertTrue(model.summaryLoadFailed)
+        XCTAssertFalse(model.canVote)
+        shouldFail = false
+        await model.loadSummary()
+        XCTAssertTrue(model.canVote)
+        XCTAssertFalse(model.summaryLoadFailed)
+    }
+
     func testVoteForTappedPhotoIgnoresTheLookOnScreen() async {
-        let model = ReelVoteModel(item: makeItem(), voterId: viewer, service: service())
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil), service: service())
         XCTAssertEqual(model.lookIndex, 0)
         XCTAssertTrue(model.vote(for: photoB) {})
         XCTAssertEqual(model.myVote, photoB)
@@ -44,7 +62,7 @@ final class ReelVoteModelGridTests: XCTestCase {
     }
 
     func testVoteForUnknownPhotoIsRejected() {
-        let model = ReelVoteModel(item: makeItem(), voterId: viewer, service: service())
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil), service: service())
         XCTAssertFalse(model.vote(for: UUID()) {})
         XCTAssertNil(model.myVote)
     }
@@ -76,14 +94,14 @@ final class ReelVoteModelGridTests: XCTestCase {
     }
 
     func testAdoptReplacesTheTallyWhenIdle() {
-        let model = ReelVoteModel(item: makeItem(), voterId: viewer, service: service())
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil), service: service())
         model.adopt(VoteSummary(counts: [photoA: 2], total: 2, myVote: photoA, isRevealed: true))
         XCTAssertEqual(model.total, 2)
         XCTAssertEqual(model.myVote, photoA)
     }
 
     func testAdoptIsIgnoredWhileAVoteIsInFlight() async {
-        let model = ReelVoteModel(item: makeItem(), voterId: viewer, service: service())
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil), service: service())
         XCTAssertTrue(model.vote(for: photoA) {})
         model.adopt(VoteSummary(counts: [photoB: 9], total: 9, myVote: photoB, isRevealed: true))
         XCTAssertEqual(model.myVote, photoA)
@@ -136,7 +154,7 @@ final class ReelVoteModelGridTests: XCTestCase {
 
     func testLostCastResponseIsKeptWhenTheServerHasTheVote() async {
         let confirmed = VoteSummary(counts: [photoA: 2], total: 2, myVote: photoA, isRevealed: true)
-        let model = ReelVoteModel(item: makeItem(), voterId: viewer, service: failingService(summary: confirmed))
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil), service: failingService(summary: confirmed))
         var recorded = false
         XCTAssertTrue(model.vote(for: photoA) { recorded = true })
         await model.waitUntilIdle()
@@ -148,7 +166,7 @@ final class ReelVoteModelGridTests: XCTestCase {
 
     func testCastFailureRollsBackWhenTheServerHasNoVote() async {
         let model = ReelVoteModel(item: makeItem(), voterId: viewer,
-                                  service: failingService(summary: .hidden(myVote: nil)))
+                                  initialSummary: .hidden(myVote: nil), service: failingService(summary: .hidden(myVote: nil)))
         XCTAssertTrue(model.vote(for: photoA) {})
         await model.waitUntilIdle()
         XCTAssertNil(model.myVote)
@@ -157,6 +175,7 @@ final class ReelVoteModelGridTests: XCTestCase {
 
     func testLostRetractResponseIsKeptWhenTheServerNoLongerHasTheVote() async {
         let model = ReelVoteModel(item: ownVoteItem(), voterId: viewer,
+                                  initialSummary: VoteSummary(counts: [photoA: 1], total: 1, myVote: photoA, isRevealed: true),
                                   service: failingService(summary: .hidden(myVote: nil)))
         var recorded = false
         model.retractVote { recorded = true }
@@ -168,7 +187,7 @@ final class ReelVoteModelGridTests: XCTestCase {
 
     func testRetractFailureRestoresTheVoteWhenTheServerStillHasIt() async {
         let still = VoteSummary(counts: [photoA: 1], total: 1, myVote: photoA, isRevealed: true)
-        let model = ReelVoteModel(item: ownVoteItem(), voterId: viewer, service: failingService(summary: still))
+        let model = ReelVoteModel(item: ownVoteItem(), voterId: viewer, initialSummary: still, service: failingService(summary: still))
         model.retractVote {}
         await model.waitUntilIdle()
         XCTAssertEqual(model.myVote, photoA)

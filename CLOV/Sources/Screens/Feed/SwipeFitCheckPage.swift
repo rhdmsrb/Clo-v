@@ -108,6 +108,7 @@ struct SwipeFitCheckPage: View {
             Button("OK", role: .cancel) {}
         } message: { Text(safetyMessage ?? "") }
         .task { await loadEngagement() }
+        .task { await model.loadSummary() }
     }
 
     // MARK: Photo and hold-to-vote
@@ -283,7 +284,12 @@ struct SwipeFitCheckPage: View {
 
     @ViewBuilder
     private var voteStatus: some View {
-        if let myVote = model.myVote, let insight = model.insight {
+        if model.summaryLoadFailed && !model.summaryLoaded {
+            Button("Couldn’t load voting. Tap to retry") { Task { await model.loadSummary() } }
+                .accessibilityIdentifier("vote.summaryRetry")
+        } else if !model.summaryLoaded {
+            ProgressView("Loading voting…").tint(.white)
+        } else if let myVote = model.myVote, let insight = model.insight {
             VStack(alignment: .leading, spacing: 4) {
                 Text("You picked look \(model.photos.first { $0.id == myVote }?.position ?? 1) · \(model.percent(for: myVote))%")
                     .font(Theme.font(.footnote, weight: .black))

@@ -36,13 +36,8 @@ extension API {
                                           isCreator: voterId == creatorId,
                                           hasVoted: myVote != nil)
         guard plan != .hidden else { return .hidden(myVote: nil) }
-        do {
-            return try await loadSummary(plan: plan, fitCheckId: fitCheckId, myVote: myVote,
-                                         isCreator: voterId == creatorId)
-        } catch where isMissingFunctionError(error) {
-            // RPC not deployed yet: derive from whatever rows the vote policy exposes.
-            return try await legacyVoteSummary(fitCheckId: fitCheckId, voterId: voterId, myVote: myVote)
-        }
+        return try await loadSummary(plan: plan, fitCheckId: fitCheckId, myVote: myVote,
+                                     isCreator: voterId == creatorId)
     }
 
     private static func loadSummary(plan: VoteSummaryPlan, fitCheckId: UUID, myVote: UUID?,
@@ -70,21 +65,6 @@ extension API {
     static func closedTallyOutcome(closed: [LivePhotoTally], isCreator: Bool, hasVoted: Bool) -> ClosedTallyOutcome {
         if !closed.isEmpty { return .revealed }
         return isCreator || hasVoted ? .useLiveTally : .stayHidden
-    }
-
-    /// True for undefined_function (42883) and PGRST202 only.
-    static func isMissingFunctionError(_ error: Error) -> Bool {
-        guard let code = (error as? PostgrestError)?.code else { return false }
-        return code == "42883" || code == "PGRST202"
-    }
-
-    /// Caller has already passed the reveal rule (ended, creator, or voted).
-    private static func legacyVoteSummary(fitCheckId: UUID, voterId: UUID, myVote: UUID?) async throws -> VoteSummary {
-        let rows: [VoteRef] = try await client.from("fit_check_votes")
-            .select("photo_id, voter_id")
-            .eq("fit_check_id", value: fitCheckId)
-            .execute().value
-        return VoteSummary.from(votes: rows, voterId: voterId, myVote: myVote)
     }
 
     private static func fetchOwnVote(fitCheckId: UUID, voterId: UUID) async throws -> UUID? {

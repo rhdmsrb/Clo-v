@@ -64,7 +64,9 @@ final class ReelHoldToVoteTests: XCTestCase {
     }
 
     private func makeModel(votes: [VoteRef] = [], network: FakeVoteNetwork) -> ReelVoteModel {
-        ReelVoteModel(item: makeItem(votes: votes), voterId: viewer, service: network.service)
+        ReelVoteModel(item: makeItem(votes: votes), voterId: viewer,
+                      initialSummary: VoteSummary.from(votes: votes, voterId: viewer, myVote: nil),
+                      service: network.service)
     }
 
     private var viewerVoteA: [VoteRef] { [VoteRef(photoId: photoA, voterId: viewer)] }
@@ -163,7 +165,7 @@ final class ReelHoldToVoteTests: XCTestCase {
         let network = FakeVoteNetwork()
         network.castResult = .failure(APIError.alreadyVoted)
         let model = ReelVoteModel(
-            item: makeItem(), voterId: viewer,
+            item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil),
             service: ReelVoteService(cast: { _, _, _ in throw APIError.alreadyVoted },
                                      retract: { _, _ in },
                                      fetchSummary: { _, _ in throw FakeFailure() }))
@@ -234,7 +236,8 @@ final class ReelHoldToVoteTests: XCTestCase {
         XCTAssertFalse(ReelVoteModel(item: makeItem(), voterId: viewer).isResultsRevealed)
         XCTAssertTrue(ReelVoteModel(item: makeItem(), voterId: creator).isResultsRevealed)
         XCTAssertTrue(ReelVoteModel(item: makeItem(expiresAt: Date().addingTimeInterval(-60)), voterId: viewer).isResultsRevealed)
-        let voted = ReelVoteModel(item: makeItem(votes: [VoteRef(photoId: photoA, voterId: viewer)]), voterId: viewer)
+        let voted = ReelVoteModel(item: makeItem(votes: [VoteRef(photoId: photoA, voterId: viewer)]), voterId: viewer,
+                                   initialSummary: VoteSummary.from(votes: [VoteRef(photoId: photoA, voterId: viewer)], voterId: viewer, myVote: nil))
         XCTAssertTrue(voted.isResultsRevealed)
         XCTAssertFalse(voted.canVote)
     }

@@ -21,6 +21,11 @@ final class VoteFanUITests: XCTestCase {
         let centre = fan.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let undo = app.buttons["Undo"].firstMatch
 
+        // The server summary must finish before voting is enabled.
+        let loading = app.descendants(matching: .any)["vote.summaryLoading"]
+        if loading.exists { XCTAssertTrue(waitUntilGone(loading, timeout: 10), "vote state did not finish loading") }
+        XCTAssertFalse(app.buttons["vote.summaryRetry"].exists, "vote state failed to load")
+
         // Releasing early must not cast a vote.
         centre.press(forDuration: Self.earlyReleaseSeconds)
         XCTAssertFalse(undo.waitForExistence(timeout: 2), "a short press must not vote")

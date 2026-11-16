@@ -179,7 +179,12 @@ struct VoteFanScreen: View {
 
     @ViewBuilder
     private var voteStatus: some View {
-        if let error = model.error {
+        if model.summaryLoadFailed && !model.summaryLoaded {
+            Button("Couldn’t load voting. Tap to retry") { Task { await model.loadSummary() } }
+                .accessibilityIdentifier("vote.summaryRetry")
+        } else if !model.summaryLoaded {
+            ProgressView("Loading voting…").accessibilityIdentifier("vote.summaryLoading")
+        } else if let error = model.error {
             Text(error).font(Theme.font(.caption, weight: .semibold)).foregroundStyle(Theme.danger)
         } else if model.isEnded {
             Text("Voting ended").font(Theme.font(.footnote, weight: .bold)).foregroundStyle(Theme.mutedForeground)
