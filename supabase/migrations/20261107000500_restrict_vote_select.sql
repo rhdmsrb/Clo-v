@@ -1,7 +1,8 @@
 -- ============================================================================
--- NOT TO BE APPLIED WITHOUT EXPLICIT USER SIGN-OFF.
--- Deliberately kept OUT of supabase/migrations/ so `supabase db push` cannot
--- pick it up. Move it into migrations/ only after sign-off.
+-- APPLIED to the live project on 2026-11-16 with the user's explicit sign-off
+-- (run with `supabase db query --linked -f`, then recorded with
+-- `supabase migration repair --status applied 20261107000500`). Moved here from
+-- supabase/pending/ afterwards.
 -- ============================================================================
 --
 -- BREAKING for shipped app builds: they read fit_check_votes directly (feed
