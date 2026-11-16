@@ -102,12 +102,11 @@ struct FeedPostCard: View {
 
     private func photos(expired: Bool) -> some View {
         PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex, autoAdvance: !expired,
-                      accessibilityIdentifier: "feed-photo-carousel")
+                      accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) })
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
             .overlay { if expired { endedOverlay } }
             .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
             .contentShape(Rectangle())
-            .onTapGesture { onOpen(photoIndex) }
             .accessibilityAction(named: expired ? "See results" : "Open to vote") { onOpen(photoIndex) }
     }
 
