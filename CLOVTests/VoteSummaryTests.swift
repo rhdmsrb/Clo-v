@@ -87,3 +87,26 @@ final class VoteSummaryTests: XCTestCase {
         XCTAssertEqual(summary.myVote, photoA)
     }
 }
+
+/// The device clock only guesses that a post has ended; the server decides. When the
+/// closed-results call comes back empty, that guess may have been wrong.
+final class ClosedTallyOutcomeTests: XCTestCase {
+    private let tally = [LivePhotoTally(photoId: UUID(), voteCount: 3, isMine: false)]
+
+    func testNonEmptyClosedResultsAreRevealed() {
+        XCTAssertEqual(API.closedTallyOutcome(closed: tally, isCreator: false, hasVoted: false), .revealed)
+    }
+
+    func testEmptyResultsForAVoterFallBackToTheLiveTally() {
+        XCTAssertEqual(API.closedTallyOutcome(closed: [], isCreator: false, hasVoted: true), .useLiveTally)
+    }
+
+    func testEmptyResultsForTheCreatorFallBackToTheLiveTally() {
+        XCTAssertEqual(API.closedTallyOutcome(closed: [], isCreator: true, hasVoted: false), .useLiveTally)
+    }
+
+    /// Without a vote there is nothing to prove the post has really ended, so never show "0 votes".
+    func testEmptyResultsForAnUndecidedViewerStayHidden() {
+        XCTAssertEqual(API.closedTallyOutcome(closed: [], isCreator: false, hasVoted: false), .stayHidden)
+    }
+}

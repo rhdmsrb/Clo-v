@@ -144,6 +144,14 @@ final class ReelVoteModel: ObservableObject {
                 await resyncFromServer(fallbackVote: photoId)
                 onRecorded()
             } catch {
+                // A timeout can lose the response after the vote landed; trust the server.
+                if let summary = await serverSummary(), summary.myVote == photoId {
+                    Haptics.success()
+                    streak = VoteStreakStore.recordVote(for: voterId)
+                    apply(summary, fallbackVote: photoId)
+                    onRecorded()
+                    return
+                }
                 Haptics.error()
                 self.error = friendlyMessage(for: error, fallback: "Couldn’t record your vote. Please try again.")
                 myVote = nil
@@ -172,6 +180,13 @@ final class ReelVoteModel: ObservableObject {
                 await syncAfterWrite(fallbackVote: nil)
                 onRecorded()
             } catch {
+                // The undo may have landed even though its response was lost.
+                if let summary = await serverSummary(), summary.myVote == nil {
+                    streak = VoteStreakStore.unrecordVote(for: voterId)
+                    apply(summary, fallbackVote: nil)
+                    onRecorded()
+                    return
+                }
                 Haptics.error()
                 self.error = friendlyMessage(for: error, fallback: "Couldn’t undo your vote. Please try again.")
                 myVote = previous
@@ -193,7 +208,8 @@ final class ReelVoteModel: ObservableObject {
         do {
             let summary = try await service.fetchSummary(item, voterId)
             guard !isWriteInFlight else { return }
-            apply(summary, fallbackVote: myVote)
+            // Idle, so the server is the truth: a summary with no vote clears a stale local one.
+            apply(summary)
         } catch {
             Log.app.error("ReelVoteModel summary refresh failed: \(error.localizedDescription)")
         }
@@ -220,6 +236,11 @@ final class ReelVoteModel: ObservableObject {
         guard summary.isRevealed else { return }
         counts = summary.counts
         total = summary.total
+    }
+
+    /// The server's current summary, or nil when it can't be read.
+    private func serverSummary() async -> VoteSummary? {
+        try? await service.fetchSummary(item, voterId)
     }
 
     /// After a successful write, resyncs truth from the server; keeps the optimistic

@@ -64,16 +64,60 @@ final class VoteStreakTests: XCTestCase {
         XCTAssertEqual(streak.days, 2)
     }
 
-    func testCancellingAVoteLowersTodaysCountButKeepsStreak() {
+    func testCancellingOneOfTwoVotesTodayKeepsTheDayStreak() {
         let streak = VoteStreak().recording(on: day(0), calendar: calendar)
-            .recording(on: day(1), calendar: calendar).unrecording()
-        XCTAssertEqual(streak.votesToday, 0)
+            .recording(on: day(1), calendar: calendar).recording(on: day(1), calendar: calendar)
+            .unrecording(on: day(1), calendar: calendar)
+        XCTAssertEqual(streak.votesToday, 1)
         XCTAssertEqual(streak.days, 2)
+    }
+
+    /// A vote that is taken back must not leave today's streak credit behind.
+    func testCancellingTheOnlyVoteTodayTakesTodayOutOfTheStreak() {
+        let streak = VoteStreak().recording(on: day(0), calendar: calendar)
+            .recording(on: day(1), calendar: calendar).unrecording(on: day(1), calendar: calendar)
+        XCTAssertEqual(streak.votesToday, 0)
+        XCTAssertEqual(streak.days, 1)
+        XCTAssertEqual(streak.lastVoteDay, day(0))
         XCTAssertNil(streak.summary(on: day(1), calendar: calendar))
+    }
+
+    func testCancellingTheVeryFirstVoteMakesTheUserAFirstTimeVoterAgain() {
+        let streak = VoteStreak().recording(on: day(0), calendar: calendar).unrecording(on: day(0), calendar: calendar)
+        XCTAssertEqual(streak, VoteStreak())
+    }
+
+    func testVotingAgainAfterCancellingGivesTheSameStreakAsNeverCancelling() {
+        let direct = VoteStreak().recording(on: day(0), calendar: calendar).recording(on: day(1), calendar: calendar)
+        let afterUndo = VoteStreak().recording(on: day(0), calendar: calendar).recording(on: day(1), calendar: calendar)
+            .unrecording(on: day(1), calendar: calendar).recording(on: day(1), calendar: calendar)
+        XCTAssertEqual(afterUndo.days, direct.days)
+        XCTAssertEqual(afterUndo.votesToday, direct.votesToday)
+    }
+
+    func testCancellingAnEarlierDaysVoteDoesNotTouchToday() {
+        let streak = VoteStreak().recording(on: day(0), calendar: calendar)
+        XCTAssertEqual(streak.unrecording(on: day(1), calendar: calendar), streak)
     }
 
     func testCancellingNeverGoesBelowZero() {
         XCTAssertEqual(VoteStreak().unrecording().votesToday, 0)
+    }
+
+    func testStreakSavedBeforeThisChangeStillLoadsAndKeepsItsDays() throws {
+        let legacy = VoteStreak(days: 3, votesToday: 1, lastVoteDay: day(1))
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as! [String: Any]
+        json.removeValue(forKey: "daysBeforeToday")
+        json.removeValue(forKey: "lastVoteDayBeforeToday")
+        let decoded = try JSONDecoder().decode(VoteStreak.self, from: JSONSerialization.data(withJSONObject: json))
+        // No snapshot to restore, so cancelling keeps the days as it always did.
+        XCTAssertEqual(decoded.unrecording(on: day(1), calendar: calendar).days, 3)
+    }
+
+    func testStreakSurvivesEncodingWithItsSnapshot() throws {
+        let streak = VoteStreak().recording(on: day(0), calendar: calendar).recording(on: day(1), calendar: calendar)
+        let decoded = try JSONDecoder().decode(VoteStreak.self, from: JSONEncoder().encode(streak))
+        XCTAssertEqual(decoded, streak)
     }
 
     func testMissedDayResetsStreak() {

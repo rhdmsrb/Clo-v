@@ -99,4 +99,79 @@ final class ReelVoteModelGridTests: XCTestCase {
         model.adopt(.hidden(myVote: nil))
         XCTAssertNil(model.myVote)
     }
+
+    // MARK: - Server is the truth
+
+    private func ownVoteItem() -> FeedItemDTO {
+        FeedItemDTO(id: UUID(), creatorId: creator, createdAt: Date(), expiresAt: Date().addingTimeInterval(3600),
+                    fitCheckPhotos: [FitCheckPhoto(id: photoA, fitCheckId: UUID(), imageUrl: "https://example.com/a.jpg", position: 1),
+                                     FitCheckPhoto(id: photoB, fitCheckId: UUID(), imageUrl: "https://example.com/b.jpg", position: 2)],
+                    fitCheckVotes: [VoteRef(photoId: photoA, voterId: viewer)], fitCheckComments: [])
+    }
+
+    private func failingService(castError: Error = URLError(.timedOut), retractError: Error = URLError(.timedOut),
+                                summary: VoteSummary?) -> ReelVoteService {
+        ReelVoteService(
+            cast: { _, _, _ in throw castError },
+            retract: { _, _ in throw retractError },
+            fetchSummary: { _, _ in
+                guard let summary else { throw URLError(.notConnectedToInternet) }
+                return summary
+            })
+    }
+
+    func testRefreshClearsAVoteTheServerNoLongerHas() async {
+        let model = ReelVoteModel(item: ownVoteItem(), voterId: viewer, service: service(summary: .hidden(myVote: nil)))
+        XCTAssertEqual(model.myVote, photoA)
+        await model.refreshSummary()
+        XCTAssertNil(model.myVote)
+        XCTAssertTrue(model.canVote)
+    }
+
+    func testRefreshKeepsTheVoteWhenTheFetchFails() async {
+        let model = ReelVoteModel(item: ownVoteItem(), voterId: viewer, service: service(summary: nil))
+        await model.refreshSummary()
+        XCTAssertEqual(model.myVote, photoA)
+    }
+
+    func testLostCastResponseIsKeptWhenTheServerHasTheVote() async {
+        let confirmed = VoteSummary(counts: [photoA: 2], total: 2, myVote: photoA, isRevealed: true)
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, service: failingService(summary: confirmed))
+        var recorded = false
+        XCTAssertTrue(model.vote(for: photoA) { recorded = true })
+        await model.waitUntilIdle()
+        XCTAssertEqual(model.myVote, photoA)
+        XCTAssertEqual(model.total, 2)
+        XCTAssertNil(model.error)
+        XCTAssertTrue(recorded)
+    }
+
+    func testCastFailureRollsBackWhenTheServerHasNoVote() async {
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer,
+                                  service: failingService(summary: .hidden(myVote: nil)))
+        XCTAssertTrue(model.vote(for: photoA) {})
+        await model.waitUntilIdle()
+        XCTAssertNil(model.myVote)
+        XCTAssertNotNil(model.error)
+    }
+
+    func testLostRetractResponseIsKeptWhenTheServerNoLongerHasTheVote() async {
+        let model = ReelVoteModel(item: ownVoteItem(), voterId: viewer,
+                                  service: failingService(summary: .hidden(myVote: nil)))
+        var recorded = false
+        model.retractVote { recorded = true }
+        await model.waitUntilIdle()
+        XCTAssertNil(model.myVote)
+        XCTAssertNil(model.error)
+        XCTAssertTrue(recorded)
+    }
+
+    func testRetractFailureRestoresTheVoteWhenTheServerStillHasIt() async {
+        let still = VoteSummary(counts: [photoA: 1], total: 1, myVote: photoA, isRevealed: true)
+        let model = ReelVoteModel(item: ownVoteItem(), voterId: viewer, service: failingService(summary: still))
+        model.retractVote {}
+        await model.waitUntilIdle()
+        XCTAssertEqual(model.myVote, photoA)
+        XCTAssertNotNil(model.error)
+    }
 }
