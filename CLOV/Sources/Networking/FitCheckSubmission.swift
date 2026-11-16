@@ -17,9 +17,12 @@ struct DraftParams: Encodable {
     let occasion: String?
     let tags: [String]?
     let votePrompt: String?
+    /// Only sent for friends/private; nil (omitted) means public or group, which
+    /// the server derives from groupId, so older servers keep working.
+    var audience: String? = nil
     enum CodingKeys: String, CodingKey {
         case id = "p_id", caption = "p_caption", groupId = "p_group_id"
-        case occasion = "p_occasion", tags = "p_tags", votePrompt = "p_vote_prompt"
+        case occasion = "p_occasion", tags = "p_tags", votePrompt = "p_vote_prompt", audience = "p_audience"
     }
 }
 

@@ -36,8 +36,8 @@ struct BlockedUsersView: View {
                 }
             }
             .padding(20)
-            .padding(.bottom, 88)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationTitle("Blocked people")
         .navigationBarTitleDisplayMode(.inline)

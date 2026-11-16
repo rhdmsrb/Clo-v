@@ -18,9 +18,11 @@ struct CarouselAutoAdvance: Equatable {
         self.isStopped = isStopped
     }
 
-    /// Whether a timer should be running right now.
-    func shouldRun(enabled: Bool, reduceMotion: Bool, isOnScreen: Bool) -> Bool {
-        enabled && !reduceMotion && isOnScreen && !isStopped && pageCount > 1
+    /// Whether a timer should be running right now. Never while Reduce Motion
+    /// is on, or while VoiceOver / Switch Control drive the screen: they step
+    /// through photos deliberately and must not have pages change under them.
+    func shouldRun(enabled: Bool, reduceMotion: Bool, isOnScreen: Bool, assistiveTechActive: Bool = false) -> Bool {
+        enabled && !reduceMotion && !assistiveTechActive && isOnScreen && !isStopped && pageCount > 1
     }
 
     /// Timer fired: next page, wrapping to the first. No-op once stopped.

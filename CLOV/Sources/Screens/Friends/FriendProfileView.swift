@@ -28,6 +28,7 @@ struct FriendProfileView: View {
             }
             .padding(20)
         }
+        .clearsTabBar()
         .background(Theme.background)
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)

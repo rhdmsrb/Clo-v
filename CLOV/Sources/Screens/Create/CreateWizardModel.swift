@@ -33,8 +33,7 @@ struct CreateWizardModel: Equatable {
     var photoDetails: [PhotoDetail] = [.init(), .init()]
     var step: CreateWizardStep = .photos
 
-    /// Wizard only offers public and group audiences.
-    static let audiences: [FitCheckAudience] = [.everyone, .group]
+    static let audiences: [FitCheckAudience] = FitCheckAudience.allCases
 
     init(preselectedGroupId: UUID? = nil, occasion: String? = nil) {
         self.occasion = occasion ?? ""
@@ -51,9 +50,8 @@ struct CreateWizardModel: Equatable {
     var captionIsValid: Bool { caption.count <= Self.maxCaptionLength }
     var audienceIsValid: Bool {
         switch audience {
-        case .everyone: true
+        case .everyone, .friends, .onlyMe: true
         case .group: groupId != nil
-        case .friends, .onlyMe: false
         }
     }
     var detailsAreValid: Bool { titleIsValid && captionIsValid && audienceIsValid }

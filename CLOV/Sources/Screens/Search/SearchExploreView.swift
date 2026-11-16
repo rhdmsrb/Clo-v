@@ -35,6 +35,10 @@ struct SearchExploreView: View {
     /// Shown until the user has searches of their own.
     private static let suggestions = ["Wedding guest", "Interview", "Date night", "Brunch", "Travel fit", "Streetwear"]
     private static let prefetchTileCount = 6
+    private static let captionAvatarSize: CGFloat = 24
+    private static let captionSpacing: CGFloat = 6
+    private static let captionPadding: CGFloat = 8
+    private static let captionScrimHeight: CGFloat = 64
     private static let searchDebounce: Duration = .milliseconds(300)
     private var searchTerm: String { SearchTerm.sanitized(query) }
     private var requestKey: String { "\(searchTerm)|\(filter.occasion ?? "")" }
@@ -67,8 +71,8 @@ struct SearchExploreView: View {
                 loadMoreFooter
             }
             .padding(Self.pagePadding)
-            .padding(.bottom, 90)
         }
+        .clearsTabBar()
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
         .statusBarBackdrop()
@@ -285,12 +289,40 @@ struct SearchExploreView: View {
                     Theme.muted
                 }
             }
+            .overlay(alignment: .bottomLeading) { tileCaption(item) }
             .clipped()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion))
-            .accessibilityValue("by \(item.profiles?.nickname ?? "someone")")
+            .accessibilityValue(tileAccessibilityValue(item))
             .accessibilityHint("Opens the Fit-Check to vote")
             .accessibilityIdentifier("explore-tile")
+    }
+
+    /// Author avatar and like count over a soft scrim. Text stays white on the
+    /// scrim so it reads on any photo; the count is hidden when unknown or zero.
+    private func tileCaption(_ item: FeedItemDTO) -> some View {
+        HStack(spacing: Self.captionSpacing) {
+            AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: Self.captionAvatarSize)
+            Spacer(minLength: 0)
+            if let likes = PostCardContent.displayLikeCount(item.likeCount) {
+                Label("\(likes)", systemImage: "heart.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(Theme.micro)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+            }
+        }
+        .padding(Self.captionPadding)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .bottom) {
+            Theme.photoScrim.frame(height: Self.captionScrimHeight).allowsHitTesting(false)
+        }
+    }
+
+    private func tileAccessibilityValue(_ item: FeedItemDTO) -> String {
+        let author = "by \(item.profiles?.nickname ?? "someone")"
+        guard let likes = PostCardContent.displayLikeCount(item.likeCount) else { return author }
+        return "\(author), \(likes) \(likes == 1 ? "like" : "likes")"
     }
 
     private func applyFilter(_ newFilter: ExploreFilter) {

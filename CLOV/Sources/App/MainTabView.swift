@@ -75,7 +75,10 @@ struct MainTabView: View {
         // show/hide/change notifications got it there.
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             guard let endFrame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
-            isKeyboardVisible = endFrame.minY < UIScreen.main.bounds.height
+            // The notification carries the screen the keyboard is on, so no
+            // global `UIScreen.main` lookup is needed.
+            guard let screen = note.object as? UIScreen else { return }
+            isKeyboardVisible = endFrame.minY < screen.bounds.height
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             isKeyboardVisible = false
@@ -188,6 +191,23 @@ extension EnvironmentValues {
     @Entry var tabBarClearance: CGFloat = 0
     /// Lets a pushed screen hide or restore the floating tab pill.
     @Entry var setTabBarHidden: (Bool) -> Void = { _ in }
+}
+
+extension View {
+    /// Insets a tab's scrolling screen so its last row clears the floating
+    /// tab bar. The single place that spacing is defined; zero outside the
+    /// tabs (sheets and full-screen covers).
+    func clearsTabBar() -> some View {
+        modifier(TabBarClearanceModifier())
+    }
+}
+
+private struct TabBarClearanceModifier: ViewModifier {
+    @Environment(\.tabBarClearance) private var clearance
+
+    func body(content: Content) -> some View {
+        content.safeAreaPadding(.bottom, clearance)
+    }
 }
 
 private struct BarHeightKey: PreferenceKey {
