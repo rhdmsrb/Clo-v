@@ -29,6 +29,11 @@ struct VotingPhotoGridView: View {
     @State private var reactionMessage: String?
     @State private var streak = VoteStreak()
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Set (to a fresh id) when the voter backs the leading look; drives the confetti and its haptic.
+    @State private var celebration: UUID?
+
+    private static let minVotesToCelebrate = 2
 
     /// When the parent card owns the expiry clock it passes the current tick
     /// here; otherwise the grid runs its own timeline.
@@ -101,6 +106,7 @@ struct VotingPhotoGridView: View {
             streak = VoteStreakStore.load(for: voterId)
         }
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
+        .sensoryFeedback(.success, trigger: celebration) { _, new in new != nil }
     }
 
     // Re-reads `canVote`/`revealed` whenever the clock ticks.
@@ -138,6 +144,11 @@ struct VotingPhotoGridView: View {
             }
 
             tileLayout
+                .overlay {
+                    if celebration != nil, !reduceMotion {
+                        ConfettiBurst().id(celebration)
+                    }
+                }
             if let error {
                 Text(error).font(Theme.font(.caption)).foregroundStyle(Theme.danger)
                     .fixedSize(horizontal: false, vertical: true)
@@ -409,6 +420,7 @@ struct VotingPhotoGridView: View {
             defer { isVoting = false }
             do {
                 try await API.castVote(fitCheckId: fitCheckId, photoId: photoId, voterId: voterId, creatorId: creatorId, status: status, expiresAt: expiresAt)
+                celebrateIfLeading(photoId)
                 streak = VoteStreakStore.recordVote(for: voterId)
                 AccessibilityNotification.Announcement("Vote recorded, results shown").post()
                 appState.contentDidChange()
@@ -418,12 +430,24 @@ struct VotingPhotoGridView: View {
                 setError(APIError.alreadyVoted.localizedDescription)
                 appState.contentDidChange()
             } catch {
-                Haptics.error()
+                // The `.sensoryFeedback(.error, trigger: error)` above plays the failure haptic.
                 setError(friendlyMessage(for: error, fallback: "Couldn’t record your vote. Please try again."))
                 myVote = nil
                 counts[photoId, default: 1] -= 1
                 total -= 1
             }
+        }
+    }
+
+    /// Backing the look that is ahead earns a little confetti. A lone first
+    /// vote is trivially "leading", so it waits for at least two votes.
+    private func celebrateIfLeading(_ photoId: UUID) {
+        guard total >= Self.minVotesToCelebrate, (counts[photoId] ?? 0) == leadingCount else { return }
+        let id = UUID()
+        celebration = id
+        Task {
+            try? await Task.sleep(for: .seconds(ConfettiBurst.duration))
+            if celebration == id { celebration = nil }
         }
     }
 
@@ -444,7 +468,6 @@ struct VotingPhotoGridView: View {
                 AccessibilityNotification.Announcement("Vote cancelled. Pick again.").post()
                 appState.contentDidChange()
             } catch {
-                Haptics.error()
                 setError(friendlyMessage(for: error, fallback: "Couldn’t cancel your vote. Please try again."))
                 myVote = previous
                 counts[previous, default: 0] += 1

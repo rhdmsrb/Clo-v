@@ -7,6 +7,7 @@ struct StyleInsightsView: View {
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
+    @ScaledMetric(relativeTo: .title2) private var streakIconSize: CGFloat = 28
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -32,7 +33,7 @@ struct StyleInsightsView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack(spacing: 14) {
                                 Image(systemName: "flame.fill")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.system(size: streakIconSize, weight: .bold))
                                     .foregroundStyle(Theme.iconCoral)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 3) {

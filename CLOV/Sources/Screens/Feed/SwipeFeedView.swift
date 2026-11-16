@@ -127,7 +127,7 @@ struct SwipeFeedView: View {
                 .padding(.horizontal, 32)
             Button(action: onBrowse) {
                 Label("Explore Fit-Checks", systemImage: "safari")
-                    .font(.subheadline.weight(.bold))
+                    .font(Theme.font(.subheadline, weight: .bold))
                     .padding(.horizontal, 18)
                     .padding(.vertical, 12)
                     .background(.white, in: Capsule())

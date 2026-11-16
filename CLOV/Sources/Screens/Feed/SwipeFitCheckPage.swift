@@ -30,10 +30,6 @@ struct SwipeFitCheckPage: View {
     private static let undoToastDuration: Duration = .seconds(5)
     private static let railWidth: CGFloat = 56
     private static let collapsedDescriptionLines = 2
-    private static let reportReasons = [
-        ("Inappropriate content", "inappropriate"), ("Harassment or bullying", "harassment"),
-        ("Spam", "spam"), ("Other", "other")
-    ]
 
     init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, initialPhotoIndex: Int? = nil,
          onToggleFollow: @escaping (Bool) -> Void,
@@ -91,8 +87,8 @@ struct SwipeFitCheckPage: View {
                 .environmentObject(appState)
         }
         .confirmationDialog("Why are you reporting this?", isPresented: $showingReportReasons, titleVisibility: .visible) {
-            ForEach(Self.reportReasons, id: \.1) { reason in
-                Button(reason.0) { Task { await report(reason: reason.1) } }
+            ForEach(ReportReason.all) { reason in
+                Button(reason.title) { Task { await report(reason: reason.value) } }
             }
             Button("Cancel", role: .cancel) {}
         }
@@ -252,7 +248,7 @@ struct SwipeFitCheckPage: View {
                     .font(Theme.font(.footnote, weight: .black))
                 Text(insight).font(Theme.font(.caption, weight: .medium))
                 if let summary = model.streak.summary() {
-                    Label(summary, systemImage: "flame.fill").font(.caption.weight(.bold)).foregroundStyle(Theme.accent)
+                    Label(summary, systemImage: "flame.fill").font(Theme.font(.caption, weight: .bold)).foregroundStyle(Theme.accent)
                 }
             }
             .padding(10)
@@ -271,7 +267,7 @@ struct SwipeFitCheckPage: View {
             Image(systemName: "hand.tap").accessibilityHidden(true)
             Text(model.isFirstTimeVoter ? "Hold to vote · swipe for the next look" : "Hold to vote")
         }
-        .font(.caption.weight(.bold))
+        .font(Theme.font(.caption, weight: .bold))
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(.white.opacity(0.18), in: Capsule())
         .accessibilityHidden(true)

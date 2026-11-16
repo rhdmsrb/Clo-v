@@ -271,6 +271,15 @@ private struct WardrobeItemCard: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onWorn: () -> Void
+
+    /// Shared by the "..." button and the long-press menu.
+    @ViewBuilder
+    private var actions: some View {
+        Button("Wore it today", systemImage: "checkmark.circle", action: onWorn)
+        Button("Edit", systemImage: "pencil", action: onEdit)
+        Button("Remove", systemImage: "trash", role: .destructive, action: onDelete)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
@@ -281,9 +290,7 @@ private struct WardrobeItemCard: View {
                         .accessibilityAddTraits(.isImage)
                 }
                 Menu {
-                    Button("Wore it today", systemImage: "checkmark.circle", action: onWorn)
-                    Button("Edit", action: onEdit)
-                    Button("Remove", role: .destructive, action: onDelete)
+                    actions
                 } label: {
                     Image(systemName: "ellipsis").font(Theme.label).foregroundStyle(Theme.inverseText)
                         .frame(width: 30, height: 30).background(Theme.ink.opacity(0.9), in: Circle())
@@ -292,6 +299,7 @@ private struct WardrobeItemCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
             .elevatedShadow()
+            .contextMenu { actions }
             Text(item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category)
                 .font(Theme.bodyEmphasis).foregroundStyle(Theme.ink).lineLimit(1)
             if let wearSummary = item.wearSummary {

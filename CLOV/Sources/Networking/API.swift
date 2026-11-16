@@ -473,12 +473,19 @@ enum API {
         if status != "live" || isExpired(expiresAt) {
             throw APIError.message("Voting has ended, so your vote can't be changed.")
         }
-        try await client
+        // RLS or a stale view can make a delete match zero rows without an
+        // error, so ask for the deleted rows back and treat none as a failure.
+        let removed: [VoteRef] = try await client
             .from("fit_check_votes")
             .delete()
             .eq("fit_check_id", value: fitCheckId)
             .eq("voter_id", value: voterId)
+            .select("photo_id, voter_id")
             .execute()
+            .value
+        guard !removed.isEmpty else {
+            throw APIError.message("Your vote couldn’t be cancelled. Voting may have just closed.")
+        }
     }
 
     static func saveVoteReason(fitCheckId: UUID, photoId: UUID, tags: [String], comment: String) async throws {

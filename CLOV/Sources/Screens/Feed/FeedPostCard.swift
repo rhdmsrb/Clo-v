@@ -6,6 +6,8 @@ import SwiftUI
 struct FeedPostCard: View {
     let item: FeedItemDTO
     let isLiked: Bool
+    /// The signed-in viewer; the long-press menu hides report/block on their own posts.
+    let viewerId: UUID
     let isFollowing: Bool
     let showsFollow: Bool
     let onToggleFollow: (Bool) -> Void
@@ -40,6 +42,10 @@ struct FeedPostCard: View {
             details
         }
         .elevatedCard(radius: Theme.cardRadius, padding: 14)
+        .fitCheckContextMenu(
+            fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
+            isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
+        )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(posterName)’s Fit-Check")
         .accessibilityIdentifier("feed-post-card")

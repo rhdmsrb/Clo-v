@@ -40,10 +40,19 @@ extension API {
             votePrompt: FitCheckSubmission.normalizedVotePrompt(votePrompt))
         try await validateAudience(creatorId: creatorId, groupId: groupId, audience: audience)
 
+        // The id is generated here so a draft whose response was lost can still be cleaned up.
         let draftParams = DraftParams(id: UUID(), caption: caption, groupId: groupId, occasion: occasion,
                                       tags: clean.tags.isEmpty ? nil : clean.tags, votePrompt: clean.votePrompt)
-        let (fitCheckId, draftDropped) = try await createDraft(draftParams)
+        let fitCheckId: UUID
+        let draftDropped: Bool
+        do {
+            (fitCheckId, draftDropped) = try await createDraft(draftParams)
+        } catch {
+            await discardDraft(fitCheckId: draftParams.id, creatorId: creatorId, uploadedPaths: [])
+            throw error
+        }
         var uploadedPaths: [String] = []
+        var publishStarted = false
         var photoExtrasDropped = false
         do {
             for (index, photo) in photos.enumerated() {
@@ -56,8 +65,15 @@ extension API {
                 photoExtrasDropped = try await insertPhoto(insert, skippingExtras: photoExtrasDropped) || photoExtrasDropped
                 if let onPhotoUploaded { await onPhotoUploaded(index + 1) }
             }
+            publishStarted = true
             try await client.rpc("publish_fit_check", params: PublishParams(id: fitCheckId, durationSeconds: Int(votingDuration))).execute()
         } catch {
+            // Cancelled while publishing: the server may already have made the post
+            // live. Deleting it would destroy a real post, so leave it alone.
+            if publishStarted, error is CancellationError {
+                Log.app.error("Post cancelled during publish; leaving \(fitCheckId.uuidString) untouched")
+                throw error
+            }
             await discardDraft(fitCheckId: fitCheckId, creatorId: creatorId, uploadedPaths: uploadedPaths)
             throw error
         }

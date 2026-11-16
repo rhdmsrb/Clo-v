@@ -25,11 +25,15 @@ struct SearchExploreView: View {
     @State private var hasLoadedRelationships = false
     @State private var relationshipsNotice: String?
     @State private var openedRoute: FitCheckRoute?
+    @State private var recents = RecentSearches()
     @FocusState private var isSearchFocused: Bool
     @Environment(\.isTabActive) private var isTabActive
 
     private static let pagePadding: CGFloat = 20
     private static let pageSize = 30
+    private static let recentStore = RecentSearchStore()
+    /// Shown until the user has searches of their own.
+    private static let suggestions = ["Wedding guest", "Interview", "Date night", "Brunch", "Travel fit", "Streetwear"]
     private static let prefetchTileCount = 6
     private static let searchDebounce: Duration = .milliseconds(300)
     private var searchTerm: String { SearchTerm.sanitized(query) }
@@ -46,6 +50,7 @@ struct SearchExploreView: View {
                     searchField
                     filtersButton
                 }
+                searchSuggestions
                 AsyncStateView(isLoading: isLoading, error: error,
                                isEmpty: results.isEmpty,
                                emptyText: hasLoaded && error == nil
@@ -78,6 +83,7 @@ struct SearchExploreView: View {
             }
             await load()
         }
+        .task { recents = Self.recentStore.load(for: appState.userId) }
         .refreshable { await load(refreshRelationships: true) }
         .sheet(isPresented: $showFilters) {
             ExploreFiltersSheet(initial: filter, availableTags: ExploreFilter.availableTags(in: results)) { applyFilter($0) }
@@ -123,9 +129,10 @@ struct SearchExploreView: View {
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .focused($isSearchFocused)
+                .onSubmit { record(query) }
                 .accessibilityIdentifier("search.query")
             if !query.isEmpty {
-                Button { query = "" } label: {
+                Button { query = ""; isSearchFocused = true } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.mutedForeground)
                         .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                 }.accessibilityLabel("Clear search")
@@ -135,6 +142,71 @@ struct SearchExploreView: View {
         .padding(.horizontal, 15).frame(minHeight: 52)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+    }
+
+    // MARK: - Recent searches and suggestions
+
+    /// Recent searches (or a few ideas to try) while the field is focused and
+    /// empty. Hidden once the user types, so it never competes with results.
+    @ViewBuilder
+    private var searchSuggestions: some View {
+        if isSearchFocused, searchTerm.isEmpty {
+            if recents.terms.isEmpty {
+                suggestionGroup(title: "TRY SEARCHING", terms: Self.suggestions, icon: "magnifyingglass", isRecent: false)
+            } else {
+                suggestionGroup(title: "RECENT", terms: recents.terms, icon: "clock.arrow.circlepath", isRecent: true)
+            }
+        }
+    }
+
+    private func suggestionGroup(title: String, terms: [String], icon: String, isRecent: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title)
+                    .font(Theme.micro).tracking(1.1)
+                    .foregroundStyle(Theme.mutedForeground)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                if isRecent {
+                    Button("Clear") { update(recents.cleared()) }
+                        .font(Theme.label)
+                        .foregroundStyle(Theme.accentDeep)
+                        .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                        .contentShape(Rectangle())
+                        .accessibilityLabel("Clear recent searches")
+                        .accessibilityIdentifier("search.clearRecents")
+                }
+            }
+            FlowLayout(spacing: 8) {
+                ForEach(terms, id: \.self) { term in
+                    Button { applySearch(term) } label: {
+                        Label(term, systemImage: icon)
+                    }
+                    .buttonStyle(ChipButtonStyle(isSelected: false, font: Theme.label, horizontalPadding: 14))
+                    .contextMenu {
+                        if isRecent {
+                            Button("Remove", systemImage: "xmark", role: .destructive) { update(recents.removing(term)) }
+                        }
+                    }
+                    .accessibilityIdentifier("\(isRecent ? "recent" : "suggestion")_\(term)")
+                }
+            }
+        }
+    }
+
+    private func applySearch(_ term: String) {
+        query = term
+        isSearchFocused = false
+        record(term)
+    }
+
+    private func record(_ term: String) {
+        update(recents.adding(term))
+    }
+
+    private func update(_ updated: RecentSearches) {
+        recents = updated
+        Self.recentStore.save(updated, for: appState.userId)
     }
 
     private var filtersButton: some View {

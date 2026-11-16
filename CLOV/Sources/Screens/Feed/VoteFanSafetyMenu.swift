@@ -10,11 +10,6 @@ struct VoteFanSafetyMenu: View {
     @State private var showingBlockConfirmation = false
     @State private var safetyMessage: String?
 
-    private static let reportReasons = [
-        ("Inappropriate content", "inappropriate"), ("Harassment or bullying", "harassment"),
-        ("Spam", "spam"), ("Other", "other")
-    ]
-
     var body: some View {
         Menu {
             Button("Report Fit-Check", systemImage: "flag") { showingReportReasons = true }
@@ -31,8 +26,8 @@ struct VoteFanSafetyMenu: View {
         .accessibilityLabel("Report or block")
         .accessibilityIdentifier("voteFanMenu")
         .confirmationDialog("Why are you reporting this?", isPresented: $showingReportReasons, titleVisibility: .visible) {
-            ForEach(Self.reportReasons, id: \.1) { reason in
-                Button(reason.0) { Task { await report(reason: reason.1) } }
+            ForEach(ReportReason.all) { reason in
+                Button(reason.title) { Task { await report(reason: reason.value) } }
             }
             Button("Cancel", role: .cancel) {}
         }

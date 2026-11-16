@@ -3,7 +3,7 @@ import PhotosUI
 
 /// Where the profile menu and Analytics button navigate.
 private enum ProfileDestination: Hashable {
-    case wardrobe, groups, friends, yourWeek, privacy, appearance
+    case wardrobe, groups, friends, yourWeek, privacy, appearance, settings
 }
 
 @MainActor
@@ -114,8 +114,6 @@ struct AccountView: View {
 
     // MARK: - Header
 
-    // MARK: - Header
-
     @MainActor private var topRow: some View {
         let nickname = appState.profile?.nickname
         return HStack(spacing: 14) {
@@ -158,6 +156,8 @@ struct AccountView: View {
                 .accessibilityIdentifier("profileShortcut_Privacy")
             Button("Appearance", systemImage: "paintpalette") { destination = .appearance }
                 .accessibilityIdentifier("profileShortcut_Appearance")
+            Button("Settings", systemImage: "gearshape") { destination = .settings }
+                .accessibilityIdentifier("settingsButton")
             Divider()
             Button("Log out", systemImage: "rectangle.portrait.and.arrow.right") {
                 Task { await appState.signOut() }
@@ -189,6 +189,7 @@ struct AccountView: View {
         case .yourWeek: StyleInsightsView()
         case .privacy: PrivacyView()
         case .appearance: AppearanceView()
+        case .settings: SettingsView()
         }
     }
 
@@ -271,10 +272,13 @@ struct AccountView: View {
 
     @ViewBuilder
     private func postActions(_ post: MyFitCheck, canTerminate: Bool) -> some View {
-        if canTerminate {
-            Button("Terminate") { terminateTarget = post.id }
+        if let url = ShareURL.make(fitCheckId: post.id) {
+            ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
         }
-        Button("Delete", role: .destructive) { deleteTarget = post.id }
+        if canTerminate {
+            Button("End voting", systemImage: "stop.circle") { terminateTarget = post.id }
+        }
+        Button("Delete", systemImage: "trash", role: .destructive) { deleteTarget = post.id }
     }
 
     /// Visible alternative to the long-press menu.
