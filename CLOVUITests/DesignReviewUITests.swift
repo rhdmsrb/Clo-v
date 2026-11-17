@@ -20,7 +20,7 @@ final class DesignReviewUITests: XCTestCase {
 
     // MARK: - Walks
 
-    func testDailyChallengeIsAvailableFromProfileInsteadOfFeed() {
+    func testDailyChallengeIsAbsentFromFeedAndProfile() {
         let app = launchApp()
         XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
         XCTAssertFalse(app.descendants(matching: .any)["dailyChallengeCard"].exists)
@@ -28,10 +28,7 @@ final class DesignReviewUITests: XCTestCase {
         let menu = app.buttons["profile.menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10))
         menu.tap()
-        let challenge = app.buttons["profileShortcut_DailyChallenge"]
-        XCTAssertTrue(challenge.waitForExistence(timeout: 5))
-        challenge.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["dailyChallengeCard"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["profileShortcut_DailyChallenge"].exists)
     }
 
     func testGroupFeedOpensVotingScreen() {
