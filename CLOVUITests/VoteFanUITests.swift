@@ -61,7 +61,7 @@ final class VoteFanUITests: XCTestCase {
         app.buttons["voteFanCommentSend"].tap()
 
         app.buttons["reelBackButton"].tap()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
+        XCTAssertTrue(app.buttons["feedSearchButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
     }
 
     /// Voting happens on the post itself: press and hold the photo, see the results with Undo, take it back.
@@ -69,7 +69,7 @@ final class VoteFanUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument]
         app.launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        XCTAssertTrue(app.buttons["feedSearchButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
@@ -167,7 +167,7 @@ final class VoteFanUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument]
         app.launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        XCTAssertTrue(app.buttons["feedSearchButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0

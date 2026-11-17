@@ -248,7 +248,7 @@ final class DesignReviewUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument] + arguments
         app.launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10),
+        XCTAssertTrue(app.buttons["feedSearchButton"].firstMatch.waitForExistence(timeout: 10),
                       "Sample-data feed never appeared")
         settle()
         return app

@@ -27,6 +27,9 @@ struct FeedView: View {
     @State private var showChallenge = false
     // Open on the browsable Fit-Check feed. The immersive, one-look-at-a-time
     // reel remains available from the feed's Watch Fit-Checks control.
+    /// The full-screen "Watch Fit-Checks" reel (`SwipeFeedView`) is hidden for
+    /// now. Set this to true to bring its header button back; nothing else changes.
+    private static let showsWatchReelButton = false
     @State private var showSwipeFeed = false
     @State private var followingIDs: Set<UUID> = []
     @State private var friendIDs: Set<UUID> = []
@@ -216,16 +219,19 @@ struct FeedView: View {
     /// Icon buttons stop growing past `xxxLarge` so they never crowd the segments.
     private var headerButtons: some View {
         HStack(spacing: 8) {
-            FeedIconButton(
-                systemImage: "play.rectangle",
-                accessibilityLabel: "Watch Fit-Checks",
-                accessibilityIdentifier: "watchFeedButton"
-            ) {
-                withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = true }
+            if Self.showsWatchReelButton {
+                FeedIconButton(
+                    systemImage: "play.rectangle",
+                    accessibilityLabel: "Watch Fit-Checks",
+                    accessibilityIdentifier: "watchFeedButton"
+                ) {
+                    withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = true }
+                }
             }
             FeedIconButton(
                 systemImage: isSearchExpanded ? "xmark" : "magnifyingglass",
-                accessibilityLabel: isSearchExpanded ? "Close search" : "Search Fit-Checks"
+                accessibilityLabel: isSearchExpanded ? "Close search" : "Search Fit-Checks",
+                accessibilityIdentifier: "feedSearchButton"
             ) {
                 if isSearchExpanded { searchText = "" }
                 withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { isSearchExpanded.toggle() }
