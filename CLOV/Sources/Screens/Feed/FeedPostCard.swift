@@ -29,9 +29,10 @@ struct FeedPostCard: View {
     @State private var ignoreOpenUntil = Date.distantPast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Wide 16:9 so the photo takes about 220pt on a phone and the action row and
-    /// title are on screen with it. The carousel fills and center-crops.
-    private static let photoAspectRatio: CGFloat = 16.0 / 9.0
+    /// Tall 9:16 (width : height), like a phone photo or story, so the outfit gets most
+    /// of the screen. Each photo fills the frame, so other shapes lose a little at the edges
+    /// instead of showing bars.
+    private static let photoAspectRatio: CGFloat = 9.0 / 16.0
     private static let descriptionLineLimit = 2
     /// Side inset for text; the photo itself spans the full width.
     private static let textInset: CGFloat = 16
@@ -55,7 +56,8 @@ struct FeedPostCard: View {
                     // One timeline per card, ticking once at expiry.
                     TimelineView(.expiry(item.expiresAt)) { _ in
                         if comparing {
-                            InlineLookComparison(item: item, viewerId: viewerId, onOpen: onOpen)
+                            InlineLookComparison(item: item, viewerId: viewerId,
+                                                 onOpen: FitCheckReelView.isEnabled ? onOpen : nil)
                         } else {
                             photos(expired: isExpired(item.expiresAt), vote: vote)
                         }
@@ -163,16 +165,20 @@ struct FeedPostCard: View {
     private func photos(expired: Bool, vote: PhotoVoteAction) -> some View {
         PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
                       autoAdvance: !expired && !isHoldingToVote, keepsRotatingAfterTouch: true,
-                      contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: openIfNotAfterHold)
+                      contentMode: .fill, accessibilityIdentifier: "feed-photo-carousel",
+                      onTap: FitCheckReelView.isEnabled ? openIfNotAfterHold : nil)
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
-            .background(Color.black)
             .overlay { if expired { endedOverlay } }
             .clipped()
             .contentShape(Rectangle())
             .holdToVote(isEnabled: vote.isEnabled && !expired, isPressing: $isHoldingToVote, onVote: vote.cast)
             .onChange(of: isHoldingToVote) { _, holding in noteHold(holding) }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction(named: expired ? "See results" : "Open to vote") { onOpen(photoIndex) }
+            .accessibilityAddTraits(FitCheckReelView.isEnabled ? .isButton : [])
+            .accessibilityActions {
+                if FitCheckReelView.isEnabled {
+                    Button(expired ? "See results" : "Open to vote") { onOpen(photoIndex) }
+                }
+            }
     }
 
     private func openIfNotAfterHold() {
@@ -272,9 +278,10 @@ struct FeedPostCard: View {
 
 private struct InlineLookComparison: View {
     @StateObject private var model: ReelVoteModel
-    let onOpen: (Int) -> Void
+    /// Opens the vote screen on a look; `nil` while that screen is hidden.
+    let onOpen: ((Int) -> Void)?
 
-    init(item: FeedItemDTO, viewerId: UUID, onOpen: @escaping (Int) -> Void) {
+    init(item: FeedItemDTO, viewerId: UUID, onOpen: ((Int) -> Void)?) {
         _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId))
         self.onOpen = onOpen
     }
@@ -284,11 +291,12 @@ private struct InlineLookComparison: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
                 ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
                     VStack {
-                        Button { onOpen(index) } label: {
-                            Color.black.aspectRatio(3 / 4, contentMode: .fit)
-                                .overlay { RemoteImage(url: photo.imageUrl, contentMode: .fit) }
+                        if let onOpen {
+                            Button { onOpen(index) } label: { lookImage(photo) }
+                                .accessibilityLabel("Enlarge look \(index + 1)")
+                        } else {
+                            lookImage(photo).accessibilityLabel("Look \(index + 1)")
                         }
-                        .accessibilityLabel("Enlarge look \(index + 1)")
                         if model.summaryLoaded && model.isResultsRevealed && !model.isVoting {
                             Text("Look \(index + 1) · \(model.percent(for: photo.id))%")
                         } else {
@@ -312,5 +320,10 @@ private struct InlineLookComparison: View {
         .buttonStyle(.plain)
         .font(Theme.bodyEmphasis)
         .task { await model.loadSummary() }
+    }
+
+    private func lookImage(_ photo: FitCheckPhoto) -> some View {
+        Color.black.aspectRatio(3 / 4, contentMode: .fit)
+            .overlay { RemoteImage(url: photo.imageUrl, contentMode: .fit) }
     }
 }

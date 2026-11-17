@@ -137,6 +137,7 @@ final class EngagementUITests: XCTestCase {
     /// The redesigned vote screen hides the total until the viewer votes: holding
     /// the centre photo casts the vote, shows Undo, and reveals the count.
     func testVotingRevealsTheResult() throws {
+        throw XCTSkip("The full-screen vote screen is hidden for now (FitCheckReelView.isEnabled = false).")
         let app = launch()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)

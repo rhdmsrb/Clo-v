@@ -1,7 +1,13 @@
 import SwiftUI
 
 /// A single Fit-Check shown full screen as a pushed screen with a back button.
+///
+/// Hidden for now: with `isEnabled` false, every route that would open this screen (group posts,
+/// Search, `clov://vote/` links) shows the post as the feed card instead, and tapping a card's photo
+/// does nothing. Set it to true to bring the screen back.
 struct FitCheckReelView: View {
+    static let isEnabled = false
+
     let item: FeedItemDTO
     let voterId: UUID
     let isFollowing: Bool
@@ -14,6 +20,14 @@ struct FitCheckReelView: View {
     @Environment(\.setTabBarHidden) private var setTabBarHidden
 
     var body: some View {
+        if Self.isEnabled {
+            reel
+        } else {
+            ProfilePostView(fitCheckId: item.id)
+        }
+    }
+
+    private var reel: some View {
         SwipeFitCheckPage(item: item, voterId: voterId, isFollowing: isFollowing,
                           initialPhotoIndex: initialPhotoIndex, onToggleFollow: onToggleFollow,
                           onEvent: onEvent, onImpression: onImpression)

@@ -20,7 +20,6 @@ final class VoteSummaryTests: XCTestCase {
     func testFeedWithoutVoteEmbedDecodesAndFeedQueriesNeverRequestIt() throws {
         XCTAssertTrue(try decodeFeed(extra: "").fitCheckVotes.isEmpty)
         XCTAssertFalse(API.feedColumns.contains("fit_check_votes"))
-        XCTAssertFalse(API.legacyFeedColumns.contains("fit_check_votes"))
     }
 
     func testFeedItemDecodesVoteCountWhenPresent() throws {

@@ -41,7 +41,8 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertFalse(app.buttons["profileShortcut_DailyChallenge"].exists)
     }
 
-    func testGroupFeedOpensVotingScreen() {
+    func testGroupFeedOpensVotingScreen() throws {
+        throw XCTSkip("The full-screen vote screen is hidden for now (FitCheckReelView.isEnabled = false).")
         let app = launchApp()
         let groups = app.buttons["groupsTab"]
         XCTAssertTrue(groups.waitForExistence(timeout: 10))

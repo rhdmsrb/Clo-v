@@ -38,7 +38,7 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.buttons["createQuickPost"].isEnabled)
     }
 
-    func testLandscapePhotoFitsInsideFeedCard() throws {
+    func testLandscapePhotoFillsTheFeedCardWithoutBars() throws {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument, "--uiTestWidePhoto"]
         app.launch()
@@ -49,8 +49,8 @@ final class VoteFanUITests: XCTestCase {
         let frame = carousel.frame
         let window = app.windows.firstMatch.frame
         XCTAssertGreaterThan(frame.height, 0)
-        // A wide image inside the taller post has padding above and below it.
-        // The center must contain image pixels so a loading placeholder cannot pass.
+        // A wide image fills the tall post (cropped at the sides), so there are no black bars
+        // above or below it. The center must contain image pixels so a loading placeholder cannot pass.
         var fitted = false
         for _ in 0..<10 {
             let screenshot = XCUIScreen.main.screenshot().image
@@ -60,14 +60,14 @@ final class VoteFanUITests: XCTestCase {
             let bottom = CGPoint(x: x, y: frame.minY - window.minY + frame.height * 0.8)
             if let topRGB = pixel(in: screenshot, at: top), let centerRGB = pixel(in: screenshot, at: middle),
                let bottomRGB = pixel(in: screenshot, at: bottom),
-               topRGB.allSatisfy({ $0 < 30 }), bottomRGB.allSatisfy({ $0 < 30 }),
+               !topRGB.allSatisfy({ $0 < 30 }), !bottomRGB.allSatisfy({ $0 < 30 }),
                centerRGB.contains(where: { $0 > 60 }) {
                 fitted = true
                 break
             }
             _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(value: false), object: nil)], timeout: 0.5)
         }
-        XCTAssertTrue(fitted, "landscape photo should remain fully visible with padding")
+        XCTAssertTrue(fitted, "landscape photo should fill the post with no black bars")
     }
 
     private func pixel(in image: UIImage, at point: CGPoint) -> [UInt8]? {
@@ -85,6 +85,7 @@ final class VoteFanUITests: XCTestCase {
     }
 
     func testEarlyReleaseDoesNotVoteAndHoldVotesThenUndoRetracts() throws {
+        throw XCTSkip("The full-screen vote screen is hidden for now (FitCheckReelView.isEnabled = false).")
         let app = openMayasVoteScreen()
         let fan = app.descendants(matching: .any)["voteFan"]
         XCTAssertTrue(fan.waitForExistence(timeout: 5), "photo fan missing")
@@ -115,6 +116,7 @@ final class VoteFanUITests: XCTestCase {
     }
 
     func testVoteScreenShowsFanCommentsAndAcceptsAComment() throws {
+        throw XCTSkip("The full-screen vote screen is hidden for now (FitCheckReelView.isEnabled = false).")
         let app = openMayasVoteScreen()
         XCTAssertTrue(app.descendants(matching: .any)["voteFan"].waitForExistence(timeout: 5), "photo fan missing")
         XCTAssertFalse(app.buttons["feedTab"].isHittable, "floating tab bar should be hidden on the vote screen")
@@ -180,6 +182,19 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo on the card after voting")
         undo.tap()
         XCTAssertTrue(hint.waitForExistence(timeout: 5), "the hint did not return after Undo")
+    }
+
+    /// The full-screen vote screen is hidden for now: tapping a feed photo stays on the feed.
+    func testTappingTheFeedPhotoDoesNotOpenTheVoteScreen() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument]
+        app.launch()
+        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 15), "no photo on the feed")
+        carousel.tap()
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 3),
+                       "the vote screen is hidden and must not open")
+        XCTAssertTrue(carousel.exists, "tapping the photo should stay on the feed")
     }
 
     /// A profile tile opens the post as the feed card (with its vote hint), not the vote screen.
