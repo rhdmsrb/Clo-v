@@ -22,7 +22,7 @@ final class DesignReviewUITests: XCTestCase {
 
     func testDailyChallengeIsAbsentFromFeedAndProfile() {
         let app = launchApp()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         XCTAssertFalse(app.descendants(matching: .any)["dailyChallengeCard"].exists)
         app.buttons["accountTab"].tap()
         let menu = app.buttons["profile.menu"]
@@ -58,11 +58,22 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "fit")
     }
 
+    func testFeedHeaderControlsAreAbsent() {
+        let app = launchApp()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.exists)
+        XCTAssertFalse(app.buttons["watchFeedButton"].exists)
+        XCTAssertFalse(app.buttons["feedMode_ForYou"].exists)
+        XCTAssertFalse(app.buttons["feedMode_Following"].exists)
+        XCTAssertFalse(app.buttons["Search Fit-Checks"].exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch.exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sort:'")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Everyday"].exists)
+        XCTAssertTrue(app.buttons["searchTab"].exists)
+    }
+
     func testWalkMainScreens() {
         let app = launchApp()
         walkFeed(app, prefix: "feed")
-        walkSwipeFeed(app)
-        walkNotifications(app)
         walkAccount(app)
         walkCreate(app)
         walkSearch(app)
@@ -87,7 +98,6 @@ final class DesignReviewUITests: XCTestCase {
         // app's own appearance setting (read from the launch arguments) is what works.
         let app = launchApp(arguments: [Self.colorSchemeArgument, "dark"])
         walkFeed(app, prefix: "dark-feed")
-        walkNotifications(app, prefix: "dark")
         walkAccount(app, prefix: "dark")
         walkSearch(app, prefix: "dark")
     }
@@ -182,41 +192,6 @@ final class DesignReviewUITests: XCTestCase {
         goBack(app)
     }
 
-    private func walkSwipeFeed(_ app: XCUIApplication) {
-        tapTab(app, "feedTab", shot: nil)
-        let watch = app.buttons["watchFeedButton"]
-        guard tap(watch) else { attach(app, name: "swipe-00-missing"); return }
-        settle()
-        attach(app, name: "swipe-01-for-you")
-        let following = app.buttons["Following"].firstMatch
-        if tap(following) { settle(); attach(app, name: "swipe-02-following") }
-        let forYou = app.buttons["For You"].firstMatch
-        _ = tap(forYou)
-        app.swipeUp()
-        settle()
-        attach(app, name: "swipe-03-next")
-        // The swipe feed has no close control while it shows items; the
-        // selected tab is the only way back (reported as a UX finding).
-        tapTab(app, "feedTab", shot: "swipe-04-after-feed-tab")
-        if !app.buttons["watchFeedButton"].firstMatch.exists {
-            attach(app, name: "swipe-05-still-in-swipe-feed")
-            let explore = app.buttons["Explore Fit-Checks"]
-            _ = tap(explore)
-        }
-    }
-
-    private func walkNotifications(_ app: XCUIApplication, prefix: String = "notif") {
-        tapTab(app, "feedTab", shot: nil)
-        scrollToTop(app)
-        let bell = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch
-        guard tap(bell) else { attach(app, name: "\(prefix)-00-bell-missing"); return }
-        settle()
-        attach(app, name: "\(prefix)-01-notifications")
-        let unread = app.buttons["Unread"].firstMatch
-        if tap(unread) { settle(); attach(app, name: "\(prefix)-02-unread") }
-        goBack(app)
-    }
-
     private func walkSearch(_ app: XCUIApplication, prefix: String = "search") {
         tapTab(app, "searchTab", shot: "\(prefix)-01-tab")
         let field = app.textFields["search.query"]
@@ -256,7 +231,7 @@ final class DesignReviewUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument] + arguments
         app.launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10),
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10),
                       "Sample-data feed never appeared")
         settle()
         return app

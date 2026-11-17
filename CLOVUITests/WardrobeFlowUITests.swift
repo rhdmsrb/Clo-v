@@ -62,17 +62,16 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Style momentum"].exists)
     }
 
-    func testFeedExposesWatchAndFollowingModes() throws {
+    func testFeedDoesNotExposeHeaderModes() throws {
         let app = launchTestApp()
 
         let feedTab = app.buttons["feedTab"]
         XCTAssertTrue(feedTab.waitForExistence(timeout: 15))
         feedTab.tap()
 
-        XCTAssertTrue(app.buttons["watchFeedButton"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["feedMode_Following"].exists)
-        app.buttons["feedMode_Following"].tap()
-        XCTAssertTrue(app.buttons["feedMode_ForYou"].exists)
+        XCTAssertFalse(app.buttons["watchFeedButton"].exists)
+        XCTAssertFalse(app.buttons["feedMode_Following"].exists)
+        XCTAssertFalse(app.buttons["feedMode_ForYou"].exists)
     }
 
     private func launchTestApp() -> XCUIApplication {

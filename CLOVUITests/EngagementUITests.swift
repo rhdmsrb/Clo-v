@@ -46,9 +46,17 @@ final class EngagementUITests: XCTestCase {
         XCTAssertTrue(app.buttons["suggestion_Brunch"].waitForExistence(timeout: 5), "Suggestions should return.")
     }
 
+    func testFeedHasNoSearchOrFilterHeader() throws {
+        let app = launch()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Search Fit-Checks"].exists)
+        XCTAssertFalse(app.textFields["feed.search"].exists)
+        XCTAssertFalse(app.buttons["Everyday"].exists)
+    }
+
     func testLongPressOnACardOffersShareReportAndBlock() throws {
         let app = launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.otherElements.matching(NSPredicate(format: "label ENDSWITH %@", "’s Fit-Check")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "No Fit-Check card on the feed.")
         card.press(forDuration: 1.2)
@@ -62,7 +70,7 @@ final class EngagementUITests: XCTestCase {
     /// Report and Block must be reachable without knowing about the long press.
     func testVisibleMoreButtonOffersShareReportAndBlock() throws {
         let app = launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let more = app.buttons["feed-more-button"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 10), "No visible more-options button on the feed card.")
         more.tap()
@@ -77,7 +85,7 @@ final class EngagementUITests: XCTestCase {
     /// the centre photo casts the vote, shows Undo, and reveals the count.
     func testVotingRevealsTheResult() throws {
         let app = launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0

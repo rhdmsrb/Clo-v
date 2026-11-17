@@ -19,7 +19,7 @@ final class VoteFanUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument, "--uiTestWidePhoto"]
         app.launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
         XCTAssertTrue(carousel.waitForExistence(timeout: 10))
         bringIntoOpenArea(carousel, in: app, centered: true)
@@ -122,7 +122,7 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.buttons["reelBackButton"].waitForExistence(timeout: 5))
         XCTAssertNil(count.label.rangeOfCharacter(from: .decimalDigits), "comments must not reveal results")
         app.buttons["reelBackButton"].tap()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
     }
 
     // MARK: - Helpers
@@ -139,9 +139,7 @@ final class VoteFanUITests: XCTestCase {
         return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
     }
 
-    /// The feed pins its search/chip header over the list, so a tap on a
-    /// carousel that XCUITest auto-scrolled to the very top lands on the
-    /// header. Drag the list from its left margin (so the drag never starts
+    /// Drag the list from its left margin (so the drag never starts
     /// on a card's paged carousel) until the carousel's centre sits in the
     /// open area between the header and the tab bar.
     private func bringIntoOpenArea(_ element: XCUIElement, in app: XCUIApplication, centered: Bool = false) {
@@ -175,7 +173,7 @@ final class VoteFanUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument]
         app.launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
