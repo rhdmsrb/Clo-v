@@ -9,6 +9,30 @@ enum AppConfig {
     /// Authentication > URL Configuration > Redirect URLs in the Supabase dashboard.
     static let authCallbackURL = URL(string: "clov://auth-callback")!
     static let supabaseAnonKey = "sb_publishable_wlceXdLHdxHp5brmwrg12Q_glPGikbe"
+
+    #if DEBUG
+    // Opt-in local stack (`supabase start`): set CLOV_LOCAL_SUPABASE=1 in the
+    // scheme's environment. Never compiled into Release builds.
+    private static let localSupabaseURL = URL(string: "http://127.0.0.1:54321")!
+    private static let localSupabaseAnonKey = "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH"
+    private static let usesLocalSupabase =
+        ProcessInfo.processInfo.environment["CLOV_LOCAL_SUPABASE"] == "1"
+    #endif
+
+    /// Backend the client talks to: production, or the local stack in opt-in Debug runs.
+    static var activeSupabaseURL: URL {
+        #if DEBUG
+        if usesLocalSupabase { return localSupabaseURL }
+        #endif
+        return supabaseURL
+    }
+
+    static var activeSupabaseAnonKey: String {
+        #if DEBUG
+        if usesLocalSupabase { return localSupabaseAnonKey }
+        #endif
+        return supabaseAnonKey
+    }
 }
 
 enum SupabaseManager {
@@ -56,8 +80,8 @@ enum SupabaseManager {
         #endif
 
         return SupabaseClient(
-            supabaseURL: AppConfig.supabaseURL,
-            supabaseKey: AppConfig.supabaseAnonKey,
+            supabaseURL: AppConfig.activeSupabaseURL,
+            supabaseKey: AppConfig.activeSupabaseAnonKey,
             options: SupabaseClientOptions(
                 db: SupabaseClientOptions.DatabaseOptions(
                     encoder: encoder,
