@@ -1,7 +1,7 @@
 @preconcurrency import SwiftUI
 import PhotosUI
 
-/// Where the profile menu and Analytics button navigate.
+/// Where the profile menu navigates.
 private enum ProfileDestination: Hashable {
     case wardrobe, groups, friends, yourWeek, privacy, appearance, settings
 }
@@ -20,6 +20,7 @@ struct AccountView: View {
     @State private var isDeletingAccount = false
     @State private var showingDeleteAccountConfirmation = false
     @State private var showingEditProfile = false
+    @State private var showingAnalytics = false
     @State private var followerIDs: Set<UUID> = []
     @State private var followingIDs: Set<UUID> = []
     @State private var selectedFollowList: ProfileFollowList?
@@ -44,6 +45,9 @@ struct AccountView: View {
                 statsAndGroups
                 actionButtons
                     .padding(.bottom, -12)
+                if showingAnalytics {
+                    StyleInsightsView(inline: true)
+                }
                 segmentPicker
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 20, hasLoaded: hasLoaded, retry: { await load() }) {
                     postsGrid
@@ -193,7 +197,8 @@ struct AccountView: View {
     private var actionButtons: some View {
         ProfileActionTabs(
             onEdit: { showingEditProfile = true },
-            onAnalytics: { destination = .yourWeek }
+            onAnalytics: { showingAnalytics.toggle() },
+            analyticsExpanded: showingAnalytics
         ) {
             ShareLink(item: shareText) { Text("Share") }
                 .accessibilityLabel("Share profile")

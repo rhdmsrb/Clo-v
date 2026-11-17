@@ -23,7 +23,7 @@ struct AppearanceView: View {
                 SectionHeader(title: "Appearance")
                 modePicker
                 if paletteID != ThemePalette.rose.id {
-                    Button("Reset to Rose") { select(.rose) }
+                    Button("Reset to Burgundy") { select(.rose) }
                         .buttonStyle(OutlineButtonStyle())
                         .accessibilityIdentifier("resetPaletteButton")
                 }
@@ -84,7 +84,7 @@ struct AppearanceView: View {
                         if isSelected {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(Theme.accentForeground)
+                                .foregroundStyle(palette.id == ThemePalette.rose.id ? Color.white : Color(uiColor: palette.color(.accentForeground, dark: false)))
                         }
                     }
                 Text(palette.name)

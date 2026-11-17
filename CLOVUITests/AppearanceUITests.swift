@@ -38,7 +38,8 @@ final class AppearanceUITests: XCTestCase {
         openAppearance(app)
         app.buttons["palette_rose"].tap()
         XCTAssertTrue(app.buttons["palette_rose"].isSelected)
-        attach(app, "1-rose")
+        XCTAssertEqual(app.buttons["palette_rose"].label, "Burgundy")
+        attach(app, "1-burgundy")
 
         app.buttons["palette_forest"].tap()
         XCTAssertTrue(app.navigationBars["Appearance"].exists, "Changing palette must not pop the screen.")

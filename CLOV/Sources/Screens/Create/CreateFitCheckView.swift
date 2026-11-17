@@ -6,6 +6,7 @@ struct CreateFitCheckView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var appState: AppState
 
     @State private var model: CreateWizardModel
@@ -26,6 +27,7 @@ struct CreateFitCheckView: View {
     @State private var isLoadingWardrobe = false
     @State private var showDropPhotosConfirmation = false
     @State private var showDiscardConfirmation = false
+    @State private var skippedPhotoDetails = false
 
     private var photoCount: Int { model.photoCount }
 
@@ -37,6 +39,17 @@ struct CreateFitCheckView: View {
         self.preselectedGroup = preselectedGroup
         self.initialOccasion = initialOccasion
         _model = State(initialValue: CreateWizardModel(preselectedGroupId: preselectedGroup?.id, occasion: initialOccasion))
+#if DEBUG
+        if SampleData.isActive && ProcessInfo.processInfo.arguments.contains("--uiTestCreatePhotos") {
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 800)).image { context in
+                UIColor.systemTeal.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 600, height: 800))
+                UIColor.systemOrange.setFill()
+                context.fill(CGRect(x: 150, y: 150, width: 300, height: 500))
+            }
+            _slots = State(initialValue: [PhotoSlotState(image: image), PhotoSlotState(image: image)])
+        }
+#endif
     }
 
     var body: some View {
@@ -169,7 +182,8 @@ struct CreateFitCheckView: View {
             CreatePreviewStep(
                 model: model,
                 images: slots.compactMap(\.image),
-                groupName: myGroups.first { $0.id == model.groupId }?.name
+                groupName: myGroups.first { $0.id == model.groupId }?.name,
+                votingDuration: votingDuration
             )
         }
     }
@@ -181,22 +195,22 @@ struct CreateFitCheckView: View {
                     .progressViewStyle(.linear).tint(Theme.accentDeep)
                     .accessibilityLabel("Uploading photo \(min(uploadedCount + 1, photoCount)) of \(photoCount)")
             }
-            HStack(spacing: 12) {
-                if model.previousStep(before: model.step) != nil {
-                    Button("Back") { go(to: model.previousStep(before: model.step)) }
-                        .buttonStyle(OutlineButtonStyle())
-                        .disabled(isPosting)
-                        .accessibilityIdentifier("createBackButton")
+            if model.step == .details {
+                Button("Skip photo details and preview") {
+                    skippedPhotoDetails = true
+                    go(to: .preview)
                 }
-                if case .photoDetail = model.step {
-                    Button("Skip") { skipPhotoDetail() }
-                        .buttonStyle(OutlineButtonStyle())
-                        .accessibilityIdentifier("createSkipButton")
-                }
-                primaryButton
+                .font(Theme.label)
+                .foregroundStyle(Theme.accentDeep)
+                .frame(minHeight: Theme.minTapSize)
+                .disabled(!canNext)
+                .accessibilityIdentifier("createSkipPhotoDetails")
             }
-            // Three buttons share one row; past this size the labels clip.
-            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) { footerButtons }
+            } else {
+                HStack(spacing: 12) { footerButtons }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -204,7 +218,35 @@ struct CreateFitCheckView: View {
     }
 
     @ViewBuilder
+    private var footerButtons: some View {
+        if model.previousStep(before: model.step) != nil {
+            Button("Back") {
+                if model.step == .preview && skippedPhotoDetails {
+                    go(to: .details)
+                } else {
+                    go(to: model.previousStep(before: model.step))
+                }
+            }
+                .buttonStyle(OutlineButtonStyle())
+                .disabled(isPosting)
+                .accessibilityIdentifier("createBackButton")
+        }
+        if case .photoDetail = model.step {
+            Button("Skip") { skipPhotoDetail() }
+                .buttonStyle(OutlineButtonStyle())
+                .accessibilityIdentifier("createSkipButton")
+        }
+        primaryButton
+    }
+
+    @ViewBuilder
     private var primaryButton: some View {
+        if model.step == .details {
+            Button("Post now") { Task { await submit() } }
+                .buttonStyle(OutlineButtonStyle())
+                .disabled(!canUpload)
+                .accessibilityIdentifier("createQuickPost")
+        }
         if model.step == .preview {
             Button { Task { await submit() } } label: {
                 if isPosting {
@@ -217,7 +259,10 @@ struct CreateFitCheckView: View {
             .disabled(!canUpload)
             .accessibilityIdentifier("createUploadButton")
         } else {
-            Button("Next") { go(to: model.nextStep(after: model.step)) }
+            Button("Next") {
+                if model.step == .details { skippedPhotoDetails = false }
+                go(to: model.nextStep(after: model.step))
+            }
                 .buttonStyle(PrimaryButtonStyle(isDisabled: !canNext))
                 .disabled(!canNext)
                 .accessibilityHint(canNext ? "" : nextHint)
@@ -357,6 +402,7 @@ struct CreateFitCheckView: View {
     private static let droppedExtrasNotice = "Your Fit-Check is live, but its title, tags and photo details weren’t saved because they aren’t supported yet."
 
     private func submit() async {
+        guard !isPosting else { return }
         submitError = nil
         let images = slots.compactMap(\.image)
         guard images.count == photoCount, model.canAdvance(from: .preview) else {
@@ -408,6 +454,8 @@ struct CreateFitCheckView: View {
                 return
             }
             slots[index].image = image
+            slots[index].original = image
+            slots[index].cropRect = nil
             slots[index].item = nil
             wardrobeSlotId = nil
         } catch is CancellationError {

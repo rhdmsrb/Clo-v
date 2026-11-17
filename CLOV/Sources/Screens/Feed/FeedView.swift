@@ -5,6 +5,7 @@ struct FeedView: View {
 
     @State private var items: [FeedItemDTO] = []
     @State private var visibleItems: [FeedItemDTO] = []
+    @State private var commentRevision: Int?
     @State private var commentItem: FeedItemDTO?
     @State private var notice: String?
     @State private var isLoading = true
@@ -44,11 +45,21 @@ struct FeedView: View {
         .navigationBarHidden(true)
         .navigationDestination(for: FitCheckRoute.self) { route in routeDestination(route) }
         .navigationDestination(item: $openedRoute) { route in routeDestination(route) }
-        .revisionTask(appState.contentRevision) { await load(refreshGraph: graphRevision != appState.contentRevision) }
+        .revisionTask(appState.contentRevision) {
+            if commentRevision != appState.contentRevision {
+                await load(refreshGraph: graphRevision != appState.contentRevision)
+            }
+        }
         .sheet(item: $commentItem) { item in
             CommentThreadSheet(fitCheckId: item.id,
                                photoURLs: PostCardContent.photoURLs(item.fitCheckPhotos).map(\.absoluteString),
-                               voterId: appState.userId, canComment: !isExpired(item.expiresAt))
+                               voterId: appState.userId, canComment: !isExpired(item.expiresAt)) { comments in
+                commentRevision = appState.contentRevision
+                guard let comments else { return }
+                let refs = comments.map { CommentRef(id: $0.id) }
+                if let index = items.firstIndex(where: { $0.id == item.id }) { items[index].fitCheckComments = refs }
+                if let index = visibleItems.firstIndex(where: { $0.id == item.id }) { visibleItems[index].fitCheckComments = refs }
+            }
         }
         .overlay(alignment: .bottom) { noticeToast }
         .task(id: notice) {
@@ -85,6 +96,15 @@ struct FeedView: View {
             // Posts run edge to edge, so the page padding is applied per
             // section instead of on the whole column.
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
+                Text("CLO·V")
+                    .font(Theme.editorialFont(size: 28, relativeTo: .title2))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityLabel("CLO V")
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("feed.logo")
+                    .padding(.horizontal, Self.pagePadding)
                 feedList
                 olderFitChecksButton.padding(.horizontal, Self.pagePadding)
             }
@@ -185,7 +205,9 @@ struct FeedView: View {
 
     // MARK: - Derived state
 
-    private func refreshVisibleItems() {
+    @State private var answered: Set<UUID> = []
+
+    private func rankedItems(_ items: [FeedItemDTO]) -> [FeedItemDTO] {
         let ranked = FeedRanking.visibleItems(
             items: items,
             searchText: "",
@@ -195,7 +217,20 @@ struct FeedView: View {
             stylePreferences: appState.profile?.stylePreferences ?? [],
             signalScores: signalScores
         )
-        visibleItems = ranked
+        func varied(_ posts: [FeedItemDTO]) -> [FeedItemDTO] {
+            var remaining = posts
+            var result: [FeedItemDTO] = []
+            while !remaining.isEmpty {
+                let index = remaining.firstIndex { $0.creatorId != result.last?.creatorId } ?? 0
+                result.append(remaining.remove(at: index))
+            }
+            return result
+        }
+        return varied(ranked.filter { !answered.contains($0.id) }) + varied(ranked.filter { answered.contains($0.id) })
+    }
+
+    private func refreshVisibleItems() {
+        visibleItems = rankedItems(items)
     }
 
     private func setItems(_ newItems: [FeedItemDTO]) {
@@ -245,8 +280,10 @@ struct FeedView: View {
                                                    search: "", occasion: nil,
                                                    followingIDs: nil,
                                                    friendIDs: graph.friends)
+            let votes = try? await API.answeredPosts(page.items, viewer: appState.userId)
             let scores = await freshScores
             guard loadID == requestID else { return }
+            if let votes { answered = votes }
             signalScores = scores
             followingIDs = graph.following
             friendIDs = graph.friends
@@ -285,7 +322,11 @@ struct FeedView: View {
             guard loadID == requestID else { return }
             let existing = Set(items.map(\.id))
             let fresh = page.items.filter { !existing.contains($0.id) }
-            setItems(items + fresh)
+            let votes = try? await API.answeredPosts(fresh, viewer: appState.userId)
+            guard loadID == requestID else { return }
+            answered.formUnion(votes ?? [])
+            items.append(contentsOf: fresh)
+            visibleItems.append(contentsOf: rankedItems(fresh))
             Task { await loadLikedState(for: fresh) }
             nextOffset += page.fetchedCount
             canLoadMore = page.fetchedCount == Self.pageSize

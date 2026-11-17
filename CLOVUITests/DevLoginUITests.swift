@@ -1,6 +1,19 @@
 import XCTest
 
 final class DevLoginUITests: XCTestCase {
+    func testLaunchTransitionsToInteractiveFeed() {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uiTestSampleData", "--uiTestLaunchTransition"]
+        app.launch()
+        let feed = app.buttons["feedTab"]
+        XCTAssertTrue(feed.waitForExistence(timeout: 15))
+        let loading = app.descendants(matching: .any)["launch.loading"]
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: loading)
+        XCTAssertEqual(XCTWaiter().wait(for: [dismissed], timeout: 5), .completed)
+        let search = app.buttons["searchTab"]
+        search.tap()
+        XCTAssertTrue(app.textFields["search.query"].waitForExistence(timeout: 5))
+    }
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -29,6 +42,26 @@ final class DevLoginUITests: XCTestCase {
         XCTAssertFalse(logIn.isEnabled, "Log in must stay disabled for the synthetic 1 / 1 credentials.")
 
         XCTAssertFalse(app.textFields["fitqueen99"].exists, "Onboarding must not be reachable with a synthetic login.")
+    }
+
+    func testAuthOffersRecoveryAndAccountCreation() throws {
+        let app = XCUIApplication()
+        app.launch()
+        signOutIfNeeded(app)
+
+        XCTAssertTrue(app.textFields["auth.email"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.secureTextFields["auth.password"].exists)
+        XCTAssertFalse(app.buttons["auth.submit"].isEnabled)
+        app.buttons["auth.forgotPassword"].tap()
+        XCTAssertTrue(app.staticTexts["Reset your password"].waitForExistence(timeout: 5))
+        app.swipeDown()
+
+        let switchMode = app.buttons["auth.switchMode"]
+        if !switchMode.isHittable { app.swipeUp() }
+        XCTAssertTrue(switchMode.waitForExistence(timeout: 5))
+        switchMode.tap()
+        XCTAssertEqual(app.buttons["auth.submit"].label, "Sign up")
+        XCTAssertFalse(app.buttons["auth.forgotPassword"].exists)
     }
 
     /// Other UI tests (e.g. WardrobeFlowUITests) auto-login and the session

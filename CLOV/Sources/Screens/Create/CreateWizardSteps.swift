@@ -112,6 +112,7 @@ struct CreatePreviewStep: View {
     let model: CreateWizardModel
     let images: [UIImage]
     let groupName: String?
+    let votingDuration: VotingDuration
 
     @State private var page = 0
 
@@ -163,6 +164,10 @@ struct CreatePreviewStep: View {
             }
             Label(model.audience == .group ? (groupName ?? "A group") : model.audience.title, systemImage: model.audience.symbol)
                 .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+                .accessibilityIdentifier("createPreviewAudience")
+            Label("Voting: \(votingDuration.label)", systemImage: "clock")
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+                .accessibilityIdentifier("createPreviewDuration")
         }
     }
 
@@ -178,6 +183,11 @@ struct CreatePreviewStep: View {
                         .accessibilityLabel("Photo \(offset + 1)")
                         let text = model.photoDetails.indices.contains(offset) ? model.photoDetails[offset].description : ""
                         if !text.isEmpty { Text(text).font(Theme.caption).foregroundStyle(Theme.ink) }
+                        if model.photoDetails.indices.contains(offset), !model.photoDetails[offset].tags.isEmpty {
+                            Text(model.photoDetails[offset].tags.map { "#\($0)" }.joined(separator: ", "))
+                                .font(Theme.caption).foregroundStyle(Theme.accentDeep)
+                                .accessibilityIdentifier("createPreviewPhotoTags-\(offset)")
+                        }
                     }
                 }
             }

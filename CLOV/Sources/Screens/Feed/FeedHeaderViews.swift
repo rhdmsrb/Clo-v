@@ -209,12 +209,13 @@ struct FeedSearchField: View {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.mutedForeground)
                     .accessibilityHidden(true)
-                TextField("Search people, looks, occasions", text: $text, prompt:
-                            Text("People, looks, occasions").foregroundStyle(Theme.mutedForeground))
+                TextField("Search descriptions", text: $text, prompt:
+                            Text("Search descriptions").foregroundStyle(Theme.mutedForeground))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.search)
                     .foregroundStyle(Theme.ink)
+                    .accessibilityIdentifier("feed.search")
             }
             .font(Theme.body)
             .padding(.horizontal, 14)

@@ -5,13 +5,17 @@ import SwiftUI
 /// optional; Done keeps the selected crop.
 struct PhotoCropView: View {
     let image: UIImage
+    var initialCrop: CGRect? = nil
     let onCancel: () -> Void
-    let onDone: (UIImage) -> Void
+    let onDone: (UIImage, CGRect) -> Void
 
     @State private var zoom: CGFloat = 1
     @State private var committedZoom: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var committedOffset: CGSize = .zero
+    @State private var isMagnifying = false
+    @State private var pinchStartOffset: CGSize = .zero
+    @State private var restoredCrop = false
 
     private static let aspectRatio: CGFloat = 3.0 / 4.0
     private static let maxZoom: CGFloat = 5
@@ -28,19 +32,29 @@ struct PhotoCropView: View {
                     photo(frame: frame)
                     cropOverlay(frame: frame)
                 }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
                 .contentShape(Rectangle())
-                .gesture(dragGesture(frame: frame).simultaneously(with: zoomGesture(frame: frame)))
+                .gesture(dragGesture(frame: frame).simultaneously(with: zoomGesture(frame: frame, canvas: proxy.size)))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { onDone(cropResult(frame: frame)) }.bold()
+                        Button("Done") {
+                            let rect = CropGeometry.cropRect(image: image.size, frame: frame, zoom: zoom, offset: offset)
+                            onDone(image.cropped(toPoints: rect), rect)
+                        }.bold()
                     }
                     ToolbarItem(placement: .bottomBar) {
-                        Button("Reset") { reset() }
+                        HStack(spacing: 16) {
+                            Button("Reset") { reset() }
+                            Slider(value: zoomBinding(frame: frame), in: 1...Self.maxZoom)
+                                .accessibilityLabel("Crop zoom")
+                                .accessibilityValue("\(Int((zoom * 100).rounded())) percent")
+                        }
                     }
                 }
+                .onAppear { restoreCrop(frame: frame) }
             }
-            .ignoresSafeArea(edges: .bottom)
             .navigationTitle("Crop photo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -69,11 +83,7 @@ struct PhotoCropView: View {
     }
 
     private func clamped(_ offset: CGSize, frame: CGSize, zoom: CGFloat) -> CGSize {
-        let size = displaySize(frame: frame, zoom: zoom)
-        let maxX = max((size.width - frame.width) / 2, 0)
-        let maxY = max((size.height - frame.height) / 2, 0)
-        return CGSize(width: min(max(offset.width, -maxX), maxX),
-                      height: min(max(offset.height, -maxY), maxY))
+        CropGeometry.clamped(offset, image: image.size, frame: frame, zoom: zoom)
     }
 
     // MARK: - Views
@@ -127,23 +137,43 @@ struct PhotoCropView: View {
     private func dragGesture(frame: CGSize) -> some Gesture {
         DragGesture()
             .onChanged { value in
+                guard !isMagnifying else { return }
                 let proposed = CGSize(width: committedOffset.width + value.translation.width,
                                       height: committedOffset.height + value.translation.height)
                 offset = clamped(proposed, frame: frame, zoom: zoom)
             }
-            .onEnded { _ in committedOffset = offset }
+            .onEnded { _ in if !isMagnifying { committedOffset = offset } }
     }
 
-    private func zoomGesture(frame: CGSize) -> some Gesture {
+    private func zoomGesture(frame: CGSize, canvas: CGSize) -> some Gesture {
         MagnifyGesture()
             .onChanged { value in
-                zoom = min(max(committedZoom * value.magnification, 1), Self.maxZoom)
-                offset = clamped(offset, frame: frame, zoom: zoom)
+                if !isMagnifying {
+                    isMagnifying = true
+                    pinchStartOffset = offset
+                }
+                let newZoom = min(max(committedZoom * value.magnification, 1), Self.maxZoom)
+                let anchor = CGPoint(x: (value.startAnchor.x - 0.5) * canvas.width,
+                                     y: (value.startAnchor.y - 0.5) * canvas.height)
+                let proposed = CropGeometry.zoomedOffset(pinchStartOffset, anchor: anchor,
+                                                         factor: newZoom / committedZoom)
+                zoom = newZoom
+                offset = clamped(proposed, frame: frame, zoom: newZoom)
             }
             .onEnded { _ in
                 committedZoom = zoom
                 committedOffset = offset
+                isMagnifying = false
             }
+    }
+
+    private func zoomBinding(frame: CGSize) -> Binding<CGFloat> {
+        Binding(get: { zoom }, set: { value in
+            zoom = value
+            committedZoom = value
+            offset = clamped(offset, frame: frame, zoom: value)
+            committedOffset = offset
+        })
     }
 
     private func reset() {
@@ -153,17 +183,50 @@ struct PhotoCropView: View {
         committedOffset = .zero
     }
 
-    // MARK: - Result
+    private func restoreCrop(frame: CGSize) {
+        guard !restoredCrop else { return }
+        restoredCrop = true
+        guard let initialCrop, initialCrop.width > 0, initialCrop.height > 0 else { return }
+        let restored = CropGeometry.transform(for: initialCrop, image: image.size, frame: frame, maxZoom: Self.maxZoom)
+        zoom = restored.zoom
+        committedZoom = restored.zoom
+        offset = restored.offset
+        committedOffset = restored.offset
+    }
+}
 
-    /// The frame's region in the photo's own point coordinates.
-    private func cropResult(frame: CGSize) -> UIImage {
-        let scale = baseScale(frame: frame) * zoom
-        let size = displaySize(frame: frame, zoom: zoom)
-        let originX = (frame.width - size.width) / 2 + offset.width
-        let originY = (frame.height - size.height) / 2 + offset.height
-        let rect = CGRect(x: -originX / scale, y: -originY / scale,
-                          width: frame.width / scale, height: frame.height / scale)
-        return image.cropped(toPoints: rect)
+enum CropGeometry {
+    static func scale(image: CGSize, frame: CGSize, zoom: CGFloat) -> CGFloat {
+        max(frame.width / image.width, frame.height / image.height) * zoom
+    }
+
+    static func clamped(_ offset: CGSize, image: CGSize, frame: CGSize, zoom: CGFloat) -> CGSize {
+        let scale = scale(image: image, frame: frame, zoom: zoom)
+        let maxX = max((image.width * scale - frame.width) / 2, 0)
+        let maxY = max((image.height * scale - frame.height) / 2, 0)
+        return CGSize(width: min(max(offset.width, -maxX), maxX),
+                      height: min(max(offset.height, -maxY), maxY))
+    }
+
+    static func zoomedOffset(_ offset: CGSize, anchor: CGPoint, factor: CGFloat) -> CGSize {
+        CGSize(width: anchor.x + (offset.width - anchor.x) * factor,
+               height: anchor.y + (offset.height - anchor.y) * factor)
+    }
+
+    static func cropRect(image: CGSize, frame: CGSize, zoom: CGFloat, offset: CGSize) -> CGRect {
+        let scale = scale(image: image, frame: frame, zoom: zoom)
+        return CGRect(x: (image.width * scale - frame.width) / (2 * scale) - offset.width / scale,
+                      y: (image.height * scale - frame.height) / (2 * scale) - offset.height / scale,
+                      width: frame.width / scale, height: frame.height / scale)
+    }
+
+    static func transform(for rect: CGRect, image: CGSize, frame: CGSize, maxZoom: CGFloat) -> (zoom: CGFloat, offset: CGSize) {
+        let base = scale(image: image, frame: frame, zoom: 1)
+        let zoom = min(max(frame.width / rect.width / base, 1), maxZoom)
+        let scale = base * zoom
+        let proposed = CGSize(width: (image.width / 2 - rect.midX) * scale,
+                              height: (image.height / 2 - rect.midY) * scale)
+        return (zoom, clamped(proposed, image: image, frame: frame, zoom: zoom))
     }
 }
 

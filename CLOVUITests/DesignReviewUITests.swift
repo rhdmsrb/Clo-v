@@ -20,6 +20,15 @@ final class DesignReviewUITests: XCTestCase {
 
     // MARK: - Walks
 
+    func testFeedShowsBrandAbovePosts() {
+        let app = launchApp()
+        let logo = app.staticTexts["feed.logo"]
+        XCTAssertTrue(logo.waitForExistence(timeout: 15))
+        let post = app.descendants(matching: .any)["feed-post-card"].firstMatch
+        XCTAssertTrue(post.waitForExistence(timeout: 10))
+        XCTAssertLessThan(logo.frame.maxY, post.frame.minY)
+    }
+
     func testDailyChallengeIsAbsentFromFeedAndProfile() {
         let app = launchApp()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
@@ -69,6 +78,19 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sort:'")).firstMatch.exists)
         XCTAssertFalse(app.buttons["Everyday"].exists)
         XCTAssertTrue(app.buttons["searchTab"].exists)
+    }
+
+    func testAnalyticsExpandsOnProfile() {
+        let app = launchApp()
+        XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15))
+        app.buttons["accountTab"].tap()
+        let analytics = app.buttons["profile.analytics"]
+        XCTAssertTrue(analytics.waitForExistence(timeout: 10))
+        analytics.tap()
+        XCTAssertTrue(app.staticTexts["Style momentum"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["profile.menu"].exists)
+        analytics.tap()
+        XCTAssertFalse(app.staticTexts["Style momentum"].exists)
     }
 
     func testWalkMainScreens() {

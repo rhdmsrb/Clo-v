@@ -15,6 +15,46 @@ enum VoteSummaryPlan: Equatable {
 
 /// Vote totals that respect the restricted `fit_check_votes` SELECT policy.
 extension API {
+
+    private struct WornLook: Codable {
+        let fitCheckId: UUID
+        let photoId: UUID
+    }
+
+    @MainActor static func wornLook(for id: UUID) async throws -> UUID? {
+#if DEBUG
+        if SampleData.isActive { return sampleWornLooks[id] }
+#endif
+        let rows: [WornLook] = try await client.from("fit_check_worn_looks")
+            .select().eq("fit_check_id", value: id).execute().value
+        return rows.first?.photoId
+    }
+
+#if DEBUG
+    @MainActor private static var sampleWornLooks: [UUID: UUID] = [:]
+#endif
+
+    @MainActor static func chooseWornLook(_ photo: UUID, for id: UUID) async throws {
+#if DEBUG
+        if SampleData.isActive { sampleWornLooks[id] = photo; return }
+#endif
+        try await client.from("fit_check_worn_looks")
+            .upsert(["fit_check_id": id, "photo_id": photo]).execute()
+    }
+
+    static func answeredPosts(_ items: [FeedItemDTO], viewer: UUID) async throws -> Set<UUID> {
+        guard !items.isEmpty else { return [] }
+#if DEBUG
+        if SampleData.isActive {
+            return Set(items.filter { SampleData.votes(fitCheckId: $0.id).contains { $0.voterId == viewer } }.map(\.id))
+        }
+#endif
+        struct Row: Decodable { let fitCheckId: UUID }
+        let rows: [Row] = try await client.from("fit_check_votes").select("fit_check_id")
+            .eq("voter_id", value: viewer).in("fit_check_id", values: items.map(\.id)).execute().value
+        return Set(rows.map(\.fitCheckId))
+    }
+
     private struct OwnVoteRow: Decodable {
         let photoId: UUID
     }

@@ -3,25 +3,28 @@ import SwiftUI
 /// Capsule CTA: hero gradient fill, >= 52pt tall, press scale 0.96, soft haptic.
 struct PrimaryButtonStyle: ButtonStyle {
     var isDisabled: Bool = false
+    @Environment(\.isEnabled) private var isEnabled
     private static let minHeight: CGFloat = 52
+
+    private var disabled: Bool { isDisabled || !isEnabled }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Theme.headline)
             .frame(maxWidth: .infinity, minHeight: Self.minHeight)
             .padding(.horizontal, 20)
-            .foregroundStyle(isDisabled ? AnyShapeStyle(Theme.mutedForeground) : AnyShapeStyle(Color.white))
+            .foregroundStyle(disabled ? AnyShapeStyle(Theme.mutedForeground) : AnyShapeStyle(Color.white))
             .background(fill, in: Capsule(style: .continuous))
             .contentShape(Capsule(style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .motionSafeAnimation(value: configuration.isPressed)
             .sensoryFeedback(.impact(flexibility: .soft), trigger: configuration.isPressed) { _, pressed in
-                pressed && !isDisabled
+                pressed && !disabled
             }
     }
 
     private var fill: AnyShapeStyle {
-        isDisabled ? AnyShapeStyle(Theme.muted) : AnyShapeStyle(Theme.heroGradient)
+        disabled ? AnyShapeStyle(Theme.muted) : AnyShapeStyle(Theme.heroGradient)
     }
 }
 

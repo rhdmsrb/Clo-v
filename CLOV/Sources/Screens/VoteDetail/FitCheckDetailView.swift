@@ -28,6 +28,10 @@ struct FitCheckDetailView: View {
     @State private var showingBlockConfirmation = false
     @State private var safetyMessage: String?
 
+    @State private var wornPhoto: UUID?
+    @State private var savingChoice = false
+    @State private var choiceError: String?
+
     private var voteCounts: [UUID: Int] { summary?.counts ?? [:] }
     private var totalVotes: Int { summary?.total ?? 0 }
     private var myVote: UUID? { summary?.myVote }
@@ -98,6 +102,9 @@ struct FitCheckDetailView: View {
         statusStrip(for: detail, expired: expired)
         if let summary = heroSummary(detail, expired: expired) { summary }
 
+        if expired || detail.status == "archived" {
+            wornChoice(detail)
+        }
         if expired {
             if detail.creatorId == appState.userId {
                 Text("Voting has ended. Your results are saved here for you.")
@@ -120,6 +127,37 @@ struct FitCheckDetailView: View {
             }
             commentsSection
         }
+    }
+
+    @ViewBuilder
+    private func wornChoice(_ detail: FitCheckDetailDTO) -> some View {
+        let photos = detail.fitCheckPhotos.sorted { $0.position < $1.position }
+        if let photo = photos.first(where: { $0.id == wornPhoto }),
+           let index = photos.firstIndex(where: { $0.id == photo.id }) {
+            Text("Actually wore look \(index + 1)").font(Theme.headline)
+            RemoteImage(url: photo.imageUrl, label: "Look \(index + 1)", contentMode: .fit)
+                .frame(maxHeight: 320)
+        }
+        if detail.creatorId == appState.userId {
+            Menu(wornPhoto == nil ? "Which look did you wear?" : "Change the look you wore") {
+                ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                    Button("I wore look \(index + 1)") {
+                        savingChoice = true
+                        Task {
+                            defer { savingChoice = false }
+                            do {
+                                try await API.chooseWornLook(photo.id, for: detail.id)
+                                wornPhoto = photo.id
+                                choiceError = nil
+                            } catch { choiceError = "Couldn’t save your choice. Try again." }
+                        }
+                    }
+                }
+            }
+            .disabled(savingChoice)
+            .accessibilityIdentifier("result.wornChoice")
+        }
+        if let choiceError { Text(choiceError).font(Theme.caption) }
     }
 
     private func votingSection(_ detail: FitCheckDetailDTO, myVote: UUID?) -> some View {
@@ -277,6 +315,9 @@ struct FitCheckDetailView: View {
             async let commentsTask = API.fetchComments(fitCheckId: fitCheckId)
             let loaded = try await (summaryTask, commentsTask)
             try Task.checkCancellation()
+            if isExpired(loadedDetail.expiresAt) || loadedDetail.status == "archived" {
+                wornPhoto = try? await API.wornLook(for: fitCheckId)
+            }
             detail = loadedDetail
             summary = loaded.0
             comments = loaded.1

@@ -394,7 +394,7 @@ struct VoteFanScreen: View {
                     .font(Theme.font(.subheadline, weight: .bold))
                 Button("Undo", action: undoVote)
                     .font(Theme.font(.subheadline, weight: .black))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(.white)
                     .frame(minHeight: FeedLayout.minHitSize)
                     .contentShape(Rectangle())
             }

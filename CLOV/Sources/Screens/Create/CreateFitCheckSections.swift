@@ -52,28 +52,36 @@ struct NoteSection: View {
     @ScaledMetric(relativeTo: .body) private var noteMinHeight: CGFloat = 80
 
     private static let placeholder = "Add context about where you’re going or what matters to you."
+    private var limitedCaption: Binding<String> {
+        Binding(get: { caption }, set: { caption = String($0.prefix(CreateWizardModel.maxCaptionLength)) })
+    }
 
     var body: some View {
-        LabeledField(label: "Add a note (optional)", padding: 8) {
-            TextEditor(text: $caption)
-                // TextEditor paints its own opaque white; hide it so the
-                // field's tinted surface shows through instead of a white box.
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .frame(minHeight: noteMinHeight)
-                .accessibilityLabel("Note, optional")
-                .accessibilityHint(Self.placeholder)
-                .overlay(alignment: .topLeading) {
-                    if caption.isEmpty {
-                        Text(Self.placeholder)
-                            .font(Theme.body)
-                            .foregroundStyle(Theme.mutedForeground)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledField(label: "Description (optional)", padding: 8) {
+                TextEditor(text: limitedCaption)
+                    // Hide TextEditor's opaque background so the field surface shows through.
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .frame(minHeight: noteMinHeight)
+                    .accessibilityLabel("Description, optional")
+                    .accessibilityIdentifier("createDescriptionField")
+                    .accessibilityHint(Self.placeholder)
+                    .overlay(alignment: .topLeading) {
+                        if caption.isEmpty {
+                            Text(Self.placeholder)
+                                .font(Theme.body)
+                                .foregroundStyle(Theme.mutedForeground)
+                                .padding(.top, 8)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
+            }
+            Text("\(caption.count)/\(CreateWizardModel.maxCaptionLength)")
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+                .accessibilityLabel("\(caption.count) of \(CreateWizardModel.maxCaptionLength) characters")
         }
     }
 }

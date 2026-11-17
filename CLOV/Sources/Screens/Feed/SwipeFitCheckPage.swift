@@ -223,7 +223,7 @@ struct SwipeFitCheckPage: View {
                     .font(Theme.font(.subheadline, weight: .bold))
                 Button("Undo", action: undoVote)
                     .font(Theme.font(.subheadline, weight: .black))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(.white)
                     .frame(minHeight: FeedLayout.minHitSize)
                     .contentShape(Rectangle())
             }
@@ -349,7 +349,7 @@ struct SwipeFitCheckPage: View {
                     .font(Theme.font(.footnote, weight: .black))
                 Text(insight).font(Theme.font(.caption, weight: .medium))
                 if let summary = model.streak.summary() {
-                    Label(summary, systemImage: "flame.fill").font(Theme.font(.caption, weight: .bold)).foregroundStyle(Theme.accent)
+                    Label(summary, systemImage: "flame.fill").font(Theme.font(.caption, weight: .bold)).foregroundStyle(.white)
                 }
             }
             .padding(10)

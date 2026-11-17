@@ -19,7 +19,9 @@ extension UIImage {
     /// camera/library photos often carry non-`.up` orientation metadata.
     func normalizedOrientation() -> UIImage {
         guard imageOrientation != .up else { return self }
-        let renderer = UIGraphicsImageRenderer(size: size)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         return renderer.image { _ in
             draw(in: CGRect(origin: .zero, size: size))
         }

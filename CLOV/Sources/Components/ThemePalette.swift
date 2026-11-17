@@ -10,7 +10,8 @@ import UIKit
 //
 // Non-default palettes are generated from one hue so contrast stays safe
 // whatever the user picks: text roles are always dark/light enough on their
-// surfaces. "rose" keeps the hand-tuned original values.
+// surfaces. The legacy "rose" id keeps the hand-tuned Burgundy default so
+// existing saved preferences continue to work.
 
 /// Semantic color roles that vary by palette.
 enum PaletteRole {
@@ -30,7 +31,7 @@ struct ThemePalette: Equatable, Identifiable {
     /// Scales every saturation; 0 gives a neutral grayscale palette.
     let saturation: Double
 
-    static let rose = ThemePalette(id: "rose", name: "Rose", hue: nil, saturation: 1)
+    static let rose = ThemePalette(id: "rose", name: "Burgundy", hue: nil, saturation: 1)
     static let presets: [ThemePalette] = [
         rose,
         ThemePalette(id: "ocean", name: "Ocean", hue: 0.57, saturation: 1),
@@ -58,8 +59,8 @@ struct ThemePalette: Equatable, Identifiable {
 
     /// Swatch used in the picker, always the palette's accent.
     var swatch: Color {
-        // The default keeps its hand-tuned rose rather than the generated hue-0 red.
-        hue == nil ? Color(red: 0xE4 / 255, green: 0x91 / 255, blue: 0xA6 / 255) : Color(uiColor: color(.accent, dark: false))
+        // The default keeps its hand-tuned burgundy rather than a generated hue.
+        hue == nil ? Color(red: 0x78 / 255, green: 0x28 / 255, blue: 0x40 / 255) : Color(uiColor: color(.accent, dark: false))
     }
 
     // MARK: Color generation

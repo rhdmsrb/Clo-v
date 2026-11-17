@@ -19,3 +19,4 @@ tmp/
 # Local secrets and Python caches for the seed scripts
 scripts/.env.local
 __pycache__/
+.build/

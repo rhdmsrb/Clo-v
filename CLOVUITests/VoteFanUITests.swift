@@ -15,6 +15,29 @@ final class VoteFanUITests: XCTestCase {
 
     // MARK: - Tests
 
+    func testCompareVotesWithoutLeavingFeed() {
+        let app = XCUIApplication()
+        app.launchArguments = [Self.sampleDataArgument]
+        app.launch()
+        let compare = app.buttons["feed.compare"].firstMatch
+        XCTAssertTrue(compare.waitForExistence(timeout: 10))
+        compare.tap()
+        let vote = app.buttons["feed.vote.0"].firstMatch
+        XCTAssertTrue(vote.waitForExistence(timeout: 5))
+        vote.tap()
+        XCTAssertTrue(app.buttons["Undo vote"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["feedTab"].exists)
+    }
+
+    func testQuickPostIsAvailableAfterSelectingPhotos() {
+        let app = XCUIApplication()
+        app.launchArguments = [Self.sampleDataArgument, "--uiTestCreatePhotos"]
+        app.launch()
+        app.buttons["tabPlusButton"].tap()
+        app.buttons["createNextButton"].tap()
+        XCTAssertTrue(app.buttons["createQuickPost"].isEnabled)
+    }
+
     func testLandscapePhotoFitsInsideFeedCard() throws {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument, "--uiTestWidePhoto"]

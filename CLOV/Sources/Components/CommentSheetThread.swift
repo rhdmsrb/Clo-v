@@ -7,6 +7,7 @@ struct CommentThreadSheet: View {
     let photoURLs: [String]
     let voterId: UUID
     let canComment: Bool
+    var onPosted: (([CommentDTO]?) -> Void)? = nil
 
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -196,8 +197,10 @@ struct CommentThreadSheet: View {
             try await API.addComment(fitCheckId: fitCheckId, commenterId: voterId, body: draft)
             draft = ""
             isInputFocused = false
+            let updated = try? await API.fetchComments(fitCheckId: fitCheckId)
+            if let updated { comments = updated }
             appState.contentDidChange()
-            comments = (try? await API.fetchComments(fitCheckId: fitCheckId)) ?? comments
+            onPosted?(updated)
         } catch {
             postError = friendlyMessage(for: error, fallback: "Couldn’t post your comment. Please try again.")
         }

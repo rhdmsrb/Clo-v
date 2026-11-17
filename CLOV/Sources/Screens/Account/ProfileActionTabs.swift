@@ -5,6 +5,7 @@ import SwiftUI
 struct ProfileActionTabs<ShareContent: View>: View {
     let onEdit: () -> Void
     let onAnalytics: () -> Void
+    let analyticsExpanded: Bool
     @ViewBuilder let share: () -> ShareContent
 
     private typealias Metrics = ProfileActionTabMetrics
@@ -23,14 +24,14 @@ struct ProfileActionTabs<ShareContent: View>: View {
                     .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
                     .frame(height: Metrics.totalHeight - 4)
                     .contentShape(Rectangle())
-                sideButton("Analytics", label: "Analytics", id: "profile.analytics", action: onAnalytics)
+                sideButton("Analytics", label: "Analytics", id: "profile.analytics", value: analyticsExpanded ? "Expanded" : "Collapsed", action: onAnalytics)
             }
         }
         .frame(height: Metrics.totalHeight)
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    private func sideButton(_ title: String, label: String, id: String, action: @escaping () -> Void) -> some View {
+    private func sideButton(_ title: String, label: String, id: String, value: String = "", action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(Theme.bodyEmphasis)
@@ -46,6 +47,7 @@ struct ProfileActionTabs<ShareContent: View>: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
+        .accessibilityValue(value)
         .accessibilityIdentifier(id)
     }
 }

@@ -17,6 +17,7 @@ struct FeedPostCard: View {
     /// Opens the comment thread sheet.
     let onComment: () -> Void
 
+    @State private var comparing = false
     @State private var photoIndex = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -38,7 +39,18 @@ struct FeedPostCard: View {
             header.padding(.horizontal, Self.textInset)
             // One timeline per card, ticking once at expiry.
             TimelineView(.expiry(item.expiresAt)) { _ in
-                photos(expired: isExpired(item.expiresAt))
+                if comparing {
+                    InlineLookComparison(item: item, viewerId: viewerId, onOpen: onOpen)
+                } else {
+                    photos(expired: isExpired(item.expiresAt))
+                }
+            }
+            if item.fitCheckPhotos.count >= 2 {
+                Button(comparing ? "Show carousel" : "Compare looks") { comparing.toggle() }
+                    .font(Theme.bodyEmphasis)
+                    .frame(minHeight: Theme.minTapSize)
+                    .padding(.horizontal, Self.textInset)
+                    .accessibilityIdentifier("feed.compare")
             }
             actionRow.padding(.horizontal, Self.textInset - 6)
             VStack(alignment: .leading, spacing: 6) {
@@ -213,5 +225,50 @@ struct FeedPostCard: View {
                 .lineLimit(1)
         }
         tagsRow
+    }
+}
+
+private struct InlineLookComparison: View {
+    @StateObject private var model: ReelVoteModel
+    let onOpen: (Int) -> Void
+
+    init(item: FeedItemDTO, viewerId: UUID, onOpen: @escaping (Int) -> Void) {
+        _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId))
+        self.onOpen = onOpen
+    }
+
+    var body: some View {
+        VStack {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
+                ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
+                    VStack {
+                        Button { onOpen(index) } label: {
+                            Color.black.aspectRatio(3 / 4, contentMode: .fit)
+                                .overlay { RemoteImage(url: photo.imageUrl, contentMode: .fit) }
+                        }
+                        .accessibilityLabel("Enlarge look \(index + 1)")
+                        if model.summaryLoaded && model.isResultsRevealed && !model.isVoting {
+                            Text("Look \(index + 1) · \(model.percent(for: photo.id))%")
+                        } else {
+                            Button("Vote for look \(index + 1)") { _ = model.vote(for: photo.id) {} }
+                                .frame(minHeight: Theme.minTapSize)
+                                .disabled(!model.canVote)
+                                .accessibilityIdentifier("feed.vote.\(index)")
+                        }
+                    }
+                }
+            }
+            if model.canRetract {
+                Button("Undo vote") { model.retractVote {} }
+                    .frame(minHeight: Theme.minTapSize)
+            }
+            if model.summaryLoadFailed {
+                Button("Retry loading votes") { Task { await model.refreshSummary() } }
+            }
+            if let error = model.error { Text(error).font(Theme.caption) }
+        }
+        .buttonStyle(.plain)
+        .font(Theme.bodyEmphasis)
+        .task { await model.loadSummary() }
     }
 }

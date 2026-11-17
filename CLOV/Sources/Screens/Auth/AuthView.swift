@@ -12,8 +12,8 @@ struct AuthView: View {
         var title: String { self == .signIn ? "Log in" : "Sign up" }
         var subtitle: String {
             self == .signIn
-                ? "Welcome back."
-                : "Create an account to start posting Fit-Checks."
+                ? "Your next great look starts here."
+                : "Share your looks and get a little help choosing."
         }
         var switchPrompt: String {
             self == .signIn ? "No account? Sign up" : "Already have an account? Log in"
@@ -43,25 +43,36 @@ struct AuthView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                AuthHeroBlock(title: mode.title, subtitle: mode.subtitle)
-                VStack(alignment: .leading, spacing: 20) {
-                    if checkEmailNotice { checkEmailBanner }
-                    SocialSignInButtons(error: $error, isBusy: $isSubmitting)
-                    orDivider
-                    fields
-                    if let error {
-                        Label(error, systemImage: "exclamationmark.circle.fill")
-                            .font(Theme.caption)
-                            .foregroundStyle(Theme.danger)
-                    }
-                    submitButton
-                    secondaryActions
+            VStack(alignment: .leading, spacing: 24) {
+                authHeader
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(mode.title)
+                        .font(Theme.editorialFont(size: 40, relativeTo: .largeTitle))
+                        .foregroundStyle(Theme.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(mode.subtitle)
+                        .font(Theme.body)
+                        .foregroundStyle(Theme.mutedForeground)
                 }
-                .padding(24)
+                if checkEmailNotice { checkEmailBanner }
+                fields
+                if mode == .signIn { passwordResetButton }
+                if let error {
+                    Label(error, systemImage: "exclamationmark.circle.fill")
+                        .font(Theme.caption)
+                        .foregroundStyle(Theme.danger)
+                }
+                submitButton
+                orDivider
+                SocialSignInButtons(error: $error, isBusy: $isSubmitting)
+                secondaryActions
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 28)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
         }
-        .ignoresSafeArea(edges: .top)
         .background(Theme.background)
         .scrollDismissesKeyboard(.interactively)
         .motionSafeAnimation(Theme.settle, value: mode)
@@ -74,10 +85,32 @@ struct AuthView: View {
         .sheet(isPresented: $showingPasswordReset) { resetSheet }
     }
 
+    private var authHeader: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 52)
+                .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("CLO·V")
+                    .font(Theme.editorialFont(size: 27, relativeTo: .title2))
+                    .foregroundStyle(Theme.ink)
+                Text("YOUR LOOK, YOUR CIRCLE")
+                    .font(Theme.micro)
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.accentDeep)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private var orDivider: some View {
         HStack(spacing: 12) {
             Rectangle().fill(Theme.controlBorder).frame(height: 1)
-            Text("or use email")
+            Text("or continue with")
                 .font(Theme.caption)
                 .foregroundStyle(Theme.mutedForeground)
                 .fixedSize()
@@ -106,6 +139,8 @@ struct AuthView: View {
                     .focused($focusedField, equals: .email)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .password }
+                    .accessibilityLabel("Email")
+                    .accessibilityIdentifier("auth.email")
             }
             LabeledField(
                 label: "Password",
@@ -120,6 +155,8 @@ struct AuthView: View {
                         guard canSubmit else { return }
                         Task { await submit() }
                     }
+                    .accessibilityLabel("Password")
+                    .accessibilityIdentifier("auth.password")
             }
         }
     }
@@ -140,32 +177,35 @@ struct AuthView: View {
         }
         .buttonStyle(PrimaryButtonStyle(isDisabled: isSubmitting || !canSubmit))
         .disabled(isSubmitting || !canSubmit)
+        .accessibilityIdentifier("auth.submit")
     }
 
     private var secondaryActions: some View {
-        VStack(spacing: 0) {
-            Button {
-                mode = mode == .signIn ? .signUp : .signIn
-                error = nil
-                checkEmailNotice = false
-            } label: {
-                Text(mode.switchPrompt)
-                    .font(Theme.bodyEmphasis)
-                    .foregroundStyle(Theme.accentDeep)
-                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                    .contentShape(Rectangle())
-            }
-            if mode == .signIn {
-                Button("Forgot password?") {
-                    resetEmail = email.trimmingCharacters(in: .whitespaces)
-                    resetNotice = nil
-                    showingPasswordReset = true
-                }
-                .font(Theme.label)
-                .foregroundStyle(Theme.mutedForeground)
+        Button {
+            mode = mode == .signIn ? .signUp : .signIn
+            error = nil
+            checkEmailNotice = false
+        } label: {
+            Text(mode.switchPrompt)
+                .font(Theme.bodyEmphasis)
+                .foregroundStyle(Theme.accentDeep)
                 .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-            }
+                .contentShape(Rectangle())
         }
+        .accessibilityIdentifier("auth.switchMode")
+    }
+
+    private var passwordResetButton: some View {
+        Button("Forgot password?") {
+            resetEmail = email.trimmingCharacters(in: .whitespaces)
+            resetNotice = nil
+            showingPasswordReset = true
+        }
+        .font(Theme.label)
+        .foregroundStyle(Theme.accentDeep)
+        .frame(maxWidth: .infinity, minHeight: Theme.minTapSize, alignment: .trailing)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("auth.forgotPassword")
     }
 
     private var resetEmailIsEmpty: Bool {

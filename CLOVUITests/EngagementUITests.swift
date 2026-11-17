@@ -46,12 +46,62 @@ final class EngagementUITests: XCTestCase {
         XCTAssertTrue(app.buttons["suggestion_Brunch"].waitForExistence(timeout: 5), "Suggestions should return.")
     }
 
+    func testFeedPhotosAutoAdvanceAndCanStillBeSwiped() throws {
+        let app = launch()
+        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 15))
+        let firstValue = carousel.value as? String ?? ""
+        let changed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value != %@", firstValue), object: carousel
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [changed], timeout: 8), .completed,
+                       "The visible carousel did not advance automatically.")
+        let beforeSwipe = carousel.value as? String ?? ""
+        if beforeSwipe.hasPrefix("Photo 1 ") { carousel.swipeLeft() } else { carousel.swipeRight() }
+        let swiped = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value != %@", beforeSwipe), object: carousel
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [swiped], timeout: 5), .completed,
+                       "Swiping should still change the selected photo.")
+    }
+
     func testFeedHasNoSearchOrFilterHeader() throws {
         let app = launch()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["Search Fit-Checks"].exists)
         XCTAssertFalse(app.textFields["feed.search"].exists)
         XCTAssertFalse(app.buttons["Everyday"].exists)
+    }
+
+    func testExploreShowsEmptyStateWhenTagExcludesSearchResults() throws {
+        let app = launch()
+        XCTAssertTrue(app.buttons["searchTab"].waitForExistence(timeout: 15))
+        app.buttons["searchTab"].tap()
+        XCTAssertTrue(app.buttons["explore.filters"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["explore-tile"].firstMatch.waitForExistence(timeout: 10))
+        app.buttons["explore.filters"].tap()
+        let tag = app.buttons["#minimal"]
+        XCTAssertTrue(tag.waitForExistence(timeout: 10))
+        tag.tap()
+        app.buttons["explore.filters.apply"].tap()
+        let field = app.textFields["search.query"]
+        field.tap()
+        field.typeText("blazer")
+        XCTAssertTrue(app.staticTexts["No looks found. Try another search or filter."].waitForExistence(timeout: 10))
+    }
+
+    func testExploreTilesHaveMatchingDimensions() throws {
+        let app = launch()
+        XCTAssertTrue(app.buttons["searchTab"].waitForExistence(timeout: 15))
+        app.buttons["searchTab"].tap()
+        let tiles = app.descendants(matching: .any).matching(identifier: "explore-tile")
+        XCTAssertTrue(tiles.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertGreaterThanOrEqual(tiles.count, 2)
+        let first = tiles.element(boundBy: 0).frame
+        let second = tiles.element(boundBy: 1).frame
+        XCTAssertEqual(first.width, second.width, accuracy: 1)
+        XCTAssertEqual(first.height, second.height, accuracy: 1)
+        XCTAssertEqual(first.minY, second.minY, accuracy: 1)
     }
 
     func testLongPressOnACardOffersShareReportAndBlock() throws {
