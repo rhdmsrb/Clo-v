@@ -258,33 +258,15 @@ struct FeedView: View {
         .background(Theme.background.ignoresSafeArea(edges: .top))
     }
 
-    /// One row (For You / Following on the left, tools on the right) when it
-    /// fits. At large text sizes the tools drop under the segments instead of
-    /// covering them.
+    /// The For You / Following tabs are hidden for now, so the feed stays on
+    /// For You and only the tool buttons remain, trailing.
+    /// To bring the tabs back, put `FeedModeSegments(mode: $mode) { select($0) }`
+    /// in front of the buttons in an HStack.
     private var topControls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                FeedModeSegments(mode: $mode) { select($0) }
-                Spacer(minLength: 0)
-                headerButtons
-            }
-            VStack(alignment: .trailing, spacing: 8) {
-                modeRow
-                headerButtons
-            }
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            headerButtons
         }
-    }
-
-    private var modeRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                FeedModeSegments(mode: $mode) { select($0) }
-            }
-        }
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        // The sort button's soft shadow would otherwise be cut off into a faint
-        // box at the scroll view's edge.
-        .scrollClipDisabled()
     }
 
     private var occasionRow: some View {
