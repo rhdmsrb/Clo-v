@@ -91,4 +91,28 @@ final class FeedCardVoteTests: XCTestCase {
     func testVoteButtonAccessibilityLabelSaysVote() {
         XCTAssertEqual(PostCardContent.voteButtonAccessibilityLabel(position: 3), "Vote for Look 3")
     }
+
+    // MARK: photo(at:)
+
+    private func photo(_ position: Int, url: String = "https://example.test/p.jpg") -> FitCheckPhoto {
+        FitCheckPhoto(id: UUID(), fitCheckId: nil, imageUrl: url, position: position)
+    }
+
+    func testPhotoAtIndexFollowsPositionOrderNotArrayOrder() {
+        let first = photo(1), second = photo(2)
+
+        XCTAssertEqual(PostCardContent.photo(at: 0, in: [second, first])?.id, first.id)
+        XCTAssertEqual(PostCardContent.photo(at: 1, in: [second, first])?.id, second.id)
+    }
+
+    func testPhotoAtIndexSkipsPhotosTheCarouselCannotShow() {
+        let broken = photo(1, url: "not a url"), good = photo(2)
+
+        XCTAssertEqual(PostCardContent.photo(at: 0, in: [broken, good])?.id, good.id)
+    }
+
+    func testPhotoAtIndexIsNilWhenOutOfRange() {
+        XCTAssertNil(PostCardContent.photo(at: 2, in: [photo(1), photo(2)]))
+        XCTAssertNil(PostCardContent.photo(at: -1, in: [photo(1)]))
+    }
 }

@@ -21,6 +21,16 @@ enum PostCardContent {
             .filter { $0.scheme?.hasPrefix("http") == true && $0.host != nil }
     }
 
+    /// The photo the carousel shows at `index`: same order and same filtering as
+    /// `photoURLs`, so a press on the visible photo votes for that photo.
+    static func photo(at index: Int, in photos: [FitCheckPhoto]) -> FitCheckPhoto? {
+        let shown = photos.sorted { $0.position < $1.position }.filter { photo in
+            guard let url = URL(string: photo.imageUrl) else { return false }
+            return url.scheme?.hasPrefix("http") == true && url.host != nil
+        }
+        return shown.indices.contains(index) ? shown[index] : nil
+    }
+
     /// "@CODE" when the account code is known, else "@nickname", else "@someone".
     static func handle(accountCode: String?, nickname: String?) -> String {
         for candidate in [accountCode, nickname] {

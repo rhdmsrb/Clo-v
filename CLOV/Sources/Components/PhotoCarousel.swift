@@ -8,6 +8,9 @@ struct PhotoCarousel: View {
     let urls: [URL]
     @Binding var currentIndex: Int
     var autoAdvance: Bool = false
+    /// When true a touch, swipe or hold does not end auto-advance for good; the parent pauses it
+    /// (by flipping `autoAdvance`) while a press lasts, and the 3 s timer restarts after each page change.
+    var keepsRotatingAfterTouch: Bool = false
     var contentMode: ContentMode = .fill
     var accessibilityIdentifier: String = "photo-carousel"
     /// Called on a tap, from the carousel's own gesture (a parent's tap gesture is not reliably reached through the paged TabView).
@@ -26,6 +29,7 @@ struct PhotoCarousel: View {
         urls: [URL],
         currentIndex: Binding<Int>,
         autoAdvance: Bool = false,
+        keepsRotatingAfterTouch: Bool = false,
         contentMode: ContentMode = .fill,
         accessibilityIdentifier: String = "photo-carousel",
         onTap: (() -> Void)? = nil
@@ -33,6 +37,7 @@ struct PhotoCarousel: View {
         self.urls = urls
         self._currentIndex = currentIndex
         self.autoAdvance = autoAdvance
+        self.keepsRotatingAfterTouch = keepsRotatingAfterTouch
         self.contentMode = contentMode
         self.accessibilityIdentifier = accessibilityIdentifier
         self.onTap = onTap
@@ -69,7 +74,8 @@ struct PhotoCarousel: View {
         .onAppear { isOnScreen = true }
         .onDisappear { isOnScreen = false }
         // Re-keyed on `shouldRun`, so leaving the screen or stopping cancels the sleep.
-        .task(id: shouldRun) { await runTimer() }
+        // A page change (swipe or timer) also re-keys it, so every photo gets a full interval.
+        .task(id: "\(shouldRun)-\(logic.index)") { await runTimer() }
         .onChange(of: currentIndex) { _, newValue in
             if newValue != logic.index { logic = logic.moved(to: newValue) }
         }
@@ -109,7 +115,7 @@ struct PhotoCarousel: View {
     }
 
     private func stopForGood() {
-        guard !logic.isStopped else { return }
+        guard !keepsRotatingAfterTouch, !logic.isStopped else { return }
         logic = logic.userInteracted()
     }
 

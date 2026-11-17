@@ -1,48 +1,55 @@
 import SwiftUI
 
-/// Voting on the feed post itself: one button per look until the viewer votes,
-/// then each look's share of the votes with an Undo. It reuses `ReelVoteModel`, so
-/// the optimistic update, rollback and server resync match the vote screen.
-struct FeedCardVoteSection: View {
+/// What the card's photos need to take a vote: whether a press may vote, and how to cast it.
+struct PhotoVoteAction {
+    let isEnabled: Bool
+    let cast: () -> Void
+}
+
+private enum VoteSectionMetrics {
+    static let barHeight: CGFloat = 10
+    static let labelWidth: CGFloat = 60
+    static let percentWidth: CGFloat = 46
+    static let photoToVoteSpacing: CGFloat = 10
+}
+
+/// Voting on the feed post itself: press and hold the photo you like. Until the viewer votes a hint
+/// says so; afterwards each look's share of the votes shows with an Undo. It reuses `ReelVoteModel`,
+/// so the optimistic update, rollback and server resync match the vote screen. The view lays out the
+/// card's photos (built by the caller, which attaches the press gesture) above the hint or results.
+struct FeedCardVoteSection<Photos: View>: View {
     let item: FeedItemDTO
     let viewerId: UUID
-    /// Index (in position order) of the photo the card's carousel is showing; its button is emphasised.
-    let highlightedIndex: Int
+    /// Index (in position order) of the photo the card's carousel is showing; a press votes for it.
+    let photoIndex: Int
+    /// Side inset for the hint and results; the photos themselves span the full width.
+    let textInset: CGFloat
     /// Called with the viewer's vote (`nil` after an undo) once the server has confirmed it.
     let onVoteChange: (UUID?) -> Void
+    @ViewBuilder let photos: (PhotoVoteAction) -> Photos
 
     @EnvironmentObject private var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: ReelVoteModel
 
-    private static let barHeight: CGFloat = 10
-    private static let labelWidth: CGFloat = 60
-    private static let percentWidth: CGFloat = 46
 
-    init(item: FeedItemDTO, viewerId: UUID, highlightedIndex: Int,
-         onVoteChange: @escaping (UUID?) -> Void, service: ReelVoteService = .live) {
+    init(item: FeedItemDTO, viewerId: UUID, photoIndex: Int, textInset: CGFloat,
+         onVoteChange: @escaping (UUID?) -> Void, service: ReelVoteService = .live,
+         @ViewBuilder photos: @escaping (PhotoVoteAction) -> Photos) {
         self.item = item
         self.viewerId = viewerId
-        self.highlightedIndex = highlightedIndex
+        self.photoIndex = photoIndex
+        self.textInset = textInset
         self.onVoteChange = onVoteChange
+        self.photos = photos
         _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId, service: service))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if model.isResultsRevealed {
-                results
-            } else {
-                voteButtons
-            }
-            if let error = model.error {
-                Text(error)
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.danger)
-                    .accessibilityIdentifier("feed-vote-error")
-            }
+        VStack(alignment: .leading, spacing: VoteSectionMetrics.photoToVoteSpacing) {
+            photos(PhotoVoteAction(isEnabled: model.canVote, cast: castVoteForShownPhoto))
+            status.padding(.horizontal, textInset)
         }
-        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .animation(Theme.animation(Theme.settle, reduceMotion: reduceMotion), value: model.myVote)
         // Totals are only worth a request when they are shown: already voted, ended, or the creator.
         .task { if model.myVote != nil || model.isEnded || model.isCreator { await model.loadSummary() } }
@@ -53,33 +60,31 @@ struct FeedCardVoteSection: View {
         }
     }
 
-    // MARK: Before voting
-
-    private var voteButtons: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { buttonViews }
-            VStack(spacing: 8) { buttonViews }
+    private var status: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if model.isResultsRevealed {
+                results
+            } else {
+                voteHint
+            }
+            if let error = model.error {
+                Text(error)
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.danger)
+                    .accessibilityIdentifier("feed-vote-error")
+            }
         }
-        .disabled(!model.canVote)
-        .accessibilityElement(children: .contain)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
     }
 
-    private var buttonViews: some View {
-        ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
-            Button { vote(for: photo) } label: {
-                Text(PostCardContent.voteButtonTitle(position: photo.position))
-                    .font(Theme.font(.subheadline, weight: .semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(index == highlightedIndex ? Theme.accentForeground : Theme.accentDeep)
-                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                    .background(index == highlightedIndex ? Theme.accent : Theme.accentTint, in: Capsule(style: .continuous))
-                    .overlay(Capsule(style: .continuous).stroke(Theme.accentDeep, lineWidth: 1))
-                    .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(PostCardContent.voteButtonAccessibilityLabel(position: photo.position))
-            .accessibilityIdentifier("feed-vote-button-\(photo.position)")
-        }
+    // MARK: Before voting
+
+    private var voteHint: some View {
+        Label("Press and hold a photo to vote for it", systemImage: "hand.tap")
+            .font(Theme.caption)
+            .foregroundStyle(model.canVote ? Theme.accentDeep : Theme.mutedForeground)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTapSize / 2, alignment: .leading)
+            .accessibilityIdentifier("feed-vote-hint")
     }
 
     // MARK: After voting, or when results are open to the viewer
@@ -107,7 +112,7 @@ struct FeedCardVoteSection: View {
             Text(title)
                 .font(Theme.caption)
                 .foregroundStyle(Theme.ink)
-                .frame(width: Self.labelWidth, alignment: .leading)
+                .frame(width: VoteSectionMetrics.labelWidth, alignment: .leading)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.accentTint)
@@ -116,12 +121,12 @@ struct FeedCardVoteSection: View {
                         .frame(width: proxy.size.width * CGFloat(percent) / 100)
                 }
             }
-            .frame(height: Self.barHeight)
+            .frame(height: VoteSectionMetrics.barHeight)
             HStack(spacing: 4) {
                 if isMine { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accentDeep) }
                 Text("\(percent)%").font(Theme.caption).monospacedDigit().foregroundStyle(Theme.ink)
             }
-            .frame(width: Self.percentWidth, alignment: .trailing)
+            .frame(width: VoteSectionMetrics.percentWidth, alignment: .trailing)
         }
         .frame(minHeight: 24)
         .accessibilityElement(children: .ignore)
@@ -151,7 +156,8 @@ struct FeedCardVoteSection: View {
 
     // MARK: Actions
 
-    private func vote(for photo: FitCheckPhoto) {
+    private func castVoteForShownPhoto() {
+        guard let photo = PostCardContent.photo(at: photoIndex, in: model.photos) else { return }
         let started = model.vote(for: photo.id) { recorded() }
         AccessibilityNotification.Announcement(started ? "Vote recorded, results shown" : "Vote not recorded").post()
     }

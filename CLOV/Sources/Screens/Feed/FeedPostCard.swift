@@ -21,6 +21,11 @@ struct FeedPostCard: View {
     var onVoteChange: (UUID?) -> Void = { _ in }
 
     @State private var photoIndex = 0
+    /// True while a press-and-hold vote is in progress; the photos stop rotating so the press stays on one look.
+    @State private var isHoldingToVote = false
+    /// A hold that ends on the photo must not also count as a tap that opens the vote screen.
+    @State private var holdStartedAt: Date?
+    @State private var ignoreOpenUntil = Date.distantPast
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Wide 16:9 so the photo takes about 220pt on a phone and the action row and
@@ -29,6 +34,9 @@ struct FeedPostCard: View {
     private static let descriptionLineLimit = 2
     /// Side inset for text; the photo itself spans the full width.
     private static let textInset: CGFloat = 16
+    /// A press longer than this is a hold, so its release must not open the vote screen.
+    private static let holdMinimumDuration: TimeInterval = 0.25
+    private static let openSuppressionAfterHold: TimeInterval = 0.4
 
     private var posterName: String { item.profiles?.nickname ?? "Someone" }
     private var title: String { PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion) }
@@ -39,31 +47,38 @@ struct FeedPostCard: View {
         // Photo first: author, full-bleed photo, actions, then one title line.
         // No card surface or shadow, so the clothes carry the screen.
         VStack(alignment: .leading, spacing: 10) {
-            header.padding(.horizontal, Self.textInset)
-            // One timeline per card, ticking once at expiry.
-            TimelineView(.expiry(item.expiresAt)) { _ in
-                photos(expired: isExpired(item.expiresAt))
+            withContextMenu(header.padding(.horizontal, Self.textInset))
+            FeedCardVoteSection(item: item, viewerId: viewerId, photoIndex: photoIndex,
+                                textInset: Self.textInset, onVoteChange: onVoteChange) { vote in
+                // One timeline per card, ticking once at expiry.
+                TimelineView(.expiry(item.expiresAt)) { _ in
+                    photos(expired: isExpired(item.expiresAt), vote: vote)
+                }
             }
-            FeedCardVoteSection(item: item, viewerId: viewerId, highlightedIndex: photoIndex,
-                                onVoteChange: onVoteChange)
-                .padding(.horizontal, Self.textInset)
             actionRow.padding(.horizontal, Self.textInset - 6)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(Theme.headline)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityAddTraits(.isHeader)
-                details
-            }
-            .padding(.horizontal, Self.textInset)
+            withContextMenu(
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title)
+                        .font(Theme.headline)
+                        .foregroundStyle(Theme.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    details
+                }
+                .padding(.horizontal, Self.textInset)
+            )
         }
-        .fitCheckContextMenu(
-            fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
-            isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
-        )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(posterName)’s Fit-Check")
         .accessibilityIdentifier("feed-post-card")
+    }
+
+    /// The long-press menu (Share, Report, Block) is kept off the photos and the vote area: a long
+    /// press there is the vote, and a menu would take the press over. The "…" button offers the same entries.
+    private func withContextMenu<Content: View>(_ content: Content) -> some View {
+        content.fitCheckContextMenu(
+            fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
+            isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
+        )
     }
 
     /// At accessibility text sizes the name and the Follow button stack, so
@@ -131,15 +146,33 @@ struct FeedPostCard: View {
         .accessibilityAddTraits(.isToggle)
     }
 
-    private func photos(expired: Bool) -> some View {
-        PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex, autoAdvance: !expired,
-                      accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) })
+    private func photos(expired: Bool, vote: PhotoVoteAction) -> some View {
+        PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
+                      autoAdvance: !expired && !isHoldingToVote, keepsRotatingAfterTouch: true,
+                      accessibilityIdentifier: "feed-photo-carousel", onTap: openIfNotAfterHold)
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
             .overlay { if expired { endedOverlay } }
             .clipped()
             .contentShape(Rectangle())
+            .holdToVote(isEnabled: vote.isEnabled && !expired, isPressing: $isHoldingToVote, onVote: vote.cast)
+            .onChange(of: isHoldingToVote) { _, holding in noteHold(holding) }
             .accessibilityAddTraits(.isButton)
             .accessibilityAction(named: expired ? "See results" : "Open to vote") { onOpen(photoIndex) }
+    }
+
+    private func openIfNotAfterHold() {
+        guard Date() >= ignoreOpenUntil else { return }
+        onOpen(photoIndex)
+    }
+
+    private func noteHold(_ holding: Bool) {
+        if holding {
+            holdStartedAt = Date()
+            return
+        }
+        defer { holdStartedAt = nil }
+        guard let startedAt = holdStartedAt, Date().timeIntervalSince(startedAt) > Self.holdMinimumDuration else { return }
+        ignoreOpenUntil = Date().addingTimeInterval(Self.openSuppressionAfterHold)
     }
 
     private var endedOverlay: some View {
