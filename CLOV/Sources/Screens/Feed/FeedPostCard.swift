@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Feed post: author, prompt title, auto-rotating photos, Like / Comment /
-/// Send row, occasion and description. Shows no vote counts; tapping the
-/// photos opens the vote screen.
+/// Feed post: author, prompt title, auto-rotating photos, a vote row (one button
+/// per look, then the results), Like / Comment / Send row, occasion and
+/// description. Votes are cast on the card; tapping the photos opens the full
+/// vote screen.
 struct FeedPostCard: View {
     let item: FeedItemDTO
     let isLiked: Bool
@@ -16,6 +17,8 @@ struct FeedPostCard: View {
     let onOpen: (_ photoIndex: Int) -> Void
     /// Opens the comment thread sheet.
     let onComment: () -> Void
+    /// The viewer's vote on this post once the server confirmed it (`nil` after an undo).
+    var onVoteChange: (UUID?) -> Void = { _ in }
 
     @State private var photoIndex = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -40,6 +43,9 @@ struct FeedPostCard: View {
             TimelineView(.expiry(item.expiresAt)) { _ in
                 photos(expired: isExpired(item.expiresAt))
             }
+            FeedCardVoteSection(item: item, viewerId: viewerId, highlightedIndex: photoIndex,
+                                onVoteChange: onVoteChange)
+                .padding(.horizontal, Self.textInset)
             actionRow.padding(.horizontal, Self.textInset - 6)
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)

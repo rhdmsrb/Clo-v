@@ -64,6 +64,37 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
     }
 
+    /// Voting happens on the post itself: pick a look, see the results with Undo, take it back.
+    func testVotingOnTheFeedCardShowsResultsThenUndoBringsBackTheButtons() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument]
+        app.launch()
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
+        var attempts = 0
+        while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "maya's post not found")
+
+        let voteButton = card.buttons["feed-vote-button-1"]
+        XCTAssertTrue(voteButton.waitForExistence(timeout: 5), "no vote buttons on the card")
+        let results = card.descendants(matching: .any)["feed-vote-results"]
+        XCTAssertFalse(results.exists, "results must stay hidden until the viewer votes")
+        bringIntoOpenArea(voteButton, in: app)
+        waitUntilStill(voteButton)
+        attach(app, name: "feed-card-before-vote")
+
+        voteButton.tap()
+        XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after voting on the card")
+        XCTAssertFalse(card.buttons["feed-vote-button-1"].exists, "vote buttons should give way to the results")
+        attach(app, name: "feed-card-voted")
+
+        let undo = card.buttons["feed-vote-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo on the card after voting")
+        undo.tap()
+        XCTAssertTrue(card.buttons["feed-vote-button-1"].waitForExistence(timeout: 5), "vote buttons did not return after Undo")
+    }
+
     // MARK: - Helpers
 
     private func attach(_ app: XCUIApplication, name: String) {

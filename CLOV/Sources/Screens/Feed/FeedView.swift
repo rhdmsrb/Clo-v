@@ -342,7 +342,8 @@ struct FeedView: View {
                         onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) },
                         onLike: { like in try await setLiked(like, item: item) },
                         onOpen: { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) },
-                        onComment: { commentItem = item }
+                        onComment: { commentItem = item },
+                        onVoteChange: { applyVote($0, toItemId: item.id) }
                     )
                     .scrollTransition(.animated(Theme.settle), axis: .vertical) { [reduceMotion] view, phase in
                         view
@@ -607,6 +608,14 @@ struct FeedView: View {
             _ = await Log.attempt("Log feed impressions") {
                 try await API.logFeedEvents(userId: userId, fitCheckIds: ids, event: "impression")
             }
+        }
+    }
+
+    /// Keeps the feed's copy of a post in step with a vote cast on its card, so a card
+    /// that scrolls off and is rebuilt still shows how the viewer voted.
+    private func applyVote(_ photoId: UUID?, toItemId itemId: UUID) {
+        items = items.map {
+            $0.id == itemId ? PostCardContent.applyingVote(photoId, voterId: appState.userId, to: $0) : $0
         }
     }
 

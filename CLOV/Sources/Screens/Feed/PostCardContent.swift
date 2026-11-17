@@ -57,4 +57,24 @@ enum PostCardContent {
         guard let count, count > 0 else { return nil }
         return count
     }
+
+    /// A copy of `item` that records the viewer's vote (`nil` clears it), so a card
+    /// that scrolls away and is rebuilt still knows how the viewer voted. Other
+    /// voters' rows are kept, and the total moves only when the vote is added or removed.
+    static func applyingVote(_ photoId: UUID?, voterId: UUID, to item: FeedItemDTO) -> FeedItemDTO {
+        let previous = item.ownVote(voterId: voterId)
+        guard previous != photoId else { return item }
+        var updated = item
+        updated.fitCheckVotes = item.fitCheckVotes.filter { $0.voterId != voterId }
+            + (photoId.map { [VoteRef(photoId: $0, voterId: voterId)] } ?? [])
+        let change = (photoId == nil ? 0 : 1) - (previous == nil ? 0 : 1)
+        updated.voteCount = item.voteCount.map { max(0, $0 + change) }
+        return updated
+    }
+
+    /// Label on a card's vote button: "Look 2".
+    static func voteButtonTitle(position: Int) -> String { "Look \(position)" }
+
+    /// What VoiceOver says for that button: "Vote for Look 2".
+    static func voteButtonAccessibilityLabel(position: Int) -> String { "Vote for \(voteButtonTitle(position: position))" }
 }

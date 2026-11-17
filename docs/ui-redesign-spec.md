@@ -132,8 +132,8 @@ tag, tag, tag
 - **New post card component** (do not mutate `FitCheckCardView`; it is also used by group and search screens until those are migrated). It shows author, title, one photo at a time, action row, occasion, description, tags.
 - **Auto-rotation:** advance every 3 seconds (a single named constant). Stop for good, for that post, on the first tap, swipe or hold. Cancel the timer when the card leaves the screen. Respect Reduce Motion (no auto-advance when it is on).
 - Tap the image to open Vote screen 1 at the photo currently showing.
-- Like toggles a like on the Fit-Check (not a vote). Comment opens Vote screen 2. Send opens the system share sheet via the existing share helpers.
-- Do not show vote counts or percentages on the card.
+- Like toggles a like on the Fit-Check (not a vote). Comment opens the comment sheet. Send opens the system share sheet via the existing share helpers.
+- **Voting on the card (D17, decided 2026-11-16).** Under the photo, a vote row shows one "Look N" button per photo (the button for the photo on screen is emphasised). Tapping one casts the vote through `ReelVoteModel`, the same optimistic update, rollback and resync as Vote screen 1. After voting, the row becomes each look's share of the votes with a check on the viewer's pick, the vote total and an **Undo**. Creators and ended posts see the results straight away. Before the viewer votes, no counts or percentages are shown (the blur-reveal rule is unchanged). Tapping the photo still opens Vote screen 1 as the detail view.
 - Keep the expiry timer behavior (`TimelineView(.expiry(...))`): expired posts show the ended state, not the rotating card.
 
 ### 5.2 Vote screen 1 (hold to vote)
@@ -305,6 +305,6 @@ Found by reading the code and `supabase migration list`. These override the text
 6. **Comments.** `API.addComment` takes a non-optional `photoId` and a 280-character body limit. D8 needs a client signature change.
 7. **Tests.** No test references `activityTab`. `SwipeVoteGestureTests` is a unit test of `SwipeVoteGesture.action`. UI tests using tab identifiers: PlusButton, Appearance, DesignReview, DevLogin, WardrobeFlow, DeepLink. Keep `feedTab`, `searchTab`, `accountTab`, `tabPlusButton`.
 8. **Tab order** changes from feed, search, Post, activity, account to feed, group, Post, search, account. `MainTab` is also used in `MainTabView.swift` (:34, :133, :144).
-9. **Open decision:** the full-screen `SwipeFeedView` reel ("Watch Fit-Checks") has no place in section 4. Keep or remove?
+9. **Decided 2026-11-16: keep** the full-screen `SwipeFeedView` reel ("Watch Fit-Checks"). It is a working feature the sketches omit, and about ten UI tests use its button as the feed-ready signal.
 10. The bell exists only in the Feed header, so notifications are reachable only from the Feed tab.
 11. `like_count` / likes RLS: do not copy the votes SELECT policy (it exposes voters). Bookmarks are owner-only. Index `user_id` on both new tables. Feed RPCs (baseline ~:261-272, :490) build explicit columns and must be redefined to return `like_count`, `tags`, `vote_prompt`.
