@@ -2,7 +2,6 @@ import SwiftUI
 
 struct FeedView: View {
     @EnvironmentObject private var appState: AppState
-    @StateObject private var localWeather = LocalWeatherPromptModel()
 
     @State private var items: [FeedItemDTO] = []
     @State private var visibleItems: [FeedItemDTO] = []
@@ -24,7 +23,6 @@ struct FeedView: View {
     @State private var unreadCount = 0
     @State private var likedIDs: Set<UUID> = []
     @State private var openedRoute: FitCheckRoute?
-    @State private var showChallenge = false
     // Open on the browsable Fit-Check feed. The immersive, one-look-at-a-time
     // reel remains available from the feed's Watch Fit-Checks control.
     @State private var showSwipeFeed = false
@@ -165,9 +163,6 @@ struct FeedView: View {
             // section instead of on the whole column.
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
                 occasionRow
-                // With posts on screen the challenge sits after the first one
-                // (see `feedList`), so a photo is the first thing people see.
-                if visibleItems.isEmpty { challengeCard.padding(.horizontal, Self.pagePadding) }
                 feedList
                     .opacity(isReloadingFilters ? Self.reloadingOpacity : 1)
                     .overlay(alignment: .top) { reloadingIndicator }
@@ -185,9 +180,6 @@ struct FeedView: View {
             await load(refreshGraph: true)
         }
         .onDisappear { flushImpressions() }
-        .sheet(isPresented: $showChallenge) {
-            CreateFitCheckView(initialOccasion: DailyChallenge.today.occasion)
-        }
     }
 
     /// Shown over the dimmed list while new results load, so a filter change
@@ -199,18 +191,6 @@ struct FeedView: View {
                 .padding(.top, Self.reloadingIndicatorTopPadding)
                 .accessibilityLabel("Updating Fit-Checks")
         }
-    }
-
-    private var challengeCard: some View {
-        DailyChallengeCard(
-            challenge: localWeather.conditions.map(DailyChallenge.forWeather) ?? .today,
-            weather: localWeather.conditions,
-            isWeatherLoading: localWeather.isLoading,
-            locationDenied: localWeather.locationDenied,
-            errorMessage: localWeather.errorMessage,
-            onUseWeather: { localWeather.requestWeather() },
-            onJoin: { showChallenge = true }
-        )
     }
 
     /// Icon buttons stop growing past `xxxLarge` so they never crowd the segments.
@@ -328,8 +308,6 @@ struct FeedView: View {
         AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
                        emptyText: emptyFeedText, topPadding: 40, hasLoaded: hasLoaded,
                        retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
-                       // No action here: the daily challenge card above is already
-                       // the one prompt to post, so a second button would compete with it.
                        emptyTitle: "No Fit-Checks yet", skeleton: .cards) {
             LazyVStack(spacing: Self.postSpacing) {
                 ForEach(visibleItems) { item in
@@ -350,9 +328,6 @@ struct FeedView: View {
                             .scaleEffect(reduceMotion || phase.isIdentity ? 1 : 0.97)
                     }
                     .onAppear { logImpression(for: item) }
-                    if item.id == visibleItems.first?.id {
-                        challengeCard.padding(.horizontal, Self.pagePadding)
-                    }
                 }
                 loadMoreFooter
             }

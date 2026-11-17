@@ -198,3 +198,32 @@ struct DailyChallengeCard: View {
         }
     }
 }
+
+/// The optional daily challenge is available from Profile without interrupting the feed.
+struct DailyChallengeScreen: View {
+    @StateObject private var localWeather = LocalWeatherPromptModel()
+    @State private var challengeToJoin: DailyChallenge?
+
+    var body: some View {
+        let challenge = localWeather.conditions.map(DailyChallenge.forWeather) ?? .today
+        ScrollView {
+            DailyChallengeCard(
+                challenge: challenge,
+                weather: localWeather.conditions,
+                isWeatherLoading: localWeather.isLoading,
+                locationDenied: localWeather.locationDenied,
+                errorMessage: localWeather.errorMessage,
+                onUseWeather: { localWeather.requestWeather() },
+                onJoin: { challengeToJoin = challenge }
+            )
+            .padding(20)
+        }
+        .clearsTabBar()
+        .background(Theme.background)
+        .navigationTitle("Daily challenge")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $challengeToJoin) { challenge in
+            CreateFitCheckView(initialOccasion: challenge.occasion)
+        }
+    }
+}

@@ -3,7 +3,7 @@ import PhotosUI
 
 /// Where the profile menu and Analytics button navigate.
 private enum ProfileDestination: Hashable {
-    case wardrobe, groups, friends, yourWeek, privacy, appearance, settings
+    case wardrobe, groups, friends, yourWeek, dailyChallenge, privacy, appearance, settings
 }
 
 @MainActor
@@ -147,6 +147,8 @@ struct AccountView: View {
                 .accessibilityIdentifier("profileShortcut_Groups")
             Button("Friends", systemImage: "person.2") { destination = .friends }
                 .accessibilityIdentifier("profileShortcut_Friends")
+            Button("Daily challenge", systemImage: "sparkles") { destination = .dailyChallenge }
+                .accessibilityIdentifier("profileShortcut_DailyChallenge")
             Button("Your week", systemImage: "chart.bar") { destination = .yourWeek }
                 .accessibilityIdentifier("yourWeekButton")
             Button("Privacy", systemImage: "lock.shield") { destination = .privacy }
@@ -180,6 +182,7 @@ struct AccountView: View {
     @ViewBuilder
     private func destinationView(_ destination: ProfileDestination) -> some View {
         switch destination {
+        case .dailyChallenge: DailyChallengeScreen()
         case .wardrobe: WardrobeView()
         case .groups: GroupsView(embedded: true)
         case .friends: FriendsView()
