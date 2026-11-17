@@ -36,6 +36,24 @@ struct CreateWizardModelTests {
         #expect(model.effectiveGroupId == nil)
     }
 
+    @Test("No audience is chosen for the user; Next waits for a tap")
+    func audienceNeedsAChoice() {
+        var model = CreateWizardModel()
+        #expect(!model.audienceChosen)
+        #expect(!model.audienceIsValid)
+        #expect(!model.canAdvance(from: .details))
+        model.audience = .everyone
+        #expect(model.audienceChosen)
+        #expect(model.canAdvance(from: .details))
+    }
+
+    @Test("Arriving from a group counts as chosen")
+    func preselectedGroupIsChosen() {
+        let model = CreateWizardModel(preselectedGroupId: UUID())
+        #expect(model.audienceChosen)
+        #expect(model.canAdvance(from: .details))
+    }
+
     @Test("Friends and Only me are valid and never carry a group")
     func friendsAndOnlyMeAreValid() {
         var model = CreateWizardModel()

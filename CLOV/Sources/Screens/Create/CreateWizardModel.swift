@@ -29,7 +29,12 @@ struct CreateWizardModel: Equatable {
     var caption = ""
     var occasion = ""
     var tags: [String] = []
-    var audience: FitCheckAudience = .everyone
+    /// Starts as `.everyone` only as a placeholder: nothing counts as chosen
+    /// until the user taps an option (see `audienceChosen`).
+    var audience: FitCheckAudience = .everyone { didSet { audienceChosen = true } }
+    /// False until the user picks who can see the post, or arrives from a
+    /// group. Keeps "Everyone" from being chosen on their behalf.
+    private(set) var audienceChosen = false
     var groupId: UUID?
     var photoDetails: [PhotoDetail] = [.init(), .init()]
     var step: CreateWizardStep = .photos
@@ -40,6 +45,7 @@ struct CreateWizardModel: Equatable {
         self.occasion = occasion ?? ""
         if let preselectedGroupId {
             audience = .group
+            audienceChosen = true
             groupId = preselectedGroupId
         }
     }
@@ -50,7 +56,8 @@ struct CreateWizardModel: Equatable {
     var titleIsValid: Bool { title.count <= Self.maxTitleLength }
     var captionIsValid: Bool { caption.count <= Self.maxCaptionLength }
     var audienceIsValid: Bool {
-        switch audience {
+        guard audienceChosen else { return false }
+        return switch audience {
         case .everyone, .friends, .onlyMe: true
         case .group: groupId != nil
         }

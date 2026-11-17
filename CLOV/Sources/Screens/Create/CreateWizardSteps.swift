@@ -38,7 +38,8 @@ struct CreateDetailsStep: View {
             AudienceSection(
                 selectedAudience: audienceBinding,
                 selectedGroupId: $model.groupId,
-                myGroups: myGroups
+                myGroups: myGroups,
+                hasChosen: model.audienceChosen
             )
         }
     }
