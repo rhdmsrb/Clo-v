@@ -246,10 +246,14 @@ enum API {
 #if DEBUG
         if SampleData.isActive { return SampleData.followingIDs }
 #endif
-        let rows: [ProfileFollow] = try await client.from("profile_follows")
-            .select("follower_id, following_id, created_at")
-            .eq("follower_id", value: userId)
-            .execute().value
+        let rows: [ProfileFollow] = try await Paging.collectAll { range in
+            try await client.from("profile_follows")
+                .select("follower_id, following_id, created_at")
+                .eq("follower_id", value: userId)
+                .order("following_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute().value
+        }
         return Set(rows.map(\.followingId))
     }
 
@@ -257,10 +261,14 @@ enum API {
 #if DEBUG
         if SampleData.isActive { return SampleData.followerIDs }
 #endif
-        let rows: [ProfileFollow] = try await client.from("profile_follows")
-            .select("follower_id, following_id, created_at")
-            .eq("following_id", value: userId)
-            .execute().value
+        let rows: [ProfileFollow] = try await Paging.collectAll { range in
+            try await client.from("profile_follows")
+                .select("follower_id, following_id, created_at")
+                .eq("following_id", value: userId)
+                .order("follower_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute().value
+        }
         return Set(rows.map(\.followerId))
     }
 
@@ -268,9 +276,13 @@ enum API {
 #if DEBUG
         if SampleData.isActive { return SampleData.friendIDs }
 #endif
-        let rows: [FriendshipDTO] = try await client.from("friendships").select("user_low, user_high")
-            .or("user_low.eq.\(userId.uuidString),user_high.eq.\(userId.uuidString)")
-            .execute().value
+        let rows: [FriendshipDTO] = try await Paging.collectAll { range in
+            try await client.from("friendships").select("user_low, user_high")
+                .or("user_low.eq.\(userId.uuidString),user_high.eq.\(userId.uuidString)")
+                .order("user_low").order("user_high")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute().value
+        }
         return Set(rows.map { $0.userLow == userId ? $0.userHigh : $0.userLow })
     }
 
@@ -334,11 +346,15 @@ enum API {
         if SampleData.isActive { return [] }
 #endif
         struct Row: Decodable { let blockedId: UUID }
-        let rows: [Row] = try await client
-            .from("blocked_users")
-            .select("blocked_id")
-            .execute()
-            .value
+        let rows: [Row] = try await Paging.collectAll { range in
+            try await client
+                .from("blocked_users")
+                .select("blocked_id")
+                .order("blocked_id")
+                .range(from: range.lowerBound, to: range.upperBound)
+                .execute()
+                .value
+        }
         return Set(rows.map(\.blockedId))
     }
 
