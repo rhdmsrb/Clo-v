@@ -19,7 +19,6 @@ struct AccountView: View {
     @State private var deleteTarget: UUID?
     @State private var isDeletingAccount = false
     @State private var showingDeleteAccountConfirmation = false
-    @State private var showingEditProfile = false
     @State private var followerIDs: Set<UUID> = []
     @State private var followingIDs: Set<UUID> = []
     @State private var selectedFollowList: ProfileFollowList?
@@ -61,9 +60,6 @@ struct AccountView: View {
         }
         .navigationDestination(item: $destination) { destinationView($0) }
         .navigationDestination(item: $openedRoute) { ProfilePostView(fitCheckId: $0.id) }
-        .sheet(isPresented: $showingEditProfile) {
-            EditProfileView(profile: appState.profile)
-        }
         .sheet(item: $groupAddMode) { mode in
             GroupAddSheet(initialMode: mode) { await load() }
         }
@@ -191,10 +187,7 @@ struct AccountView: View {
     }
 
     private var actionButtons: some View {
-        ProfileActionTabs(
-            onEdit: { showingEditProfile = true },
-            onAnalytics: { destination = .yourWeek }
-        ) {
+        ProfileActionTabs(onAnalytics: { destination = .yourWeek }) {
             ShareLink(item: shareText) { Text("Share") }
                 .accessibilityLabel("Share profile")
                 .accessibilityIdentifier("profile.share")
