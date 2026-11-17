@@ -25,8 +25,7 @@ struct FeedView: View {
     @State private var likedIDs: Set<UUID> = []
     @State private var openedRoute: FitCheckRoute?
     @State private var showChallenge = false
-    // Open on the browsable Fit-Check feed. The immersive, one-look-at-a-time
-    // reel remains available from the feed's Watch Fit-Checks control.
+    // Open on the browsable Fit-Check feed, where posts are voted on by pressing the photo.
     /// The full-screen "Watch Fit-Checks" reel (`SwipeFeedView`) is hidden for
     /// now. Set this to true to bring its header button back; nothing else changes.
     private static let showsWatchReelButton = false
