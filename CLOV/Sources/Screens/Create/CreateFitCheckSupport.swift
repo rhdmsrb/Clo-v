@@ -139,8 +139,8 @@ struct PhotoSlotView: View {
                 if let image = state.image {
                     Image(uiImage: image)
                         .resizable()
-                        .scaledToFill()
-                        .clipped()
+                        .scaledToFit()
+                        .background(Theme.muted)
                         .accessibilityHidden(true)
                 } else {
                     emptyTile
@@ -168,7 +168,9 @@ struct PhotoSlotView: View {
                 guard let newItem else { return }
                 do {
                     let loaded = try await newItem.loadImage().normalizedOrientation()
-                    cropRequest = CropRequest(image: loaded)
+                    state.original = loaded
+                    state.image = loaded
+                    state.item = nil
                 } catch {
                     Log.app.error("Photo pick failed: \(error.localizedDescription)")
                     pickError = error.localizedDescription

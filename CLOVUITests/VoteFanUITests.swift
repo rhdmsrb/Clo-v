@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 /// Offline sample-data walk of the vote screen: photo fan, hold to vote,
 /// early release, Undo, and posting a comment. Uses Maya's post, which is
@@ -13,6 +14,52 @@ final class VoteFanUITests: XCTestCase {
     }
 
     // MARK: - Tests
+
+    func testLandscapePhotoFitsInsideFeedCard() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument, "--uiTestWidePhoto"]
+        app.launch()
+        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 15))
+        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 10))
+        bringIntoOpenArea(carousel, in: app, centered: true)
+        let frame = carousel.frame
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThan(frame.height, 0)
+        // A wide image inside the taller post has padding above and below it.
+        // The center must contain image pixels so a loading placeholder cannot pass.
+        var fitted = false
+        for _ in 0..<10 {
+            let screenshot = XCUIScreen.main.screenshot().image
+            let x = frame.midX - window.minX
+            let top = CGPoint(x: x, y: frame.minY - window.minY + frame.height * 0.2)
+            let middle = CGPoint(x: x, y: frame.midY - window.minY)
+            let bottom = CGPoint(x: x, y: frame.minY - window.minY + frame.height * 0.8)
+            if let topRGB = pixel(in: screenshot, at: top), let centerRGB = pixel(in: screenshot, at: middle),
+               let bottomRGB = pixel(in: screenshot, at: bottom),
+               topRGB.allSatisfy({ $0 < 30 }), bottomRGB.allSatisfy({ $0 < 30 }),
+               centerRGB.contains(where: { $0 > 60 }) {
+                fitted = true
+                break
+            }
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(value: false), object: nil)], timeout: 0.5)
+        }
+        XCTAssertTrue(fitted, "landscape photo should remain fully visible with padding")
+    }
+
+    private func pixel(in image: UIImage, at point: CGPoint) -> [UInt8]? {
+        guard let cg = image.cgImage else { return nil }
+        let x = Int(point.x * image.scale)
+        let y = Int(point.y * image.scale)
+        guard x >= 0, y >= 0, x < cg.width, y < cg.height,
+              let pixel = cg.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)) else { return nil }
+        var bytes = [UInt8](repeating: 0, count: 4)
+        guard let context = CGContext(data: &bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return Array(bytes.prefix(3))
+    }
 
     func testEarlyReleaseDoesNotVoteAndHoldVotesThenUndoRetracts() throws {
         let app = openMayasVoteScreen()
@@ -97,9 +144,9 @@ final class VoteFanUITests: XCTestCase {
     /// header. Drag the list from its left margin (so the drag never starts
     /// on a card's paged carousel) until the carousel's centre sits in the
     /// open area between the header and the tab bar.
-    private func bringIntoOpenArea(_ element: XCUIElement, in app: XCUIApplication) {
+    private func bringIntoOpenArea(_ element: XCUIElement, in app: XCUIApplication, centered: Bool = false) {
         let height = app.windows.firstMatch.frame.height
-        let openArea = (height * 0.25)...(height * 0.8)
+        let openArea = centered ? (height * 0.43)...(height * 0.62) : (height * 0.25)...(height * 0.8)
         for _ in 0..<16 {
             waitUntilStill(element)
             let midY = element.frame.midY

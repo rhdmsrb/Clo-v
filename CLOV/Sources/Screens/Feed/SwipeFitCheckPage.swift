@@ -116,19 +116,23 @@ struct SwipeFitCheckPage: View {
         photoLayer
             .frame(width: size.width, height: size.height)
             .clipped()
-            .accessibilityElement(children: .ignore)
-            .accessibilityIdentifier("voteFan")
-            .accessibilityLabel("Photos")
-            .accessibilityValue("Photo \(model.lookIndex + 1) of \(model.photos.count)")
-            .accessibilityActions {
-                if model.canVote { Button("Vote for this look", action: castVote) }
-            }
-            .accessibilityAdjustableAction { direction in
-                switch direction {
-                case .increment: model.showLook(step: 1)
-                case .decrement: model.showLook(step: -1)
-                @unknown default: break
-                }
+            .accessibilityRepresentation {
+                Color.clear
+                    .frame(width: size.width, height: size.height)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("voteFan")
+                    .accessibilityLabel("Photos")
+                    .accessibilityValue("Photo \(model.lookIndex + 1) of \(model.photos.count)")
+                    .accessibilityActions {
+                        if model.canVote { Button("Vote for this look", action: castVote) }
+                    }
+                    .accessibilityAdjustableAction { direction in
+                        switch direction {
+                        case .increment: model.showLook(step: 1)
+                        case .decrement: model.showLook(step: -1)
+                        @unknown default: break
+                        }
+                    }
             }
     }
 
@@ -144,7 +148,7 @@ struct SwipeFitCheckPage: View {
             Theme.muted
         } else {
             PhotoCarousel(urls: model.photos.compactMap { URL(string: $0.imageUrl) },
-                          currentIndex: lookBinding, contentMode: .fill,
+                          currentIndex: lookBinding, contentMode: .fit,
                           accessibilityIdentifier: "reel-photo-carousel")
                 .overlay { neighboringLooks }
                 .holdToVote(isEnabled: model.canVote) { castVote() }

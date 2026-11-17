@@ -126,8 +126,9 @@ struct FeedPostCard: View {
 
     private func photos(expired: Bool) -> some View {
         PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex, autoAdvance: !expired,
-                      accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) })
+                      contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) })
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
+            .background(Color.black)
             .overlay { if expired { endedOverlay } }
             .clipped()
             .contentShape(Rectangle())

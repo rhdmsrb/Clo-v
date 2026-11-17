@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Lets the user choose which part of a photo is kept. The photo pans and
-/// zooms under a fixed 3:4 frame (the ratio every Fit-Check tile uses) with a
-/// rule-of-thirds grid, so what they see is exactly what gets posted.
+/// zooms under a fixed 3:4 frame with a rule-of-thirds grid. Cropping is
+/// optional; Done keeps the selected crop.
 struct PhotoCropView: View {
     let image: UIImage
     let onCancel: () -> Void

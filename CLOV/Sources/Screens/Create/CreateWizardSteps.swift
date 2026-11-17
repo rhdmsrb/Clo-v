@@ -82,13 +82,10 @@ struct CreatePhotoDetailStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-                    .accessibilityLabel("Photo \(index + 1) of \(model.photoCount)")
+                AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
+                    Image(uiImage: image).resizable().scaledToFit().background(Theme.muted)
+                }
+                .accessibilityLabel("Photo \(index + 1) of \(model.photoCount)")
             }
             VStack(alignment: .leading, spacing: 6) {
                 SectionHeader(title: "Unique description")
@@ -135,7 +132,10 @@ struct CreatePreviewStep: View {
         VStack(alignment: .leading, spacing: 10) {
             TabView(selection: $page) {
                 ForEach(Array(images.enumerated()), id: \.offset) { offset, image in
-                    Image(uiImage: image).resizable().scaledToFill().clipped()
+                    Color.clear
+                        .overlay { Image(uiImage: image).resizable().scaledToFit() }
+                        .background(Theme.muted)
+                        .clipped()
                         .tag(offset)
                         .accessibilityLabel("Photo \(offset + 1) of \(images.count)")
                 }
@@ -172,10 +172,10 @@ struct CreatePreviewStep: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ForEach(Array(images.enumerated()), id: \.offset) { offset, image in
                     VStack(alignment: .leading, spacing: 4) {
-                        Image(uiImage: image).resizable().scaledToFill()
-                            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-                            .accessibilityLabel("Photo \(offset + 1)")
+                        AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
+                            Image(uiImage: image).resizable().scaledToFit().background(Theme.muted)
+                        }
+                        .accessibilityLabel("Photo \(offset + 1)")
                         let text = model.photoDetails.indices.contains(offset) ? model.photoDetails[offset].description : ""
                         if !text.isEmpty { Text(text).font(Theme.caption).foregroundStyle(Theme.ink) }
                     }

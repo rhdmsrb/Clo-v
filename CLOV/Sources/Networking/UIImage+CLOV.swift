@@ -77,11 +77,14 @@ extension UIImage {
     /// uploading full camera-resolution (e.g. 4032×3024) images when the
     /// display size is a few hundred points.
     func resized(maxDimension: CGFloat) -> UIImage {
-        let longestSide = max(size.width, size.height)
-        guard longestSide > maxDimension else { return self }
+        let pixelSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let longestSide = max(pixelSize.width, pixelSize.height)
+        guard maxDimension > 0, longestSide > maxDimension else { return self }
         let scaleFactor = maxDimension / longestSide
-        let newSize = CGSize(width: size.width * scaleFactor, height: size.height * scaleFactor)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let newSize = CGSize(width: pixelSize.width * scaleFactor, height: pixelSize.height * scaleFactor)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             draw(in: CGRect(origin: .zero, size: newSize))
         }

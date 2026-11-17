@@ -86,7 +86,7 @@ extension API {
             votePrompt: FitCheckSubmission.normalizedVotePrompt(votePrompt))
         try await validateAudience(creatorId: creatorId, groupId: groupId, audience: audience)
 
-        let prepared = try photos.map { try preparedJPEG($0, aspectRatio: 3.0 / 4.0) }
+        let prepared = try photos.map { try preparedFitCheckJPEG($0) }
         let photoKeys = prepared.indices.map { PostResume.fingerprint(of: prepared[$0]) + "|" + detailKey(clean.details, at: $0) }
         let draftKey = PostResume.draftFingerprint(caption: caption, occasion: occasion, groupId: groupId,
                                                    tags: clean.tags, votePrompt: clean.votePrompt, audience: audience)
@@ -109,6 +109,11 @@ extension API {
                                                   onProgress: onProgress, onPhotoUploaded: onPhotoUploaded)
         return try await publishPost(creatorId: creatorId, progress: stored, details: clean.details,
                                      durationSeconds: Int(votingDuration), onProgress: onProgress)
+    }
+
+    /// Preserves the selected image (including an optional user crop) during upload.
+    static func preparedFitCheckJPEG(_ image: UIImage) throws -> Data {
+        try preparedJPEG(image, aspectRatio: 3.0 / 4.0, preserveAspectRatio: true)
     }
 
     private enum AttemptStart {

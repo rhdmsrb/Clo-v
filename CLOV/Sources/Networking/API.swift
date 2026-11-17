@@ -722,9 +722,8 @@ enum API {
         }
     }
 
-    /// Normalizes orientation and downscales BEFORE upload. Feed photos and
-    /// avatars are cropped to their presentation ratio; wardrobe pieces can
-    /// preserve their full shape so the catalog never cuts off a garment.
+    /// Normalizes orientation and downscales before upload. Callers can keep
+    /// the full image or request a crop for fixed-shape assets such as avatars.
     static func uploadImage(_ image: UIImage, bucket: String, pathPrefix: String,
                                     aspectRatio: CGFloat, persistPublicURL: Bool = true,
                                     preserveAspectRatio: Bool = false) async throws -> String {

@@ -1,5 +1,6 @@
 import XCTest
 import Supabase
+import UIKit
 @testable import CLOV
 
 final class FitCheckSubmissionTests: XCTestCase {
@@ -8,6 +9,32 @@ final class FitCheckSubmissionTests: XCTestCase {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let object = try JSONSerialization.jsonObject(with: encoder.encode(value))
         return Set((object as? [String: Any] ?? [:]).keys)
+    }
+
+    func testPostUploadKeepsWholeLandscapePhotoWhenDownsizing() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 3200, height: 1800), format: format).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1600, height: 1800))
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 1600, y: 0, width: 1600, height: 1800))
+        }
+        let uploaded = try XCTUnwrap(UIImage(data: API.preparedFitCheckJPEG(image)))
+        XCTAssertEqual(uploaded.size.width, 1600, accuracy: 1)
+        XCTAssertEqual(uploaded.size.height, 900, accuracy: 1)
+    }
+
+    func testPostUploadResizesRetinaImageUsingPixelDimensions() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1600, height: 900), format: format).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1600, height: 900))
+        }
+        let uploaded = try XCTUnwrap(UIImage(data: API.preparedFitCheckJPEG(image)))
+        XCTAssertEqual(uploaded.size.width, 1600, accuracy: 1)
+        XCTAssertEqual(uploaded.size.height, 900, accuracy: 1)
     }
 
     // MARK: Tally decoding
