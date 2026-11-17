@@ -23,8 +23,9 @@ struct FeedPostCard: View {
     @State private var photoIndex = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Slightly shorter than 4:5 so the action row and title come into view sooner.
-    private static let photoAspectRatio: CGFloat = 5.0 / 6.0
+    /// Wide 16:9 so the photo takes about 220pt on a phone and the action row and
+    /// title are on screen with it. The carousel fills and center-crops.
+    private static let photoAspectRatio: CGFloat = 16.0 / 9.0
     private static let descriptionLineLimit = 2
     /// Side inset for text; the photo itself spans the full width.
     private static let textInset: CGFloat = 16
