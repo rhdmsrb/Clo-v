@@ -241,23 +241,6 @@ enum API {
         return FeedPageResult(items: visible, fetchedCount: rows.count)
     }
 
-    static func fetchFollowingFeed(userId: UUID) async throws -> [FeedItemDTO] {
-        let following = try await fetchFollowingIDs(userId: userId)
-        let friendIDs = try await fetchFriendIDs(userId: userId)
-        let visibleAuthors = following.union(friendIDs)
-        guard !visibleAuthors.isEmpty else { return [] }
-        async let blockedTask = fetchBlockedUserIDs()
-        let rows: [FeedItemDTO] = try await client.from("fit_checks")
-            .select(feedColumns).eq("status", value: "live")
-            .in("audience", values: mainFeedAudiences)
-            .in("creator_id", values: Array(visibleAuthors))
-            .or(notExpiredFilter)
-            .order("created_at", ascending: false).limit(50).execute().value
-        let blocked = try await blockedTask
-        let promptedRows = await attachVotePrompts(rows)
-        return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
-    }
-
     static func fetchFollowingIDs(userId: UUID) async throws -> Set<UUID> {
 #if DEBUG
         if SampleData.isActive { return SampleData.followingIDs }

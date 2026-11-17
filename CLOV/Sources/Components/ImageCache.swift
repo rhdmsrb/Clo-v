@@ -65,13 +65,6 @@ final class ImageCache {
         }
     }
 
-    /// Starts loading photos ahead of when they're shown (e.g. next feed cards).
-    func prefetch(_ urls: [URL]) {
-        for url in urls where cachedImage(for: url) == nil {
-            Task(priority: .utility) { _ = await image(for: url) }
-        }
-    }
-
     private static func downsampled(_ data: Data) -> UIImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
