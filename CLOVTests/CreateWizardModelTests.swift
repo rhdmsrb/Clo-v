@@ -82,6 +82,31 @@ struct CreateWizardModelTests {
         #expect(photo.togglingPhotoTag("x", at: 9) == photo)
     }
 
+    @Test("Several occasions can be picked and are stored in one text")
+    func multipleOccasions() {
+        var model = CreateWizardModel()
+        model = model.togglingOccasion("Date").togglingOccasion("Work")
+        #expect(model.occasion == "Work, Date")
+        #expect(model.selectedOccasions == ["Work", "Date"])
+        model = model.togglingOccasion("Work")
+        #expect(model.occasion == "Date")
+        #expect(model.togglingOccasion("Date").occasion.isEmpty)
+        #expect(CreateWizardModel(occasion: "Everyday").togglingOccasion("Party").occasion == "Everyday, Party")
+    }
+
+    @Test("Typed tags are cleaned, de-duplicated and capped")
+    func customTags() {
+        var model = CreateWizardModel()
+        model = model.addingTag("  #  Boho   chic ").addingTag("boho CHIC").addingTag("casual").addingTag("   ")
+        #expect(model.tags == ["Boho chic", "Casual"])
+        #expect(CreateWizardModel().addingTag(String(repeating: "a", count: 80)).tags[0].count == FitCheckSubmission.maxTagLength)
+        var full = CreateWizardModel()
+        for index in 0..<12 { full = full.addingTag("tag\(index)") }
+        #expect(full.tags.count == CreateWizardModel.maxTags)
+        #expect(CreateWizardModel().addingPhotoTag("denim", at: 0).photoDetails[0].tags == ["denim"])
+        #expect(CreateWizardModel().addingPhotoTag("x", at: 9) == CreateWizardModel())
+    }
+
     @Test("Photo description is clamped to 200 characters")
     func descriptionClamp() {
         let model = CreateWizardModel().settingPhotoDescription(String(repeating: "a", count: 500), at: 1)

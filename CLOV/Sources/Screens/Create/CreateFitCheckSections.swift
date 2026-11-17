@@ -82,13 +82,19 @@ struct OccasionSection: View {
     @Binding var occasion: String
     let options: [String]
 
+    private var picked: [String] { CreateWizardModel(occasion: occasion).selectedOccasions }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: "What’s the occasion?")
+            Text("Pick all that apply")
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(options, id: \.self) { option in
-                        ChipToggle(label: option, selected: occasion == option) { occasion = occasion == option ? "" : option }
+                        ChipToggle(label: option, selected: picked.contains(option)) {
+                            occasion = CreateWizardModel.toggledOccasion(option, in: occasion)
+                        }
                     }
                 }
             }

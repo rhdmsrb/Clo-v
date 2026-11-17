@@ -226,7 +226,8 @@ enum API {
             query = query.eq("is_public", value: true)
         }
         if let occasion, !occasion.isEmpty {
-            query = query.eq("occasion", value: occasion)
+            // A post can carry several occasions in one text ("Work, Date"), so match any.
+            query = query.ilike("occasion", pattern: "%\(SearchTerm.likeEscaped(occasion))%")
         }
         if !trimmedSearch.isEmpty {
             query = query.ilike("caption", pattern: "%\(SearchTerm.likeEscaped(trimmedSearch))%")
