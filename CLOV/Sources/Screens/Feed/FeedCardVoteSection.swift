@@ -48,6 +48,9 @@ struct FeedCardVoteSection<Photos: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: VoteSectionMetrics.photoToVoteSpacing) {
             photos(PhotoVoteAction(isEnabled: model.canVote, cast: castVoteForShownPhoto))
+                .overlay(alignment: .center) {
+                    if model.isResultsRevealed { centerResult }
+                }
             status.padding(.horizontal, textInset)
         }
         .animation(Theme.animation(Theme.settle, reduceMotion: reduceMotion), value: model.myVote)
@@ -89,6 +92,45 @@ struct FeedCardVoteSection<Photos: View>: View {
     }
 
     // MARK: After voting, or when results are open to the viewer
+
+    /// The shown photo's share of the votes, centred on the photo like the vote screen's chips.
+    /// Follows the carousel, so swiping to another look shows that look's result.
+    @ViewBuilder
+    private var centerResult: some View {
+        if let photo = PostCardContent.photo(at: photoIndex, in: model.photos) {
+            let percent = model.percent(for: photo.id)
+            let isMine = model.myVote == photo.id
+            let isLeading = isLeadingPhoto(photo.id)
+            let title = PostCardContent.voteButtonTitle(position: photo.position)
+            HStack(spacing: 6) {
+                if isLeading {
+                    Image(systemName: "crown.fill").foregroundStyle(Theme.win)
+                }
+                if isMine {
+                    Image(systemName: "checkmark.circle.fill")
+                }
+                Text("\(title) · \(percent)%")
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+            }
+            .font(Theme.font(.subheadline, weight: isMine ? .black : .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(.black.opacity(0.55), in: Capsule())
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(title), \(percent) percent\(isMine ? ", your vote" : "")\(isLeading ? ", leading" : "")")
+            .accessibilityIdentifier("feed-photo-result")
+        }
+    }
+
+    /// True for the photo (or photos, on a tie) with the most votes, once anyone has voted.
+    private func isLeadingPhoto(_ id: UUID) -> Bool {
+        let top = model.counts.values.max() ?? 0
+        return top > 0 && (model.counts[id] ?? 0) == top
+    }
 
     private var results: some View {
         VStack(alignment: .leading, spacing: 8) {

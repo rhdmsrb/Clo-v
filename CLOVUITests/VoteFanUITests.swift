@@ -176,12 +176,15 @@ final class VoteFanUITests: XCTestCase {
         carousel.press(forDuration: 1.2)
         XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after holding the photo")
         XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "a hold must vote, not open the vote screen")
+        let centredResult = card.descendants(matching: .any)["feed-photo-result"]
+        XCTAssertTrue(centredResult.waitForExistence(timeout: 5), "the shown photo's result is not centred on the photo after voting")
         attach(app, name: "feed-card-voted")
 
         let undo = card.buttons["feed-vote-undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo on the card after voting")
         undo.tap()
         XCTAssertTrue(hint.waitForExistence(timeout: 5), "the hint did not return after Undo")
+        XCTAssertTrue(centredResult.waitForNonExistence(timeout: 5), "the centred result stayed on the photo after Undo")
     }
 
     /// The full-screen vote screen is hidden for now: tapping a feed photo stays on the feed.
