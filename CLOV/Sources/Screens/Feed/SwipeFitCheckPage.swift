@@ -58,9 +58,9 @@ struct SwipeFitCheckPage: View {
     }
 
     var body: some View {
-        GeometryReader { _ in
+        GeometryReader { proxy in
             ZStack(alignment: .bottomLeading) {
-                photoLayer
+                accessiblePhoto(size: proxy.size)
                 Theme.photoScrim.allowsHitTesting(false)
                 HStack(alignment: .bottom, spacing: 18) {
                     infoColumn
@@ -76,6 +76,7 @@ struct SwipeFitCheckPage: View {
                 }
             }
             .overlay(alignment: .top) { lookIndicator }
+            .overlay(alignment: .topTrailing) { resultsChip.padding(.top, 12).padding(.trailing, 16) }
             .overlay(alignment: .bottom) { undoToast.padding(.bottom, Self.bottomInset + 8) }
             .onAppear(perform: onImpression)
         }
@@ -111,6 +112,26 @@ struct SwipeFitCheckPage: View {
         .task { await model.loadSummary() }
     }
 
+    private func accessiblePhoto(size: CGSize) -> some View {
+        photoLayer
+            .frame(width: size.width, height: size.height)
+            .clipped()
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("voteFan")
+            .accessibilityLabel("Photos")
+            .accessibilityValue("Photo \(model.lookIndex + 1) of \(model.photos.count)")
+            .accessibilityActions {
+                if model.canVote { Button("Vote for this look", action: castVote) }
+            }
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: model.showLook(step: 1)
+                case .decrement: model.showLook(step: -1)
+                @unknown default: break
+                }
+            }
+    }
+
     // MARK: Photo and hold-to-vote
 
     private var lookBinding: Binding<Int> {
@@ -125,8 +146,35 @@ struct SwipeFitCheckPage: View {
             PhotoCarousel(urls: model.photos.compactMap { URL(string: $0.imageUrl) },
                           currentIndex: lookBinding, contentMode: .fill,
                           accessibilityIdentifier: "reel-photo-carousel")
+                .overlay { neighboringLooks }
                 .holdToVote(isEnabled: model.canVote) { castVote() }
         }
+    }
+
+    /// Narrow previews make horizontal browsing discoverable without intercepting
+    /// the carousel's swipes or the hold-to-vote gesture.
+    @ViewBuilder
+    private var neighboringLooks: some View {
+        if model.photos.count > 1 {
+            GeometryReader { proxy in
+                HStack(spacing: 0) {
+                    if model.lookIndex > 0 { neighbor(at: model.lookIndex - 1, height: proxy.size.height) }
+                    Spacer(minLength: 0)
+                    if model.lookIndex + 1 < model.photos.count { neighbor(at: model.lookIndex + 1, height: proxy.size.height) }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func neighbor(at index: Int, height: CGFloat) -> some View {
+        RemoteImage(url: model.photos[index].imageUrl)
+            .scaledToFill()
+            .frame(width: 18, height: height)
+            .clipped()
+            .overlay(Color.black.opacity(0.28))
     }
 
     private func castVote() {
@@ -213,7 +261,6 @@ struct SwipeFitCheckPage: View {
                 Text(title).font(Theme.font(.headline, weight: .bold)).lineLimit(2)
             }
             descriptionText
-            resultsChip
             voteStatus
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -237,18 +284,21 @@ struct SwipeFitCheckPage: View {
     private var resultsChip: some View {
         HStack(spacing: 10) {
             HStack(spacing: 4) {
-                Text("VOTES")
+                Text("Vote #")
                 RevealCounter(target: model.total, isRevealed: model.isResultsRevealed)
+                    .blurReveal(isRevealed: model.isResultsRevealed)
             }
             .font(Theme.font(.caption, weight: .black))
             ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
                 lookResult(photo, index: index, leading: leadingIds.contains(photo.id))
+                    .blurReveal(isRevealed: model.isResultsRevealed)
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.black.opacity(0.45), in: Capsule())
-        .blurReveal(isRevealed: model.isResultsRevealed)
+        .foregroundStyle(.white)
+        .background(.black.opacity(0.65), in: Capsule())
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("voteFanTotalChip")
     }
 
     private func lookResult(_ photo: FitCheckPhoto, index: Int, leading: Bool) -> some View {
@@ -345,6 +395,7 @@ struct SwipeFitCheckPage: View {
             Button { showComments = true; onEvent("open_comments") } label: { railIcon("bubble.right", count: item.fitCheckComments.count) }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Comments, \(item.fitCheckComments.count)")
+                .accessibilityIdentifier("voteFanCommentButton")
             BookmarkButton(isBookmarked: isBookmarked) { wantsSave in
                 if wantsSave { try await API.bookmarkFitCheck(id: item.id, userId: voterId) }
                 else { try await API.unbookmarkFitCheck(id: item.id, userId: voterId) }

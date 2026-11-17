@@ -47,15 +47,18 @@ final class VoteFanUITests: XCTestCase {
     func testVoteScreenShowsFanCommentsAndAcceptsAComment() throws {
         let app = openMayasVoteScreen()
         XCTAssertTrue(app.descendants(matching: .any)["voteFan"].waitForExistence(timeout: 5), "photo fan missing")
-        XCTAssertTrue(app.descendants(matching: .any)["voteFanComments"].exists, "comments panel missing")
-        XCTAssertTrue(app.buttons["voteFanCommentSend"].exists, "send button missing")
         XCTAssertFalse(app.buttons["feedTab"].isHittable, "floating tab bar should be hidden on the vote screen")
         attach(app, name: "vote-01-top")
 
-        // The action row has a comment button that scrolls the comments into view.
+        // Comments open as a separate sheet without revealing the vote total.
+        let count = app.descendants(matching: .any)["voteFanTotalChip"]
+        XCTAssertTrue(count.exists)
+        XCTAssertNil(count.label.rangeOfCharacter(from: .decimalDigits), "results must stay hidden before voting")
         let commentButton = app.buttons["voteFanCommentButton"]
         XCTAssertTrue(commentButton.exists, "comment button missing from the action row")
         commentButton.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["voteFanComments"].waitForExistence(timeout: 5), "comment sheet missing")
+        XCTAssertTrue(app.buttons["voteFanCommentSend"].waitForExistence(timeout: 10), "send button missing")
         attach(app, name: "vote-02-after-comment-button")
 
         let input = app.textViews["voteFanCommentInput"].exists
@@ -64,7 +67,13 @@ final class VoteFanUITests: XCTestCase {
         input.tap()
         input.typeText("Looks great on this one")
         app.buttons["voteFanCommentSend"].tap()
+        let close = app.buttons["comments.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
+        XCTAssertTrue(waitUntilGone(close, timeout: 5))
 
+        XCTAssertTrue(app.buttons["reelBackButton"].waitForExistence(timeout: 5))
+        XCTAssertNil(count.label.rangeOfCharacter(from: .decimalDigits), "comments must not reveal results")
         app.buttons["reelBackButton"].tap()
         XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
     }
@@ -91,13 +100,13 @@ final class VoteFanUITests: XCTestCase {
     private func bringIntoOpenArea(_ element: XCUIElement, in app: XCUIApplication) {
         let height = app.windows.firstMatch.frame.height
         let openArea = (height * 0.25)...(height * 0.8)
-        for _ in 0..<12 {
+        for _ in 0..<16 {
             waitUntilStill(element)
             let midY = element.frame.midY
             if openArea.contains(midY) { return }
             let down = midY > openArea.upperBound
-            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: down ? 0.7 : 0.3))
-            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: down ? 0.3 : 0.7))
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: down ? 0.7 : 0.3))
+            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: down ? 0.3 : 0.7))
             from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.1)
         }
         XCTFail("could not scroll the carousel into view (centre at \(element.frame.midY))")

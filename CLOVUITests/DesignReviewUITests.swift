@@ -149,7 +149,7 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     /// Tapping the feed photos opens the vote screen; its action row has a
-    /// comment button that scrolls to the comments.
+    /// comment button that opens the comments sheet.
     private func openVoteScreen(_ app: XCUIApplication, prefix: String) {
         guard let photos = scrollToVisible(app, app.buttons.matching(identifier: "feed-photo-carousel")),
               tap(photos), app.buttons["reelBackButton"].waitForExistence(timeout: Self.shortWait) else {
@@ -159,6 +159,7 @@ final class DesignReviewUITests: XCTestCase {
         if tap(app.buttons["voteFanCommentButton"]) {
             settle()
             attach(app, name: "\(prefix)-vote-comments")
+            _ = tap(app.buttons["comments.close"])
         }
         _ = tap(app.buttons["reelBackButton"])
         settle()
