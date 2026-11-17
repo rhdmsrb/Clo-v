@@ -1,13 +1,71 @@
 import XCTest
 import Supabase
+import UIKit
 @testable import CLOV
 
 final class FitCheckSubmissionTests: XCTestCase {
+    func testCropGeometryMatchesVisibleRegionAndClampsPan() {
+        let image = CGSize(width: 1200, height: 800)
+        let frame = CGSize(width: 300, height: 400)
+        let offset = CropGeometry.clamped(CGSize(width: 500, height: 500), image: image, frame: frame, zoom: 1)
+        XCTAssertEqual(offset.width, 150, accuracy: 0.001)
+        XCTAssertEqual(offset.height, 0, accuracy: 0.001)
+        let rect = CropGeometry.cropRect(image: image, frame: frame, zoom: 1, offset: offset)
+        XCTAssertEqual(rect.minX, 0, accuracy: 0.001)
+        XCTAssertEqual(rect.width, 600, accuracy: 0.001)
+        XCTAssertEqual(rect.height, 800, accuracy: 0.001)
+    }
+
+    func testCropZoomKeepsPinchAnchorInPlace() {
+        let anchor = CGPoint(x: 60, y: -40)
+        let offset = CropGeometry.zoomedOffset(CGSize(width: 20, height: 10), anchor: anchor, factor: 2)
+        XCTAssertEqual(offset.width, -20, accuracy: 0.001)
+        XCTAssertEqual(offset.height, 60, accuracy: 0.001)
+    }
+
+    func testSavedCropRestoresAtDifferentCanvasSize() {
+        let image = CGSize(width: 1600, height: 1200)
+        let firstFrame = CGSize(width: 300, height: 400)
+        let rect = CropGeometry.cropRect(image: image, frame: firstFrame, zoom: 2, offset: CGSize(width: 80, height: -50))
+        let secondFrame = CGSize(width: 240, height: 320)
+        let restored = CropGeometry.transform(for: rect, image: image, frame: secondFrame, maxZoom: 5)
+        let actual = CropGeometry.cropRect(image: image, frame: secondFrame, zoom: restored.zoom, offset: restored.offset)
+        XCTAssertEqual(actual.minX, rect.minX, accuracy: 0.001)
+        XCTAssertEqual(actual.minY, rect.minY, accuracy: 0.001)
+        XCTAssertEqual(actual.width, rect.width, accuracy: 0.001)
+        XCTAssertEqual(actual.height, rect.height, accuracy: 0.001)
+    }
     private func encodedKeys<T: Encodable>(_ value: T) throws -> Set<String> {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let object = try JSONSerialization.jsonObject(with: encoder.encode(value))
         return Set((object as? [String: Any] ?? [:]).keys)
+    }
+
+    func testPostUploadKeepsWholeLandscapePhotoWhenDownsizing() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 3200, height: 1800), format: format).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1600, height: 1800))
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 1600, y: 0, width: 1600, height: 1800))
+        }
+        let uploaded = try XCTUnwrap(UIImage(data: API.preparedFitCheckJPEG(image)))
+        XCTAssertEqual(uploaded.size.width, 1600, accuracy: 1)
+        XCTAssertEqual(uploaded.size.height, 900, accuracy: 1)
+    }
+
+    func testPostUploadResizesRetinaImageUsingPixelDimensions() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 2
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 1600, height: 900), format: format).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 1600, height: 900))
+        }
+        let uploaded = try XCTUnwrap(UIImage(data: API.preparedFitCheckJPEG(image)))
+        XCTAssertEqual(uploaded.size.width, 1600, accuracy: 1)
+        XCTAssertEqual(uploaded.size.height, 900, accuracy: 1)
     }
 
     // MARK: Tally decoding

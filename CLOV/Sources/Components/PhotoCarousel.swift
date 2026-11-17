@@ -24,6 +24,8 @@ struct PhotoCarousel: View {
     /// Inactive tabs stay mounted at opacity 0, so `onDisappear` never fires for them.
     @Environment(\.isTabActive) private var isTabActive
     @State private var isOnScreen = false
+    @State private var fadingPhoto: URL?
+    @State private var fadingOpacity = 0.0
 
     init(
         urls: [URL],
@@ -45,6 +47,8 @@ struct PhotoCarousel: View {
     }
 
     private static let holdDuration: TimeInterval = 0.4
+    private static let transitionDuration: TimeInterval = 0.45
+    private static let transitionSetupDelay: TimeInterval = 0.05
 
     private var shouldRun: Bool {
         logic.shouldRun(enabled: autoAdvance, reduceMotion: reduceMotion,
@@ -59,6 +63,14 @@ struct PhotoCarousel: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        .overlay {
+            if let fadingPhoto {
+                page(fadingPhoto)
+                    .opacity(fadingOpacity)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
         .overlay(alignment: .bottom) { PageDots(count: urls.count, index: logic.index).padding(.bottom, 10) }
         // Only a tap, a horizontal swipe or a hold counts as interaction. A zero-distance
         // drag would fire on the touch-down of a vertical feed scroll and stop rotation.
@@ -77,7 +89,10 @@ struct PhotoCarousel: View {
         // A page change (swipe or timer) also re-keys it, so every photo gets a full interval.
         .task(id: "\(shouldRun)-\(logic.index)") { await runTimer() }
         .onChange(of: currentIndex) { _, newValue in
-            if newValue != logic.index { logic = logic.moved(to: newValue) }
+            if newValue != logic.index {
+                fadingPhoto = nil
+                logic = logic.moved(to: newValue)
+            }
         }
         .onChange(of: urls.count) { _, newCount in
             logic = logic.resized(pageCount: newCount)
@@ -110,39 +125,63 @@ struct PhotoCarousel: View {
 
     private func setPage(_ newIndex: Int) {
         guard urls.indices.contains(newIndex) else { return }
+        fadingPhoto = nil
         logic = logic.moved(to: newIndex)
         currentIndex = newIndex
     }
 
     private func stopForGood() {
         guard !keepsRotatingAfterTouch, !logic.isStopped else { return }
+        fadingPhoto = nil
         logic = logic.userInteracted()
     }
 
     private func runTimer() async {
+        var delay = CarouselAutoAdvance.interval
         while shouldRun, !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(CarouselAutoAdvance.interval))
+            try? await Task.sleep(for: .seconds(delay))
             guard shouldRun, !Task.isCancelled else { return }
             let next = logic.advanced()
-            withAnimation(Theme.settle) { logic = next }
-            currentIndex = next.index
+            guard urls.indices.contains(logic.index), next.index != logic.index else { continue }
+            fadingPhoto = urls[logic.index]
+            fadingOpacity = 1
+            // The old image stays above the new page, so even the wrap from
+            // the last image to the first is a single, gentle transition.
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                logic = next
+                currentIndex = next.index
+            }
+            // Give SwiftUI a frame to place the old image before fading it out.
+            try? await Task.sleep(for: .seconds(Self.transitionSetupDelay))
+            guard shouldRun, !Task.isCancelled else { fadingPhoto = nil; return }
+            withAnimation(.easeInOut(duration: Self.transitionDuration)) { fadingOpacity = 0 }
+            try? await Task.sleep(for: .seconds(Self.transitionDuration))
+            fadingPhoto = nil
+            delay = max(0, CarouselAutoAdvance.interval - Self.transitionDuration - Self.transitionSetupDelay)
         }
     }
 
     private func page(_ url: URL) -> some View {
         Color.clear
             .overlay {
-                CachedImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: contentMode)
-                    case .loading:
-                        Theme.muted.overlay(ProgressView())
-                    case .failure:
-                        Theme.muted.overlay(
-                            Image(systemName: "photo").foregroundStyle(Theme.mutedForeground)
-                        )
+                GeometryReader { proxy in
+                    CachedImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: contentMode)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                        case .loading:
+                            Theme.muted.overlay(ProgressView())
+                        case .failure:
+                            Theme.muted.overlay(
+                                Image(systemName: "photo").foregroundStyle(Theme.mutedForeground)
+                            )
+                        }
                     }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
                 }
             }
             .clipped()

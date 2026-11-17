@@ -2,6 +2,7 @@
 
 @MainActor
 struct StyleInsightsView: View {
+    var inline = false
     @EnvironmentObject private var appState: AppState
     @State private var report: WeeklyStyleReport?
     @State private var isLoading = true
@@ -12,7 +13,25 @@ struct StyleInsightsView: View {
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
-        ScrollView {
+        Group {
+            if inline {
+                reportContent
+                    .accessibilityIdentifier("profile.analytics.content")
+            } else {
+                ScrollView {
+                    reportContent.padding(20)
+                }
+                .clearsTabBar()
+                .background(Theme.background)
+                .navigationTitle("Your week")
+                .navigationBarTitleDisplayMode(.inline)
+                .refreshable { await load() }
+            }
+        }
+        .revisionTask(appState.contentRevision) { await load() }
+    }
+
+    private var reportContent: some View {
             VStack(alignment: .leading, spacing: 18) {
                 Text("YOUR WEEK")
                     .font(Theme.micro)
@@ -69,14 +88,6 @@ struct StyleInsightsView: View {
                     }
                 }
             }
-            .padding(20)
-        }
-        .clearsTabBar()
-        .background(Theme.background)
-        .navigationTitle("Your week")
-        .navigationBarTitleDisplayMode(.inline)
-        .revisionTask(appState.contentRevision) { await load() }
-        .refreshable { await load() }
     }
 
     private func metric(_ title: String, value: Int, icon: String) -> some View {

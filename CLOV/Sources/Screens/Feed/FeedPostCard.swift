@@ -20,6 +20,7 @@ struct FeedPostCard: View {
     /// The viewer's vote on this post once the server confirmed it (`nil` after an undo).
     var onVoteChange: (UUID?) -> Void = { _ in }
 
+    @State private var comparing = false
     @State private var photoIndex = 0
     /// True while a press-and-hold vote is in progress; the photos stop rotating so the press stays on one look.
     @State private var isHoldingToVote = false
@@ -50,9 +51,22 @@ struct FeedPostCard: View {
             withContextMenu(header.padding(.horizontal, Self.textInset))
             FeedCardVoteSection(item: item, viewerId: viewerId, photoIndex: photoIndex,
                                 textInset: Self.textInset, onVoteChange: onVoteChange) { vote in
-                // One timeline per card, ticking once at expiry.
-                TimelineView(.expiry(item.expiresAt)) { _ in
-                    photos(expired: isExpired(item.expiresAt), vote: vote)
+                VStack(alignment: .leading, spacing: 10) {
+                    // One timeline per card, ticking once at expiry.
+                    TimelineView(.expiry(item.expiresAt)) { _ in
+                        if comparing {
+                            InlineLookComparison(item: item, viewerId: viewerId, onOpen: onOpen)
+                        } else {
+                            photos(expired: isExpired(item.expiresAt), vote: vote)
+                        }
+                    }
+                    if item.fitCheckPhotos.count >= 2 {
+                        Button(comparing ? "Show carousel" : "Compare looks") { comparing.toggle() }
+                            .font(Theme.bodyEmphasis)
+                            .frame(minHeight: Theme.minTapSize)
+                            .padding(.horizontal, Self.textInset)
+                            .accessibilityIdentifier("feed.compare")
+                    }
                 }
             }
             actionRow.padding(.horizontal, Self.textInset - 6)
@@ -149,8 +163,9 @@ struct FeedPostCard: View {
     private func photos(expired: Bool, vote: PhotoVoteAction) -> some View {
         PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
                       autoAdvance: !expired && !isHoldingToVote, keepsRotatingAfterTouch: true,
-                      accessibilityIdentifier: "feed-photo-carousel", onTap: openIfNotAfterHold)
+                      contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: openIfNotAfterHold)
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
+            .background(Color.black)
             .overlay { if expired { endedOverlay } }
             .clipped()
             .contentShape(Rectangle())
@@ -252,5 +267,50 @@ struct FeedPostCard: View {
                 .lineLimit(1)
         }
         tagsRow
+    }
+}
+
+private struct InlineLookComparison: View {
+    @StateObject private var model: ReelVoteModel
+    let onOpen: (Int) -> Void
+
+    init(item: FeedItemDTO, viewerId: UUID, onOpen: @escaping (Int) -> Void) {
+        _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId))
+        self.onOpen = onOpen
+    }
+
+    var body: some View {
+        VStack {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
+                ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
+                    VStack {
+                        Button { onOpen(index) } label: {
+                            Color.black.aspectRatio(3 / 4, contentMode: .fit)
+                                .overlay { RemoteImage(url: photo.imageUrl, contentMode: .fit) }
+                        }
+                        .accessibilityLabel("Enlarge look \(index + 1)")
+                        if model.summaryLoaded && model.isResultsRevealed && !model.isVoting {
+                            Text("Look \(index + 1) · \(model.percent(for: photo.id))%")
+                        } else {
+                            Button("Vote for look \(index + 1)") { _ = model.vote(for: photo.id) {} }
+                                .frame(minHeight: Theme.minTapSize)
+                                .disabled(!model.canVote)
+                                .accessibilityIdentifier("feed.vote.\(index)")
+                        }
+                    }
+                }
+            }
+            if model.canRetract {
+                Button("Undo vote") { model.retractVote {} }
+                    .frame(minHeight: Theme.minTapSize)
+            }
+            if model.summaryLoadFailed {
+                Button("Retry loading votes") { Task { await model.refreshSummary() } }
+            }
+            if let error = model.error { Text(error).font(Theme.caption) }
+        }
+        .buttonStyle(.plain)
+        .font(Theme.bodyEmphasis)
+        .task { await model.loadSummary() }
     }
 }

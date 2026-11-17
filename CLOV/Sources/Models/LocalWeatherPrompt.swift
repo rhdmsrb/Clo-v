@@ -90,7 +90,7 @@ final class LocalWeatherPromptModel: NSObject, ObservableObject, @preconcurrency
         guard CLLocationManager.locationServicesEnabled() else {
             shouldFetchWeather = false
             isLoading = false
-            errorMessage = "Turn on Location Services to get a weather-based prompt."
+            errorMessage = "Turn on Location Services to get a weather-based outfit suggestion."
             return
         }
 
@@ -132,7 +132,7 @@ final class LocalWeatherPromptModel: NSObject, ObservableObject, @preconcurrency
         guard shouldFetchWeather else { return }
         shouldFetchWeather = false
         isLoading = false
-        errorMessage = "Couldn't get your location. Try again or use the regular prompt."
+            errorMessage = "Couldn't get your location. Try again later."
     }
 
     /// Coordinates are rounded to ~11 km before leaving the device; that is
@@ -173,7 +173,7 @@ final class LocalWeatherPromptModel: NSObject, ObservableObject, @preconcurrency
             )
             errorMessage = nil
         } catch {
-            errorMessage = "Weather couldn't load. Your regular daily prompt is still here."
+            errorMessage = "Weather couldn't load. Try again later."
         }
     }
 }

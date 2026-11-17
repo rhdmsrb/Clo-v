@@ -51,8 +51,9 @@ struct FeedCardVoteSection<Photos: View>: View {
             status.padding(.horizontal, textInset)
         }
         .animation(Theme.animation(Theme.settle, reduceMotion: reduceMotion), value: model.myVote)
-        // Totals are only worth a request when they are shown: already voted, ended, or the creator.
-        .task { if model.myVote != nil || model.isEnded || model.isCreator { await model.loadSummary() } }
+        // The feed query carries no vote rows (other viewers' votes stay private), so the viewer's
+        // own vote, and the totals when they may see them, come from the summary request.
+        .task { await model.loadSummary() }
         // A vote made elsewhere (the vote screen) reaches this card through the reloaded item.
         .onChange(of: item.ownVote(voterId: viewerId)) { _, seeded in
             guard let seeded, seeded != model.myVote else { return }

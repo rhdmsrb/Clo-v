@@ -7,11 +7,14 @@ struct PhotoSlotState: Identifiable {
     var image: UIImage?
     /// The uncropped photo, kept so the crop can be adjusted again.
     var original: UIImage?
+    /// Crop rectangle in the original image's point coordinates.
+    var cropRect: CGRect?
 }
 
 private struct CropRequest: Identifiable {
     let id = UUID()
     let image: UIImage
+    let cropRect: CGRect?
 }
 
 enum FitCheckAudience: String, CaseIterable, Identifiable {
@@ -98,6 +101,7 @@ struct PhotoSlotView: View {
             Button {
                 state.image = nil
                 state.original = nil
+                state.cropRect = nil
                 state.item = nil
             } label: {
                 Image(systemName: "xmark")
@@ -117,7 +121,7 @@ struct PhotoSlotView: View {
     @ViewBuilder
     private var cropButton: some View {
         if let source = state.original ?? state.image {
-            Button { cropRequest = CropRequest(image: source) } label: {
+            Button { cropRequest = CropRequest(image: source, cropRect: state.cropRect) } label: {
                 Image(systemName: "crop")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.white)
@@ -139,8 +143,8 @@ struct PhotoSlotView: View {
                 if let image = state.image {
                     Image(uiImage: image)
                         .resizable()
-                        .scaledToFill()
-                        .clipped()
+                        .scaledToFit()
+                        .background(Theme.muted)
                         .accessibilityHidden(true)
                 } else {
                     emptyTile
@@ -151,13 +155,14 @@ struct PhotoSlotView: View {
         .accessibilityLabel(state.image == nil ? "Add \(label)" : "Change \(label)")
         .accessibilityHint(state.image == nil ? "Opens your photo library" : "Replaces the selected photo")
         .fullScreenCover(item: $cropRequest) { request in
-            PhotoCropView(image: request.image) {
+            PhotoCropView(image: request.image, initialCrop: request.cropRect) {
                 // Cancelled: keep whatever was there before.
                 state.item = nil
                 cropRequest = nil
-            } onDone: { cropped in
+            } onDone: { cropped, cropRect in
                 state.original = request.image
                 state.image = cropped
+                state.cropRect = cropRect
                 state.item = nil
                 cropRequest = nil
             }
@@ -168,7 +173,10 @@ struct PhotoSlotView: View {
                 guard let newItem else { return }
                 do {
                     let loaded = try await newItem.loadImage().normalizedOrientation()
-                    cropRequest = CropRequest(image: loaded)
+                    state.original = loaded
+                    state.image = loaded
+                    state.cropRect = nil
+                    state.item = nil
                 } catch {
                     Log.app.error("Photo pick failed: \(error.localizedDescription)")
                     pickError = error.localizedDescription

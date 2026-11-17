@@ -3,9 +3,12 @@
 --
 -- Destroys stored tags, descriptions and like counts.
 -- vote_prompt is deliberately NOT dropped: the column may predate this migration (the
--- app already reads it). Only the length constraint is removed. If you have confirmed
+-- app already reads it). The length trigger and any older constraint are removed.
+-- If you have confirmed
 -- this migration created the column, drop it by hand:
 --   alter table public.fit_checks drop column vote_prompt;
+drop trigger if exists validate_fit_check_vote_prompt_write on public.fit_checks;
+drop function if exists public.validate_fit_check_vote_prompt();
 drop trigger if exists normalize_photo_tags_write on public.fit_check_photos;
 drop function if exists public.normalize_photo_tags();
 drop index if exists public.fit_checks_tags_gin_idx;

@@ -32,7 +32,7 @@ targets:
         CFBundleDisplayName: "CLO-V"
         CLOVShareBaseURL: ""
         NSPhotoLibraryUsageDescription: "CLO-V needs access to your photos so you can post a Fit-Check."
-        NSLocationWhenInUseUsageDescription: "CLO-V uses your location only when you choose to tailor today's outfit prompt to the local weather."
+        NSLocationWhenInUseUsageDescription: "CLO-V uses your location only when you request weather-based outfit suggestions."
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         # Not in the original CLAUDE.md scope; added on request so a

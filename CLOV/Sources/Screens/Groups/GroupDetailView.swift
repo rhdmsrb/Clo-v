@@ -415,9 +415,10 @@ private struct GroupFeedCard: View {
                 // Ticks once at expiry so ended posts stop rotating.
                 TimelineView(.expiry(item.expiresAt)) { _ in
                     PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
-                                  autoAdvance: !isExpired(item.expiresAt),
+                                  autoAdvance: !isExpired(item.expiresAt), contentMode: .fit,
                                   accessibilityIdentifier: "groupFeed.photoCarousel")
                         .aspectRatio(Self.photoAspect, contentMode: .fit)
+                        .background(Color.black)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                 }
                 .accessibilityHidden(true)

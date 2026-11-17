@@ -4,6 +4,7 @@ import SwiftUI
 /// Settings → Preferences, so it is not offered here.
 struct ProfileActionTabs<ShareContent: View>: View {
     let onAnalytics: () -> Void
+    let analyticsExpanded: Bool
     @ViewBuilder let share: () -> ShareContent
 
     private typealias Metrics = ProfileActionTabMetrics
@@ -15,6 +16,7 @@ struct ProfileActionTabs<ShareContent: View>: View {
                 Button(action: onAnalytics) { Text("Analytics") }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Analytics")
+                    .accessibilityValue(analyticsExpanded ? "Expanded" : "Collapsed")
                     .accessibilityIdentifier("profile.analytics")
             }
         }

@@ -43,12 +43,14 @@ final class SampleImageURLProtocol: URLProtocol {
         let accent = UIColor(hue: hue, saturation: 0.55, brightness: 0.45, alpha: 1)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
-        return UIGraphicsImageRenderer(size: canvas, format: format).image { context in
-            let rect = CGRect(origin: .zero, size: canvas)
+        let size = kind == "photo" && ProcessInfo.processInfo.arguments.contains("--uiTestWidePhoto")
+            ? CGSize(width: 1600, height: 900) : canvas
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let rect = CGRect(origin: .zero, size: size)
             let colors = [base.cgColor, accent.withAlphaComponent(0.7).cgColor] as CFArray
             if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
                 context.cgContext.drawLinearGradient(gradient, start: .zero,
-                                                     end: CGPoint(x: 0, y: canvas.height), options: [])
+                                                     end: CGPoint(x: 0, y: size.height), options: [])
             }
             drawFigure(kind: kind, in: rect, color: accent.withAlphaComponent(0.85))
             drawLabel("\(kind) \(number)", in: rect)

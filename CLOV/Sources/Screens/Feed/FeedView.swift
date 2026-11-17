@@ -2,34 +2,17 @@ import SwiftUI
 
 struct FeedView: View {
     @EnvironmentObject private var appState: AppState
-    @StateObject private var localWeather = LocalWeatherPromptModel()
 
     @State private var items: [FeedItemDTO] = []
     @State private var visibleItems: [FeedItemDTO] = []
-    @State private var sort: FeedSortOption = .forYou
-    @State private var mode: FeedMode = .forYou
-    @State private var searchText = ""
-    @State private var committedSearch = ""
-    @State private var selectedOccasion: String?
-    @State private var isSearchExpanded = false
-    @State private var searchTask: Task<Void, Never>?
+    @State private var commentRevision: Int?
     @State private var commentItem: FeedItemDTO?
     @State private var notice: String?
-    @Namespace private var occasionIndicator
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
-    /// Set while pull-to-refresh is running, so its own spinner isn't doubled.
-    @State private var isPullRefreshing = false
-    @State private var unreadCount = 0
     @State private var likedIDs: Set<UUID> = []
     @State private var openedRoute: FitCheckRoute?
-    @State private var showChallenge = false
-    // Open on the browsable Fit-Check feed, where posts are voted on by pressing the photo.
-    /// The full-screen "Watch Fit-Checks" reel (`SwipeFeedView`) is hidden for
-    /// now. Set this to true to bring its header button back; nothing else changes.
-    private static let showsWatchReelButton = false
-    @State private var showSwipeFeed = false
     @State private var followingIDs: Set<UUID> = []
     @State private var friendIDs: Set<UUID> = []
     @State private var graphRevision: Int?
@@ -51,60 +34,32 @@ struct FeedView: View {
     private static let cardSpacing: CGFloat = 16
     /// Posts have no card surface any more, so they need more air between them.
     private static let postSpacing: CGFloat = 28
-    private static let searchDebounce: Duration = .milliseconds(300)
     private static let noticeDuration: Duration = .seconds(3)
-    private static let reloadingOpacity = 0.5
-    private static let reloadingIndicatorTopPadding: CGFloat = 24
-    private static let occasionOptions: [(label: String, symbol: String)] = [
-        ("Everyday", "sun.max"), ("Work", "briefcase"), ("Date", "heart"), ("Interview", "person.text.rectangle"),
-        ("Party", "party.popper"), ("Travel", "airplane"), ("Wedding", "sparkles")
-    ]
-
-    /// Everything that requires re-fetching the item list. The social graph
-    /// is only re-fetched when `revision` changes.
-    private struct ReloadKey: Equatable {
-        let revision: Int
-        let mode: FeedMode
-        let occasion: String?
-        let search: String
-    }
-
-    private var reloadKey: ReloadKey {
-        ReloadKey(revision: appState.contentRevision, mode: mode, occasion: selectedOccasion, search: committedSearch)
-    }
 
     private var emptyFeedText: String {
-        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedOccasion != nil {
-            return "No looks match that. Try another search or occasion."
-        }
-        return mode == .following
-            ? "No looks from your circle yet."
-            : "Your feed is waiting for its first look. Post a Fit-Check to get started."
+        "Your feed is waiting for its first look. Post a Fit-Check to get started."
     }
 
-    /// A filter, search or mode change is fetching while the previous results
-    /// are still on screen.
-    private var isReloadingFilters: Bool { isLoading && hasLoaded && !isPullRefreshing }
-
     var body: some View {
-        Group {
-            if showSwipeFeed { swipeFeed } else { editorialFeed }
-        }
+        editorialFeed
         .navigationBarHidden(true)
         .navigationDestination(for: FitCheckRoute.self) { route in routeDestination(route) }
         .navigationDestination(item: $openedRoute) { route in routeDestination(route) }
-        .revisionTask(reloadKey) { await load(refreshGraph: graphRevision != appState.contentRevision) }
-        .onChange(of: sort) { _, _ in refreshVisibleItems() }
-        .onChange(of: mode) { _, _ in refreshVisibleItems() }
-        .onChange(of: selectedOccasion) { _, _ in refreshVisibleItems() }
-        .onChange(of: searchText) { _, _ in
-            refreshVisibleItems()
-            debounceSearch()
+        .revisionTask(appState.contentRevision) {
+            if commentRevision != appState.contentRevision {
+                await load(refreshGraph: graphRevision != appState.contentRevision)
+            }
         }
         .sheet(item: $commentItem) { item in
             CommentThreadSheet(fitCheckId: item.id,
                                photoURLs: PostCardContent.photoURLs(item.fitCheckPhotos).map(\.absoluteString),
-                               voterId: appState.userId, canComment: !isExpired(item.expiresAt))
+                               voterId: appState.userId, canComment: !isExpired(item.expiresAt)) { comments in
+                commentRevision = appState.contentRevision
+                guard let comments else { return }
+                let refs = comments.map { CommentRef(id: $0.id) }
+                if let index = items.firstIndex(where: { $0.id == item.id }) { items[index].fitCheckComments = refs }
+                if let index = visibleItems.firstIndex(where: { $0.id == item.id }) { visibleItems[index].fitCheckComments = refs }
+            }
         }
         .overlay(alignment: .bottom) { noticeToast }
         .task(id: notice) {
@@ -134,31 +89,6 @@ struct FeedView: View {
         }
     }
 
-    // MARK: - Swipe feed
-
-    private var swipeFeed: some View {
-        SwipeFeedView(
-            items: visibleItems,
-            voterId: appState.userId,
-            followingIDs: followingIDs,
-            isFollowingMode: mode == .following,
-            isLoading: isLoading,
-            hasLoaded: hasLoaded,
-            error: error,
-            onModeChange: { following in mode = following ? .following : .forYou },
-            onBrowse: { withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = false } },
-            onClose: { withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = false } },
-            onToggleFollow: { creatorId, follow in toggleFollow(creatorId, follow: follow) },
-            onEvent: { item, event in logEvent(item, event: event) },
-            onImpression: { item in logImpression(for: item) },
-            onLoadMore: { Task { await loadMoreIfNeeded() } },
-            onRefresh: { await load(refreshGraph: true) },
-            onRetry: { await load(refreshGraph: true) }
-        )
-        .background(.black)
-        .ignoresSafeArea()
-    }
-
     // MARK: - Editorial feed
 
     private var editorialFeed: some View {
@@ -166,132 +96,27 @@ struct FeedView: View {
             // Posts run edge to edge, so the page padding is applied per
             // section instead of on the whole column.
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
-                occasionRow
-                // With posts on screen the challenge sits after the first one
-                // (see `feedList`), so a photo is the first thing people see.
-                if visibleItems.isEmpty { challengeCard.padding(.horizontal, Self.pagePadding) }
+                Text("CLO·V")
+                    .font(Theme.editorialFont(size: 28, relativeTo: .title2))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityLabel("CLO V")
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("feed.logo")
+                    .padding(.horizontal, Self.pagePadding)
                 feedList
-                    .opacity(isReloadingFilters ? Self.reloadingOpacity : 1)
-                    .overlay(alignment: .top) { reloadingIndicator }
-                    .animation(Theme.animation(Theme.quick, reduceMotion: reduceMotion), value: isReloadingFilters)
                 olderFitChecksButton.padding(.horizontal, Self.pagePadding)
             }
             .padding(.vertical, Self.cardSpacing)
         }
         .safeAreaPadding(.bottom, tabBarClearance)
         .background(Theme.background)
-        .safeAreaInset(edge: .top, spacing: 0) { pinnedFilters }
+        .statusBarBackdrop()
         .refreshable {
-            isPullRefreshing = true
-            defer { isPullRefreshing = false }
             await load(refreshGraph: true)
         }
         .onDisappear { flushImpressions() }
-        .sheet(isPresented: $showChallenge) {
-            CreateFitCheckView(initialOccasion: DailyChallenge.today.occasion)
-        }
-    }
-
-    /// Shown over the dimmed list while new results load, so a filter change
-    /// never looks like the app ignored the tap.
-    @ViewBuilder
-    private var reloadingIndicator: some View {
-        if isReloadingFilters {
-            ProgressView()
-                .padding(.top, Self.reloadingIndicatorTopPadding)
-                .accessibilityLabel("Updating Fit-Checks")
-        }
-    }
-
-    private var challengeCard: some View {
-        DailyChallengeCard(
-            challenge: localWeather.conditions.map(DailyChallenge.forWeather) ?? .today,
-            weather: localWeather.conditions,
-            isWeatherLoading: localWeather.isLoading,
-            locationDenied: localWeather.locationDenied,
-            errorMessage: localWeather.errorMessage,
-            onUseWeather: { localWeather.requestWeather() },
-            onJoin: { showChallenge = true }
-        )
-    }
-
-    /// Icon buttons stop growing past `xxxLarge` so they never crowd the segments.
-    private var headerButtons: some View {
-        HStack(spacing: 8) {
-            if Self.showsWatchReelButton {
-                FeedIconButton(
-                    systemImage: "play.rectangle",
-                    accessibilityLabel: "Watch Fit-Checks",
-                    accessibilityIdentifier: "watchFeedButton"
-                ) {
-                    withAnimation(Theme.animation(Theme.settle, reduceMotion: reduceMotion)) { showSwipeFeed = true }
-                }
-            }
-            FeedIconButton(
-                systemImage: isSearchExpanded ? "xmark" : "magnifyingglass",
-                accessibilityLabel: isSearchExpanded ? "Close search" : "Search Fit-Checks",
-                accessibilityIdentifier: "feedSearchButton"
-            ) {
-                if isSearchExpanded { searchText = "" }
-                withAnimation(Theme.animation(Theme.snap, reduceMotion: reduceMotion)) { isSearchExpanded.toggle() }
-            }
-            NavigationLink {
-                NotificationsView(onRead: {
-                    appState.contentDidChange()
-                    Task { await loadUnreadCount() }
-                })
-            } label: {
-                FeedBellIcon(unreadCount: unreadCount)
-            }
-            .buttonStyle(InstantPressStyle())
-        }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .fixedSize()
-    }
-
-    /// Filters stay visible while the feed scrolls; opaque so text never
-    /// sits on a blur.
-    private var pinnedFilters: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            topControls.padding(.horizontal, Self.pagePadding)
-            if isSearchExpanded {
-                FeedSearchField(text: $searchText).padding(.horizontal, Self.pagePadding)
-            }
-        }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.background.ignoresSafeArea(edges: .top))
-    }
-
-    /// The For You / Following tabs are hidden for now, so the feed stays on
-    /// For You and only the tool buttons remain, trailing.
-    /// To bring the tabs back, put `FeedModeSegments(mode: $mode) { select($0) }`
-    /// in front of the buttons in an HStack.
-    private var topControls: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            headerButtons
-        }
-    }
-
-    private var occasionRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                // Sort lives with the other filters, so the top row stays short.
-                if mode == .forYou { FeedSortMenu(sort: $sort) }
-                FeedOccasionChip(label: "All", symbol: "square.grid.2x2", isSelected: selectedOccasion == nil,
-                                 namespace: occasionIndicator) { selectedOccasion = nil }
-                ForEach(Self.occasionOptions, id: \.label) { option in
-                    FeedOccasionChip(label: option.label, symbol: option.symbol,
-                                     isSelected: selectedOccasion == option.label,
-                                     namespace: occasionIndicator) { selectedOccasion = option.label }
-                }
-            }
-        }
-        // Edge to edge so the last visible chip is cut by the screen, not the page padding.
-        .contentMargins(.horizontal, Self.pagePadding, for: .scrollContent)
-        // Keeps the sort button's soft shadow from being cut into a faint box.
-        .scrollClipDisabled()
     }
 
     @ViewBuilder
@@ -315,9 +140,8 @@ struct FeedView: View {
         AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
                        emptyText: emptyFeedText, topPadding: 40, hasLoaded: hasLoaded,
                        retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
-                       // No action here: the daily challenge card above is already
-                       // the one prompt to post, so a second button would compete with it.
-                       emptyTitle: "No Fit-Checks yet", skeleton: .cards) {
+                       emptyTitle: "No Fit-Checks yet",
+                       skeleton: .cards) {
             LazyVStack(spacing: Self.postSpacing) {
                 ForEach(visibleItems) { item in
                     FeedPostCard(
@@ -338,9 +162,6 @@ struct FeedView: View {
                             .scaleEffect(reduceMotion || phase.isIdentity ? 1 : 0.97)
                     }
                     .onAppear { logImpression(for: item) }
-                    if item.id == visibleItems.first?.id {
-                        challengeCard.padding(.horizontal, Self.pagePadding)
-                    }
                 }
                 loadMoreFooter
             }
@@ -383,24 +204,34 @@ struct FeedView: View {
         }
     }
 
-    // MARK: - Selection and derived state
+    // MARK: - Derived state
 
-    private func select(_ newMode: FeedMode) {
-        guard mode != newMode else { return }
-        mode = newMode
-    }
+    @State private var answered: Set<UUID> = []
 
-    private func refreshVisibleItems() {
+    private func rankedItems(_ items: [FeedItemDTO]) -> [FeedItemDTO] {
         let ranked = FeedRanking.visibleItems(
             items: items,
-            searchText: searchText,
-            occasion: selectedOccasion,
-            mode: mode,
-            sort: sort,
+            searchText: "",
+            occasion: nil,
+            mode: .forYou,
+            sort: .forYou,
             stylePreferences: appState.profile?.stylePreferences ?? [],
             signalScores: signalScores
         )
-        visibleItems = ranked
+        func varied(_ posts: [FeedItemDTO]) -> [FeedItemDTO] {
+            var remaining = posts
+            var result: [FeedItemDTO] = []
+            while !remaining.isEmpty {
+                let index = remaining.firstIndex { $0.creatorId != result.last?.creatorId } ?? 0
+                result.append(remaining.remove(at: index))
+            }
+            return result
+        }
+        return varied(ranked.filter { !answered.contains($0.id) }) + varied(ranked.filter { answered.contains($0.id) })
+    }
+
+    private func refreshVisibleItems() {
+        visibleItems = rankedItems(items)
     }
 
     private func setItems(_ newItems: [FeedItemDTO]) {
@@ -408,23 +239,7 @@ struct FeedView: View {
         refreshVisibleItems()
     }
 
-    private func debounceSearch() {
-        searchTask?.cancel()
-        searchTask = Task {
-            try? await Task.sleep(for: Self.searchDebounce)
-            guard !Task.isCancelled else { return }
-            committedSearch = searchText
-        }
-    }
-
     // MARK: - Loading
-
-    private func loadUnreadCount() async {
-        // A badge failure must not hide an otherwise usable feed.
-        if let count = await Log.attempt("Load unread count", { try await API.fetchUnreadNotificationCount(recipientId: appState.userId) }) {
-            unreadCount = count
-        }
-    }
 
     /// Scores are fetched alongside a reload and applied together with the new
     /// items, so visible cards are never re-ranked underneath the user.
@@ -447,10 +262,8 @@ struct FeedView: View {
         return (following, friends)
     }
 
-    /// Reloads the first page. The social graph, signal scores and unread
-    /// count are only refreshed when `refreshGraph` is set (initial load,
-    /// pull-to-refresh, content changes) so typing a search or changing
-    /// filters only re-fetches items.
+    /// Reloads the first page. The social graph and signal scores are only
+    /// refreshed on initial load, pull-to-refresh, and content changes.
     private func load(refreshGraph: Bool) async {
         let requestID = UUID()
         loadID = requestID
@@ -465,11 +278,13 @@ struct FeedView: View {
             async let freshScores = needsGraph ? fetchSignalScores() : signalScores
             let graph = needsGraph ? try await fetchSocialGraph() : (following: followingIDs, friends: friendIDs)
             let page = try await API.fetchFeedPage(offset: 0, limit: Self.pageSize,
-                                                   search: committedSearch, occasion: selectedOccasion,
-                                                   followingIDs: mode == .following ? graph.following : nil,
+                                                   search: "", occasion: nil,
+                                                   followingIDs: nil,
                                                    friendIDs: graph.friends)
+            let votes = try? await API.answeredPosts(page.items, viewer: appState.userId)
             let scores = await freshScores
             guard loadID == requestID else { return }
+            if let votes { answered = votes }
             signalScores = scores
             followingIDs = graph.following
             friendIDs = graph.friends
@@ -490,7 +305,6 @@ struct FeedView: View {
 
     private func refreshSideData() {
         graphRevision = appState.contentRevision
-        Task { await loadUnreadCount() }
     }
 
     private func loadMoreIfNeeded() async {
@@ -498,18 +312,22 @@ struct FeedView: View {
         loadMoreFailed = false
         isLoadingMore = true
         defer { isLoadingMore = false }
-        // A reload (search, filter, refresh) replaces `items`; a page fetched
+        // A reload replaces `items`; a page fetched
         // for the old query must not be appended to the new list.
         let requestID = loadID
         do {
             let page = try await API.fetchFeedPage(offset: nextOffset, limit: Self.pageSize,
-                                                   search: committedSearch, occasion: selectedOccasion,
-                                                   followingIDs: mode == .following ? followingIDs : nil,
+                                                   search: "", occasion: nil,
+                                                   followingIDs: nil,
                                                    friendIDs: friendIDs)
             guard loadID == requestID else { return }
             let existing = Set(items.map(\.id))
             let fresh = page.items.filter { !existing.contains($0.id) }
-            setItems(items + fresh)
+            let votes = try? await API.answeredPosts(fresh, viewer: appState.userId)
+            guard loadID == requestID else { return }
+            answered.formUnion(votes ?? [])
+            items.append(contentsOf: fresh)
+            visibleItems.append(contentsOf: rankedItems(fresh))
             Task { await loadLikedState(for: fresh) }
             nextOffset += page.fetchedCount
             canLoadMore = page.fetchedCount == Self.pageSize

@@ -9,12 +9,18 @@ final class VoteSummaryTests: XCTestCase {
     private func decodeFeed(extra: String) throws -> FeedItemDTO {
         let json = """
         {"id":"\(UUID())","creator_id":"\(UUID())","created_at":"2026-01-01T00:00:00Z",
-         "fit_check_photos":[],"fit_check_votes":[],"fit_check_comments":[]\(extra)}
+         "fit_check_photos":[],"fit_check_comments":[]\(extra)}
         """
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(FeedItemDTO.self, from: Data(json.utf8))
+    }
+
+    func testFeedWithoutVoteEmbedDecodesAndFeedQueriesNeverRequestIt() throws {
+        XCTAssertTrue(try decodeFeed(extra: "").fitCheckVotes.isEmpty)
+        XCTAssertFalse(API.feedColumns.contains("fit_check_votes"))
+        XCTAssertFalse(API.legacyFeedColumns.contains("fit_check_votes"))
     }
 
     func testFeedItemDecodesVoteCountWhenPresent() throws {

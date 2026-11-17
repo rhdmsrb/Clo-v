@@ -56,16 +56,22 @@ struct SearchExploreView: View {
                 }
                 searchSuggestions
                 AsyncStateView(isLoading: isLoading, error: error,
-                               isEmpty: results.isEmpty,
+                               isEmpty: displayed.isEmpty && !canLoadMore,
                                emptyText: hasLoaded && error == nil
                                 ? "No looks found. Try another search or filter."
                                 : "No looks to explore yet. Check back when your circle starts posting.",
                                topPadding: 28, hasLoaded: hasLoaded, retry: { await load() }) {
                     if let relationshipsNotice { relationshipsBanner(relationshipsNotice) }
-                    MasonryGrid(items: displayed, aspectRatio: { ExploreTileRatio.ratio(for: $0.id) },
-                                onTap: { openedRoute = FitCheckRoute(id: $0.id, photoIndex: nil) }) { item in
-                        tile(item)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        ForEach(displayed) { item in
+                            Button { openedRoute = FitCheckRoute(id: item.id, photoIndex: nil) } label: {
+                                tile(item)
+                                    .aspectRatio(3 / 4, contentMode: .fit)
+                                    .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+                            }
+                            .buttonStyle(InstantPressStyle())
                             .onAppear { prefetchIfNeeded(after: item) }
+                        }
                     }
                 }
                 loadMoreFooter
@@ -366,7 +372,7 @@ struct SearchExploreView: View {
         loadMoreError = nil
         generation += 1
         let token = generation
-        defer { isLoading = false }
+        defer { if token == generation { isLoading = false } }
         await ensureRelationships(force: refreshRelationships)
         guard !Task.isCancelled else { return }
         do {
@@ -374,7 +380,7 @@ struct SearchExploreView: View {
                 offset: 0, limit: Self.pageSize, search: searchTerm,
                 occasion: filter.occasion, followingIDs: nil, friendIDs: friendIDs
             )
-            guard token == generation else { return }
+            guard token == generation, !Task.isCancelled else { return }
             setResults(page.items)
             nextOffset = page.fetchedCount
             canLoadMore = page.fetchedCount >= Self.pageSize
@@ -382,6 +388,7 @@ struct SearchExploreView: View {
         } catch is CancellationError {
             return
         } catch {
+            guard token == generation, !Task.isCancelled else { return }
             self.error = "Couldn’t load search results. Please try again."
         }
     }

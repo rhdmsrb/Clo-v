@@ -1,6 +1,31 @@
 import XCTest
 
 final class PlusButtonUITests: XCTestCase {
+    func testCropControlsCanZoomResetAndSave() {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uiTestSampleData", "--uiTestCreatePhotos"]
+        app.launch()
+        let create = app.buttons["tabPlusButton"]
+        XCTAssertTrue(create.waitForExistence(timeout: 15))
+        create.tap()
+        let crop = app.buttons["Crop Photo 1"]
+        XCTAssertTrue(crop.waitForExistence(timeout: 10))
+        crop.tap()
+        let zoom = app.sliders["Crop zoom"]
+        XCTAssertTrue(zoom.waitForExistence(timeout: 5))
+        zoom.adjust(toNormalizedSliderPosition: 0.5)
+        XCTAssertNotEqual(zoom.value as? String, "100 percent")
+        app.buttons["Reset"].tap()
+        XCTAssertEqual(zoom.value as? String, "100 percent")
+        zoom.adjust(toNormalizedSliderPosition: 0.5)
+        let selectedZoom = zoom.value as? String
+        app.buttons["Done"].tap()
+        XCTAssertTrue(crop.waitForExistence(timeout: 5))
+        crop.tap()
+        XCTAssertTrue(zoom.waitForExistence(timeout: 5))
+        XCTAssertEqual(zoom.value as? String, selectedZoom)
+        app.buttons["Cancel"].tap()
+    }
     override func setUpWithError() throws {
         continueAfterFailure = false
     }

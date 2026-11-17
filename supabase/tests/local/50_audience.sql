@@ -54,6 +54,12 @@ insert into public.fit_checks(id, creator_id, is_public, status, expires_at, gro
   (:old_priv::uuid, :c::uuid, false, 'live', now() + interval '1 hour', null);
 
 \ir ../../migrations/20261108000100_fit_check_audience.sql
+-- Exercise the deployed vote policy together with the newer audience functions.
+alter table public.fit_check_votes enable row level security;
+-- The production schema already allows authenticated users to insert their own vote.
+create policy vote_insert_own on public.fit_check_votes for insert to authenticated
+  with check (voter_id = auth.uid());
+\ir ../../migrations/20261107000500_restrict_vote_select.sql
 
 create function pg_temp.expect(label text, actual bigint, wanted bigint) returns void language plpgsql as $$
 begin
@@ -126,6 +132,22 @@ select pg_temp.expect('public feed filter excludes friends/private', (select cou
 select pg_temp.expect('friend can vote on friends post', pg_temp.try(:f, format('insert into public.fit_check_votes(fit_check_id,photo_id,voter_id) values (%L,%L,%L)', :fr, :ph, :f)), 1);
 select pg_temp.expect('stranger cannot vote on friends post', pg_temp.try(:s, format('insert into public.fit_check_votes(fit_check_id,photo_id,voter_id) values (%L,%L,%L)', :fr, :ph, :s)), 0);
 select pg_temp.expect('friend cannot vote on private post', pg_temp.try(:f, format('insert into public.fit_check_votes(fit_check_id,photo_id,voter_id) values (%L,%L,%L)', :pr, :ph2, :f)), 0);
+
+-- A live non-voter cannot read vote rows or a per-photo tally; a voter sees
+-- only their own row, and the creator sees all rows. The total remains public.
+insert into public.fit_check_photos(id, fit_check_id) values
+  ('e0000000-0000-4000-8000-00000000000c', :pub::uuid),
+  ('e0000000-0000-4000-8000-00000000000d', :pub::uuid);
+insert into public.fit_check_votes(fit_check_id, photo_id, voter_id)
+  values (:pub::uuid, 'e0000000-0000-4000-8000-00000000000c', :f::uuid),
+         (:pub::uuid, 'e0000000-0000-4000-8000-00000000000d', :m::uuid);
+select pg_temp.expect('non-voter reads no voter identities', pg_temp.n(:s, format('select count(*) from public.fit_check_votes where fit_check_id = %L', :pub)), 0);
+select pg_temp.expect('non-voter receives no live tally', pg_temp.n(:s, format('select count(*) from public.get_live_vote_tally(%L)', :pub)), 0);
+select pg_temp.expect('voter reads only own vote', pg_temp.n(:f, format('select count(*) from public.fit_check_votes where fit_check_id = %L and voter_id = %L', :pub, :f)), 1);
+select pg_temp.expect('voter cannot read others', pg_temp.n(:f, format('select count(*) from public.fit_check_votes where fit_check_id = %L and voter_id <> %L', :pub, :f)), 0);
+select pg_temp.expect('creator reads both votes', pg_temp.n(:c, format('select count(*) from public.fit_check_votes where fit_check_id = %L', :pub)), 2);
+select pg_temp.expect('voter receives live tally', pg_temp.n(:f, format('select coalesce(sum(vote_count), 0) from public.get_live_vote_tally(%L)', :pub)), 2);
+select pg_temp.expect('creator receives live tally', pg_temp.n(:c, format('select coalesce(sum(vote_count), 0) from public.get_live_vote_tally(%L)', :pub)), 2);
 
 -- Tally and results.
 select pg_temp.expect('voting friend sees tally', pg_temp.n(:f, format('select count(*) from public.get_live_vote_tally(%L)', :fr)), 1);

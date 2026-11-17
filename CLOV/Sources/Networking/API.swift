@@ -176,8 +176,10 @@ enum API {
     // MARK: - Feed
 
     // Vote prompts are loaded separately (attachVotePrompts) to keep the feed query small.
+    // Vote rows are deliberately not embedded: other viewers' votes stay private, and the
+    // viewer's own vote comes from `fetchVoteSummary`.
     /// Post tags, like_count and per-photo description/tags (migrations 20261107000100+).
-    static let feedColumns = "id, creator_id, caption, occasion, is_public, tags, like_count, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position, description, tags), fit_check_votes(photo_id, voter_id), fit_check_comments(id), vote_count, profiles!fit_checks_creator_id_fkey(nickname, avatar_url, account_code)"
+    static let feedColumns = "id, creator_id, caption, occasion, is_public, tags, like_count, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position, description, tags), fit_check_comments(id), vote_count, profiles!fit_checks_creator_id_fkey(nickname, avatar_url, account_code)"
 
     /// Audiences that belong in the Home and Following feeds. Group posts stay in
     /// their group feed, and "Only me" posts never reach another person's feed.
@@ -732,9 +734,8 @@ enum API {
         }
     }
 
-    /// Normalizes orientation and downscales BEFORE upload. Feed photos and
-    /// avatars are cropped to their presentation ratio; wardrobe pieces can
-    /// preserve their full shape so the catalog never cuts off a garment.
+    /// Normalizes orientation and downscales before upload. Callers can keep
+    /// the full image or request a crop for fixed-shape assets such as avatars.
     static func uploadImage(_ image: UIImage, bucket: String, pathPrefix: String,
                                     aspectRatio: CGFloat, persistPublicURL: Bool = true,
                                     preserveAspectRatio: Bool = false) async throws -> String {

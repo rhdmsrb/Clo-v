@@ -16,21 +16,34 @@ alter table public.fit_check_photos
   add column if not exists description text,
   add column if not exists tags text[] not null default '{}'::text[];
 
--- vote_prompt may already exist remotely (dashboard change) with values longer than
--- 120. ADD CONSTRAINT validates existing rows and would abort the whole push.
--- NOT VALID + VALIDATE would not help (VALIDATE fails on the same rows), so truncate
--- first. This only touches over-length rows; a freshly created column has none.
--- fit_checks has no UPDATE triggers in the baseline, so this fires nothing.
-update public.fit_checks
-   set vote_prompt = left(vote_prompt, 120)
- where char_length(vote_prompt) > 120;
+-- Preserve any legacy prompts already over the new limit. The draft RPC checks
+-- new titles; this trigger also checks direct inserts and actual title changes,
+-- without blocking unrelated updates to old rows or rewriting their content.
+create or replace function public.validate_fit_check_vote_prompt()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if char_length(new.vote_prompt) > 120 then
+      raise exception 'Title too long' using errcode = '22023';
+    end if;
+  elsif new.vote_prompt is distinct from old.vote_prompt and char_length(new.vote_prompt) > 120 then
+    raise exception 'Title too long' using errcode = '22023';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.validate_fit_check_vote_prompt() from public, anon, authenticated;
+
+drop trigger if exists validate_fit_check_vote_prompt_write on public.fit_checks;
+create trigger validate_fit_check_vote_prompt_write
+  before insert or update of vote_prompt on public.fit_checks
+  for each row execute function public.validate_fit_check_vote_prompt();
 
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'fit_checks_vote_prompt_length') then
-    alter table public.fit_checks
-      add constraint fit_checks_vote_prompt_length check (char_length(vote_prompt) <= 120);
-  end if;
   if not exists (select 1 from pg_constraint where conname = 'fit_checks_tags_max') then
     alter table public.fit_checks
       add constraint fit_checks_tags_max check (cardinality(tags) <= 8);

@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 /// Offline sample-data walk of the vote screen: photo fan, hold to vote,
 /// early release, Undo, and posting a comment. Uses Maya's post, which is
@@ -14,12 +15,86 @@ final class VoteFanUITests: XCTestCase {
 
     // MARK: - Tests
 
+    func testCompareVotesWithoutLeavingFeed() {
+        let app = XCUIApplication()
+        app.launchArguments = [Self.sampleDataArgument]
+        app.launch()
+        let compare = app.buttons["feed.compare"].firstMatch
+        XCTAssertTrue(compare.waitForExistence(timeout: 10))
+        compare.tap()
+        let vote = app.buttons["feed.vote.0"].firstMatch
+        XCTAssertTrue(vote.waitForExistence(timeout: 5))
+        vote.tap()
+        XCTAssertTrue(app.buttons["Undo vote"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["feedTab"].exists)
+    }
+
+    func testQuickPostIsAvailableAfterSelectingPhotos() {
+        let app = XCUIApplication()
+        app.launchArguments = [Self.sampleDataArgument, "--uiTestCreatePhotos"]
+        app.launch()
+        app.buttons["tabPlusButton"].tap()
+        app.buttons["createNextButton"].tap()
+        XCTAssertTrue(app.buttons["createQuickPost"].isEnabled)
+    }
+
+    func testLandscapePhotoFitsInsideFeedCard() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument, "--uiTestWidePhoto"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
+        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 10))
+        bringIntoOpenArea(carousel, in: app, centered: true)
+        let frame = carousel.frame
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThan(frame.height, 0)
+        // A wide image inside the taller post has padding above and below it.
+        // The center must contain image pixels so a loading placeholder cannot pass.
+        var fitted = false
+        for _ in 0..<10 {
+            let screenshot = XCUIScreen.main.screenshot().image
+            let x = frame.midX - window.minX
+            let top = CGPoint(x: x, y: frame.minY - window.minY + frame.height * 0.2)
+            let middle = CGPoint(x: x, y: frame.midY - window.minY)
+            let bottom = CGPoint(x: x, y: frame.minY - window.minY + frame.height * 0.8)
+            if let topRGB = pixel(in: screenshot, at: top), let centerRGB = pixel(in: screenshot, at: middle),
+               let bottomRGB = pixel(in: screenshot, at: bottom),
+               topRGB.allSatisfy({ $0 < 30 }), bottomRGB.allSatisfy({ $0 < 30 }),
+               centerRGB.contains(where: { $0 > 60 }) {
+                fitted = true
+                break
+            }
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(value: false), object: nil)], timeout: 0.5)
+        }
+        XCTAssertTrue(fitted, "landscape photo should remain fully visible with padding")
+    }
+
+    private func pixel(in image: UIImage, at point: CGPoint) -> [UInt8]? {
+        guard let cg = image.cgImage else { return nil }
+        let x = Int(point.x * image.scale)
+        let y = Int(point.y * image.scale)
+        guard x >= 0, y >= 0, x < cg.width, y < cg.height,
+              let pixel = cg.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)) else { return nil }
+        var bytes = [UInt8](repeating: 0, count: 4)
+        guard let context = CGContext(data: &bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return Array(bytes.prefix(3))
+    }
+
     func testEarlyReleaseDoesNotVoteAndHoldVotesThenUndoRetracts() throws {
         let app = openMayasVoteScreen()
         let fan = app.descendants(matching: .any)["voteFan"]
         XCTAssertTrue(fan.waitForExistence(timeout: 5), "photo fan missing")
         let centre = fan.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let undo = app.buttons["Undo"].firstMatch
+
+        // The server summary must finish before voting is enabled.
+        let loading = app.descendants(matching: .any)["vote.summaryLoading"]
+        if loading.exists { XCTAssertTrue(waitUntilGone(loading, timeout: 10), "vote state did not finish loading") }
+        XCTAssertFalse(app.buttons["vote.summaryRetry"].exists, "vote state failed to load")
 
         // Releasing early must not cast a vote.
         centre.press(forDuration: Self.earlyReleaseSeconds)
@@ -42,15 +117,18 @@ final class VoteFanUITests: XCTestCase {
     func testVoteScreenShowsFanCommentsAndAcceptsAComment() throws {
         let app = openMayasVoteScreen()
         XCTAssertTrue(app.descendants(matching: .any)["voteFan"].waitForExistence(timeout: 5), "photo fan missing")
-        XCTAssertTrue(app.descendants(matching: .any)["voteFanComments"].exists, "comments panel missing")
-        XCTAssertTrue(app.buttons["voteFanCommentSend"].exists, "send button missing")
         XCTAssertFalse(app.buttons["feedTab"].isHittable, "floating tab bar should be hidden on the vote screen")
         attach(app, name: "vote-01-top")
 
-        // The action row has a comment button that scrolls the comments into view.
+        // Comments open as a separate sheet without revealing the vote total.
+        let count = app.descendants(matching: .any)["voteFanTotalChip"]
+        XCTAssertTrue(count.exists)
+        XCTAssertNil(count.label.rangeOfCharacter(from: .decimalDigits), "results must stay hidden before voting")
         let commentButton = app.buttons["voteFanCommentButton"]
         XCTAssertTrue(commentButton.exists, "comment button missing from the action row")
         commentButton.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["voteFanComments"].waitForExistence(timeout: 5), "comment sheet missing")
+        XCTAssertTrue(app.buttons["voteFanCommentSend"].waitForExistence(timeout: 10), "send button missing")
         attach(app, name: "vote-02-after-comment-button")
 
         let input = app.textViews["voteFanCommentInput"].exists
@@ -59,9 +137,15 @@ final class VoteFanUITests: XCTestCase {
         input.tap()
         input.typeText("Looks great on this one")
         app.buttons["voteFanCommentSend"].tap()
+        let close = app.buttons["comments.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        close.tap()
+        XCTAssertTrue(waitUntilGone(close, timeout: 5))
 
+        XCTAssertTrue(app.buttons["reelBackButton"].waitForExistence(timeout: 5))
+        XCTAssertNil(count.label.rangeOfCharacter(from: .decimalDigits), "comments must not reveal results")
         app.buttons["reelBackButton"].tap()
-        XCTAssertTrue(app.buttons["feedSearchButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
     }
 
     /// Voting happens on the post itself: press and hold the photo, see the results with Undo, take it back.
@@ -69,7 +153,7 @@ final class VoteFanUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument]
         app.launch()
-        XCTAssertTrue(app.buttons["feedSearchButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
@@ -131,21 +215,19 @@ final class VoteFanUITests: XCTestCase {
         return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
     }
 
-    /// The feed pins its search/chip header over the list, so a tap on a
-    /// carousel that XCUITest auto-scrolled to the very top lands on the
-    /// header. Drag the list from its left margin (so the drag never starts
+    /// Drag the list from its left margin (so the drag never starts
     /// on a card's paged carousel) until the carousel's centre sits in the
     /// open area between the header and the tab bar.
-    private func bringIntoOpenArea(_ element: XCUIElement, in app: XCUIApplication) {
+    private func bringIntoOpenArea(_ element: XCUIElement, in app: XCUIApplication, centered: Bool = false) {
         let height = app.windows.firstMatch.frame.height
-        let openArea = (height * 0.25)...(height * 0.8)
-        for _ in 0..<12 {
+        let openArea = centered ? (height * 0.43)...(height * 0.62) : (height * 0.25)...(height * 0.8)
+        for _ in 0..<16 {
             waitUntilStill(element)
             let midY = element.frame.midY
             if openArea.contains(midY) { return }
             let down = midY > openArea.upperBound
-            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: down ? 0.7 : 0.3))
-            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: down ? 0.3 : 0.7))
+            let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: down ? 0.7 : 0.3))
+            let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: down ? 0.3 : 0.7))
             from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.1)
         }
         XCTFail("could not scroll the carousel into view (centre at \(element.frame.midY))")
@@ -167,7 +249,7 @@ final class VoteFanUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument]
         app.launch()
-        XCTAssertTrue(app.buttons["feedSearchButton"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
