@@ -64,8 +64,8 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
     }
 
-    /// Voting happens on the post itself: pick a look, see the results with Undo, take it back.
-    func testVotingOnTheFeedCardShowsResultsThenUndoBringsBackTheButtons() throws {
+    /// Voting happens on the post itself: press and hold the photo, see the results with Undo, take it back.
+    func testHoldingThePhotoOnTheFeedCardShowsResultsThenUndoBringsBackTheHint() throws {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument]
         app.launch()
@@ -76,23 +76,45 @@ final class VoteFanUITests: XCTestCase {
         while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
         XCTAssertTrue(card.waitForExistence(timeout: 10), "maya's post not found")
 
-        let voteButton = card.buttons["feed-vote-button-1"]
-        XCTAssertTrue(voteButton.waitForExistence(timeout: 5), "no vote buttons on the card")
+        let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 5), "no photo carousel on the card")
+        let hint = card.descendants(matching: .any)["feed-vote-hint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 5), "no press-and-hold hint on the card")
+        XCTAssertFalse(card.buttons["feed-vote-button-1"].exists, "the vote buttons are gone; votes are cast on the photo")
         let results = card.descendants(matching: .any)["feed-vote-results"]
         XCTAssertFalse(results.exists, "results must stay hidden until the viewer votes")
-        bringIntoOpenArea(voteButton, in: app)
-        waitUntilStill(voteButton)
+        bringIntoOpenArea(carousel, in: app)
+        waitUntilStill(carousel)
         attach(app, name: "feed-card-before-vote")
 
-        voteButton.tap()
-        XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after voting on the card")
-        XCTAssertFalse(card.buttons["feed-vote-button-1"].exists, "vote buttons should give way to the results")
+        carousel.press(forDuration: 1.2)
+        XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after holding the photo")
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "a hold must vote, not open the vote screen")
         attach(app, name: "feed-card-voted")
 
         let undo = card.buttons["feed-vote-undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo on the card after voting")
         undo.tap()
-        XCTAssertTrue(card.buttons["feed-vote-button-1"].waitForExistence(timeout: 5), "vote buttons did not return after Undo")
+        XCTAssertTrue(hint.waitForExistence(timeout: 5), "the hint did not return after Undo")
+    }
+
+    /// A profile tile opens the post as the feed card (with its vote hint), not the vote screen.
+    func testProfileTileOpensThePostAsAFeedCard() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument]
+        app.launch()
+        XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15), "tab bar never appeared")
+        app.buttons["accountTab"].tap()
+
+        let tile = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == 'My rainy day commute look'")).firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 10), "profile tile not found")
+        tile.tap()
+
+        let card = app.descendants(matching: .any)["feed-post-card"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "tapping a profile tile should show the post card")
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "the vote screen must not open directly")
+        attach(app, name: "profile-post-card")
     }
 
     // MARK: - Helpers

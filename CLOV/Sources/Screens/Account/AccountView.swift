@@ -60,7 +60,7 @@ struct AccountView: View {
             if newSegment == .saved && savedState == .notLoaded { Task { await loadSaved() } }
         }
         .navigationDestination(item: $destination) { destinationView($0) }
-        .navigationDestination(item: $openedRoute) { FitCheckVoteLoader(fitCheckId: $0.id) }
+        .navigationDestination(item: $openedRoute) { ProfilePostView(fitCheckId: $0.id) }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView(profile: appState.profile)
         }

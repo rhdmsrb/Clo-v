@@ -125,6 +125,25 @@ extension API {
         return FeedPageResult(items: visible, fetchedCount: saved.count)
     }
 
+    /// One post, shaped like a feed row, for screens that show a single post as a feed card
+    /// (profile tiles). `nil` when it is gone, a draft, or by someone the viewer blocked.
+    static func fetchFeedItem(id: UUID) async throws -> FeedItemDTO? {
+#if DEBUG
+        if SampleData.isActive { return SampleData.fixture(id: id)?.feedItem }
+#endif
+        async let blockedTask = fetchBlockedUserIDs()
+        let rows: [FeedItemDTO] = try await client.from("fit_checks")
+            .select(feedColumns)
+            .eq("id", value: id)
+            .neq("status", value: "draft")
+            .limit(1)
+            .execute().value
+        let blocked = try await blockedTask
+        guard let row = rows.first, !blocked.contains(row.creatorId) else { return nil }
+        let withPrompt = await attachVotePrompts([row])
+        return try await signFeedPhotos(withPrompt).first
+    }
+
     // MARK: - Live tally
 
     /// Per-photo live totals. Empty unless the caller is the creator or has voted.
