@@ -68,17 +68,6 @@ final class VoteSummaryTests: XCTestCase {
         XCTAssertEqual(VoteSummaryPlan.decide(isEnded: false, isCreator: false, hasVoted: false), .hidden)
     }
 
-    func testMissingFunctionCodesTriggerFallback() {
-        for code in ["PGRST202", "42883"] {
-            XCTAssertTrue(API.isMissingFunctionError(PostgrestError(code: code, message: "m")))
-        }
-    }
-
-    func testOtherErrorsDoNotTriggerFallback() {
-        XCTAssertFalse(API.isMissingFunctionError(URLError(.notConnectedToInternet)))
-        XCTAssertFalse(API.isMissingFunctionError(PostgrestError(code: "42501", message: "m")))
-    }
-
     func testLegacyBuilderCountsRowsAndFindsMyVote() {
         let me = UUID()
         let votes = [VoteRef(photoId: photoA, voterId: me), VoteRef(photoId: photoA, voterId: UUID())]

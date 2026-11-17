@@ -27,12 +27,10 @@ extension API {
         guard !ranked.isEmpty else { return FeedPageResult(items: [], fetchedCount: 0) }
 
         async let blockedTask = fetchBlockedUserIDs()
-        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
-            try await client.from("fit_checks")
-                .select(columns)
-                .in("id", values: ranked.map(\.id))
-                .execute().value
-        }
+        let rows: [FeedItemDTO] = try await client.from("fit_checks")
+            .select(feedColumns)
+            .in("id", values: ranked.map(\.id))
+            .execute().value
         // The IN query has no order; restore the server's popularity order.
         let byID = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let ordered = ranked.compactMap { byID[$0.id] }

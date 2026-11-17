@@ -175,11 +175,8 @@ enum API {
 
     // MARK: - Feed
 
-    // Optional vote prompts are loaded separately so older Supabase schemas
-    // can still serve the core discovery feed during a gradual rollout.
-    static let legacyFeedColumns = "id, creator_id, caption, occasion, is_public, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position), fit_check_votes(photo_id, voter_id), fit_check_comments(id), vote_count, profiles!fit_checks_creator_id_fkey(nickname, avatar_url)"
-    /// Adds post tags, like_count and per-photo description/tags. Those columns
-    /// exist only after migrations 20261107000100+; see `selectingFeedColumns`.
+    // Vote prompts are loaded separately (attachVotePrompts) to keep the feed query small.
+    /// Post tags, like_count and per-photo description/tags (migrations 20261107000100+).
     static let feedColumns = "id, creator_id, caption, occasion, is_public, tags, like_count, created_at, expires_at, fit_check_photos(id, fit_check_id, image_url, position, description, tags), fit_check_votes(photo_id, voter_id), fit_check_comments(id), vote_count, profiles!fit_checks_creator_id_fkey(nickname, avatar_url, account_code)"
 
     /// Audiences that belong in the Home and Following feeds. Group posts stay in
@@ -198,15 +195,13 @@ enum API {
         let userId = try await client.auth.session.user.id
         async let friendTask = fetchFriendIDs(userId: userId)
         let friendIDs = try await friendTask
-        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
-            var query = client.from("fit_checks")
-                .select(columns).eq("status", value: "live")
-                .in("audience", values: mainFeedAudiences)
-                .or(notExpiredFilter)
-            if friendIDs.isEmpty { query = query.eq("is_public", value: true) }
-            else { query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))") }
-            return try await query.order("created_at", ascending: false).limit(50).execute().value
-        }
+        var query = client.from("fit_checks")
+            .select(feedColumns).eq("status", value: "live")
+            .in("audience", values: mainFeedAudiences)
+            .or(notExpiredFilter)
+        if friendIDs.isEmpty { query = query.eq("is_public", value: true) }
+        else { query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))") }
+        let rows: [FeedItemDTO] = try await query.order("created_at", ascending: false).limit(50).execute().value
         let blocked = try await blockedTask
         let promptedRows = await attachVotePrompts(rows)
         return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
@@ -219,29 +214,27 @@ enum API {
         let followedOrFriends = (followingIDs ?? []).union(friendIDs)
         if followingIDs != nil, followedOrFriends.isEmpty { return FeedPageResult(items: [], fetchedCount: 0) }
         let trimmedSearch = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
-            var query = client.from("fit_checks")
-                .select(columns).eq("status", value: "live")
-                .in("audience", values: mainFeedAudiences)
-                .or(notExpiredFilter)
-            if followingIDs != nil {
-                query = query.in("creator_id", values: Array(followedOrFriends))
-            } else if !friendIDs.isEmpty {
-                query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))")
-            } else {
-                query = query.eq("is_public", value: true)
-            }
-            if let occasion, !occasion.isEmpty {
-                query = query.eq("occasion", value: occasion)
-            }
-            if !trimmedSearch.isEmpty {
-                query = query.ilike("caption", pattern: "%\(SearchTerm.likeEscaped(trimmedSearch))%")
-            }
-            return try await query
-                .order("created_at", ascending: false)
-                .range(from: offset, to: offset + max(0, limit - 1))
-                .execute().value
+        var query = client.from("fit_checks")
+            .select(feedColumns).eq("status", value: "live")
+            .in("audience", values: mainFeedAudiences)
+            .or(notExpiredFilter)
+        if followingIDs != nil {
+            query = query.in("creator_id", values: Array(followedOrFriends))
+        } else if !friendIDs.isEmpty {
+            query = query.or("is_public.eq.true,creator_id.in.(\(friendIDs.map(\.uuidString).joined(separator: ",")))")
+        } else {
+            query = query.eq("is_public", value: true)
         }
+        if let occasion, !occasion.isEmpty {
+            query = query.eq("occasion", value: occasion)
+        }
+        if !trimmedSearch.isEmpty {
+            query = query.ilike("caption", pattern: "%\(SearchTerm.likeEscaped(trimmedSearch))%")
+        }
+        let rows: [FeedItemDTO] = try await query
+            .order("created_at", ascending: false)
+            .range(from: offset, to: offset + max(0, limit - 1))
+            .execute().value
         let blocked = try await fetchBlockedUserIDs()
         let promptedRows = await attachVotePrompts(rows)
         let visible = try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
@@ -254,14 +247,12 @@ enum API {
         let visibleAuthors = following.union(friendIDs)
         guard !visibleAuthors.isEmpty else { return [] }
         async let blockedTask = fetchBlockedUserIDs()
-        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
-            try await client.from("fit_checks")
-                .select(columns).eq("status", value: "live")
-                .in("audience", values: mainFeedAudiences)
-                .in("creator_id", values: Array(visibleAuthors))
-                .or(notExpiredFilter)
-                .order("created_at", ascending: false).limit(50).execute().value
-        }
+        let rows: [FeedItemDTO] = try await client.from("fit_checks")
+            .select(feedColumns).eq("status", value: "live")
+            .in("audience", values: mainFeedAudiences)
+            .in("creator_id", values: Array(visibleAuthors))
+            .or(notExpiredFilter)
+            .order("created_at", ascending: false).limit(50).execute().value
         let blocked = try await blockedTask
         let promptedRows = await attachVotePrompts(rows)
         return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
@@ -345,12 +336,10 @@ enum API {
         if SampleData.isActive { return SampleData.groupFeed(groupId: groupId) }
 #endif
         async let blockedTask = fetchBlockedUserIDs()
-        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
-            try await client.from("fit_checks")
-                .select(columns).eq("status", value: "live")
-                .eq("group_id", value: groupId).or(notExpiredFilter)
-                .order("created_at", ascending: false).limit(50).execute().value
-        }
+        let rows: [FeedItemDTO] = try await client.from("fit_checks")
+            .select(feedColumns).eq("status", value: "live")
+            .eq("group_id", value: groupId).or(notExpiredFilter)
+            .order("created_at", ascending: false).limit(50).execute().value
         let blocked = try await blockedTask
         let promptedRows = await attachVotePrompts(rows)
         return try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
