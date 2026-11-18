@@ -7,6 +7,9 @@ import UIKit
 struct AuthHeroPhoto: View {
     /// Name of the optional asset-catalog image for the auth cover.
     static let assetName = "AuthHero"
+    /// Which part of the photo stays in view when it is cropped (`.top` keeps the face
+    /// in the short band above the login form).
+    var alignment: Alignment = .center
 
     var body: some View {
         GeometryReader { proxy in
@@ -19,7 +22,7 @@ struct AuthHeroPhoto: View {
                     fallback
                 }
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: alignment)
             .clipped()
         }
         .accessibilityHidden(true)

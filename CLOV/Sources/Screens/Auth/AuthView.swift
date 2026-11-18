@@ -115,7 +115,7 @@ struct AuthView: View {
     }
 
     private func formHero(height: CGFloat) -> some View {
-        AuthHeroPhoto()
+        AuthHeroPhoto(alignment: .top)
             .frame(height: height)
             .overlay {
                 LinearGradient(colors: [.black.opacity(0.3), .clear], startPoint: .top, endPoint: .center)
