@@ -134,6 +134,7 @@ struct FeedCardVoteSection<Photos: View>: View {
 
     private var results: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let insight = model.insight { insightLine(insight) }
             ForEach(model.photos) { photo in resultRow(photo) }
             HStack {
                 Text(footerText)
@@ -145,6 +146,18 @@ struct FeedCardVoteSection<Photos: View>: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-vote-results")
+    }
+
+    /// The pay-off for voting: how the viewer's pick compares with everyone else's
+    /// ("You're with the majority · 64% agree"). Updates as the server totals arrive.
+    private func insightLine(_ insight: String) -> some View {
+        Label(insight, systemImage: "sparkles")
+            .font(Theme.font(.subheadline, weight: .semibold))
+            .foregroundStyle(Theme.accentDeep)
+            .fixedSize(horizontal: false, vertical: true)
+            .contentTransition(.opacity)
+            .transition(.scale(scale: 0.9, anchor: .leading).combined(with: .opacity))
+            .accessibilityIdentifier("feed-vote-insight")
     }
 
     private func resultRow(_ photo: FitCheckPhoto) -> some View {

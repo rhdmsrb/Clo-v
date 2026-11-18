@@ -61,6 +61,16 @@ final class ReelVoteModelGridTests: XCTestCase {
         XCTAssertEqual(model.myVote, photoB)
     }
 
+    /// The feed card shows `insight` as the pay-off for voting: nothing before a vote, a line right after.
+    func testInsightAppearsOnlyOnceTheViewerHasVoted() {
+        let model = ReelVoteModel(item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil), service: service())
+        XCTAssertNil(model.insight)
+
+        XCTAssertTrue(model.vote(for: photoA) {})
+
+        XCTAssertEqual(model.insight, "You're one of the first to weigh in. Check back to see who agrees.")
+    }
+
     func testVoteForUnknownPhotoIsRejected() {
         let model = ReelVoteModel(item: makeItem(), voterId: viewer, initialSummary: .hidden(myVote: nil), service: service())
         XCTAssertFalse(model.vote(for: UUID()) {})
