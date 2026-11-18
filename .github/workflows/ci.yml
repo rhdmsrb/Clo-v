@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: Build and unit tests
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Project is in sync with project.yml
+        run: |
+          xcodegen generate
+          git diff --exit-code -- CLOV.xcodeproj || {
+            echo "::error::CLOV.xcodeproj is out of date. Run 'xcodegen generate' and commit the result."
+            exit 1
+          }
+      - name: Unit tests
+        run: |
+          SIM=$(xcrun simctl list devices available | grep -E "iPhone" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          xcodebuild test -scheme CLOV -destination "id=$SIM" \
+            -only-testing:CLOVTests CODE_SIGNING_ALLOWED=NO
+
+  edge-functions:
+    name: Type-check Edge Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/*/index.ts
+
+  migrations:
+    name: Migrations have rollbacks
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Every new migration has a rollback file
+        run: |
+          status=0
+          for f in $(git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}...HEAD" -- 'supabase/migrations/*.sql'); do
+            name=$(basename "$f")
+            if ! [[ "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]]; then
+              echo "::error file=$f::Migration name must be <14-digit timestamp>_<snake_case>.sql"; status=1; continue
+            fi
+            ts=${name%%_*}
+            if ! ls supabase/rollback/"${ts}"_*.sql >/dev/null 2>&1; then
+              echo "::error file=$f::No matching rollback in supabase/rollback/ (expected ${ts}_*.sql)"; status=1
+            fi
+          done
+          exit $status
