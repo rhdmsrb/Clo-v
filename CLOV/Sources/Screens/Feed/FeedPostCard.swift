@@ -27,7 +27,13 @@ struct FeedPostCard: View {
     /// A hold that ends on the photo must not also count as a tap that opens the vote screen.
     @State private var holdStartedAt: Date?
     @State private var ignoreOpenUntil = Date.distantPast
+    /// Bumped by a tap on the photo while the vote screen is hidden, so the on-photo hint bounces.
+    @State private var holdHintNudge = 0
+    /// True for a moment after voting, so the carousel stays on the look the viewer picked.
+    @State private var isShowingOwnVote = false
+    @State private var voteDwellToken = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Tall 9:16 (width : height), like a phone photo or story, so the outfit gets most
     /// of the screen. Each photo fills the frame, so other shapes lose a little at the edges
@@ -39,6 +45,10 @@ struct FeedPostCard: View {
     /// A press longer than this is a hold, so its release must not open the vote screen.
     private static let holdMinimumDuration: TimeInterval = 0.25
     private static let openSuppressionAfterHold: TimeInterval = 0.4
+    /// Longer than one carousel interval, so the picked look's result is the first one seen.
+    private static let voteDwellDuration: Duration = .seconds(5)
+    private static let photoBadgeInset: CGFloat = 12
+    private static let hintNudgeScale: CGFloat = 1.12
 
     private var posterName: String { item.profiles?.nickname ?? "Someone" }
     private var title: String { PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion) }
@@ -86,6 +96,7 @@ struct FeedPostCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(posterName)’s Fit-Check")
         .accessibilityIdentifier("feed-post-card")
+        .task(id: voteDwellToken) { await endVoteDwell() }
     }
 
     /// The long-press menu (Share, Report, Block) is kept off the photos and the vote area: a long
@@ -163,15 +174,20 @@ struct FeedPostCard: View {
     }
 
     private func photos(expired: Bool, vote: PhotoVoteAction) -> some View {
-        PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
-                      autoAdvance: !expired && !isHoldingToVote, keepsRotatingAfterTouch: true,
-                      contentMode: .fill, accessibilityIdentifier: "feed-photo-carousel",
-                      onTap: FitCheckReelView.isEnabled ? openIfNotAfterHold : nil)
+        let canVote = vote.isEnabled && !expired
+        return PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
+                             autoAdvance: !expired && !isHoldingToVote && !isShowingOwnVote,
+                             keepsRotatingAfterTouch: true,
+                             contentMode: .fill, accessibilityIdentifier: "feed-photo-carousel",
+                             onTap: { handlePhotoTap(canVote: canVote) })
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
             .overlay { if expired { endedOverlay } }
+            // The vote hint and the text below the photo sit under the fold on a tall photo,
+            // so the photo itself says how to vote and how many looks there are.
+            .overlay(alignment: .top) { photoBadges(canVote: canVote) }
             .clipped()
             .contentShape(Rectangle())
-            .holdToVote(isEnabled: vote.isEnabled && !expired, isPressing: $isHoldingToVote, onVote: vote.cast)
+            .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote) { castAndShowOwnVote(vote) }
             .onChange(of: isHoldingToVote) { _, holding in noteHold(holding) }
             .accessibilityAddTraits(FitCheckReelView.isEnabled ? .isButton : [])
             .accessibilityActions {
@@ -181,9 +197,71 @@ struct FeedPostCard: View {
             }
     }
 
-    private func openIfNotAfterHold() {
+    /// A tap opens the vote screen when it is shown. While it is hidden a tap would do nothing, so
+    /// it points at the hold instead. The release of a hold is not a tap.
+    private func handlePhotoTap(canVote: Bool) {
         guard Date() >= ignoreOpenUntil else { return }
-        onOpen(photoIndex)
+        if FitCheckReelView.isEnabled {
+            onOpen(photoIndex)
+            return
+        }
+        guard canVote else { return }
+        holdHintNudge += 1
+        Haptics.impact(.light)
+        AccessibilityNotification.Announcement("Press and hold the photo to vote").post()
+    }
+
+    /// Votes, then holds the carousel on the picked look so its result shows first.
+    private func castAndShowOwnVote(_ vote: PhotoVoteAction) {
+        vote.cast()
+        isShowingOwnVote = true
+        voteDwellToken += 1
+    }
+
+    /// Lets the carousel rotate again a few seconds after a vote. Re-keyed by each vote.
+    private func endVoteDwell() async {
+        guard isShowingOwnVote else { return }
+        try? await Task.sleep(for: Self.voteDwellDuration)
+        guard !Task.isCancelled else { return }
+        isShowingOwnVote = false
+    }
+
+    private func photoBadges(canVote: Bool) -> some View {
+        HStack(alignment: .top) {
+            if canVote { holdHint }
+            Spacer(minLength: 0)
+            if photoURLs.count > 1 { pageCounter }
+        }
+        .padding(Self.photoBadgeInset)
+        .allowsHitTesting(false)
+    }
+
+    private var holdHint: some View {
+        Label("Hold to vote", systemImage: "hand.tap.fill")
+            .font(Theme.font(.footnote, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(.black.opacity(0.55), in: Capsule())
+            .phaseAnimator([false, true, false], trigger: holdHintNudge) { content, isUp in
+                content.scaleEffect(isUp && !reduceMotion ? Self.hintNudgeScale : 1)
+            }
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Press and hold the photo to vote")
+            .accessibilityIdentifier("feed-photo-hold-hint")
+    }
+
+    /// "2/4": which look is showing. The dots at the photo's foot are under the fold on a tall photo.
+    private var pageCounter: some View {
+        Text("\(photoIndex + 1)/\(photoURLs.count)")
+            .font(Theme.font(.footnote, weight: .bold))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(.black.opacity(0.55), in: Capsule())
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            // The carousel already reads "Photo 2 of 4".
+            .accessibilityHidden(true)
     }
 
     private func noteHold(_ holding: Bool) {
