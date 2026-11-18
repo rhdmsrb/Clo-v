@@ -25,10 +25,10 @@ struct HomeHeader: View {
     let onNotifications: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
             HStack(alignment: .center, spacing: Spacing.s) {
                 Text("CLO·V")
-                    .font(Theme.editorialFont(size: 34, weight: .bold))
+                    .font(Theme.editorialFont(size: 28, weight: .bold))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -49,8 +49,8 @@ struct HomeHeader: View {
                     .lineLimit(1)
                     .accessibilityIdentifier("home.greeting")
             }
-            EditorialTitle("Today’s", emphasis: "best", "fits")
-                .padding(.top, Spacing.m)
+            EditorialTitle("Today’s", emphasis: "best", "fits", font: Theme.headlineSerif)
+                .padding(.top, Spacing.s)
                 .accessibilityIdentifier("home.headline")
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)

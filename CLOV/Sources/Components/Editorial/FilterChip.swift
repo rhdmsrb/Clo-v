@@ -15,6 +15,8 @@ struct FilterChip: View {
     let isSelected: Bool
     let action: () -> Void
 
+    @ScaledMetric(relativeTo: .subheadline) private var visualHeight: CGFloat = 36
+
     var body: some View {
         Button {
             Haptics.selection()
@@ -24,8 +26,20 @@ struct FilterChip: View {
                 if let systemImage { Image(systemName: systemImage).imageScale(.small) }
                 Text(title).lineLimit(1)
             }
+            .font(Theme.font(.subheadline, weight: isSelected ? .semibold : .medium))
+            .foregroundStyle(isSelected ? Theme.accentForeground : Theme.ink)
+            .padding(.horizontal, Spacing.m)
+            .frame(minHeight: visualHeight)
+            .background(isSelected ? Theme.accent : Theme.card, in: Capsule(style: .continuous))
+            .overlay {
+                Capsule(style: .continuous)
+                    .strokeBorder(isSelected ? Color.clear : Theme.controlBorder, lineWidth: 1)
+            }
+            // The pill looks slim, but the tap area keeps the 44pt minimum.
+            .frame(minHeight: Theme.minTapSize)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(ChipButtonStyle(isSelected: isSelected, font: Theme.label, horizontalPadding: Spacing.m))
+        .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
         .motionSafeAnimation(Theme.quick, value: isSelected)
     }

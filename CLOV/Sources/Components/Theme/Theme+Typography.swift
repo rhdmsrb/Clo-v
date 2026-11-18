@@ -16,6 +16,8 @@ extension Theme {
     /// Large serif headline (New York, 34pt largeTitle). Pair with `EditorialTitle`
     /// to set one word in italic.
     static let display = Font.system(.largeTitle, design: .serif)
+    /// Smaller serif headline (28pt title) for screen headers under a wordmark.
+    static let headlineSerif = Font.system(.title, design: .serif)
     /// Serif italic label that sits on photos ("Date night", "Campus").
     static let serifLabel = Font.system(.subheadline, design: .serif).italic()
     /// Serif italic line under the wordmark ("Good evening, Maya").

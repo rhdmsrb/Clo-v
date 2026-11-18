@@ -41,7 +41,20 @@ extension FitCardContent {
 struct FitCard<Media: View>: View {
     let content: FitCardContent
     var aspectRatio: CGFloat = 4.0 / 5.0
+    var cornerRadius: CGFloat = Radius.card
+    /// Space under the caption; raise it when the media draws its own controls at the
+    /// bottom (a carousel's page dots), so the two never overlap.
+    var captionBottomInset: CGFloat = Spacing.m
     @ViewBuilder let media: () -> Media
+
+    init(content: FitCardContent, aspectRatio: CGFloat = 4.0 / 5.0, cornerRadius: CGFloat = Radius.card,
+         captionBottomInset: CGFloat = Spacing.m, @ViewBuilder media: @escaping () -> Media) {
+        self.content = content
+        self.aspectRatio = aspectRatio
+        self.cornerRadius = cornerRadius
+        self.captionBottomInset = captionBottomInset
+        self.media = media
+    }
 
     var body: some View {
         Color.clear
@@ -50,9 +63,14 @@ struct FitCard<Media: View>: View {
             .overlay { Theme.photoScrim.allowsHitTesting(false) }
             .overlay(alignment: .topLeading) { author.padding(Spacing.sm).allowsHitTesting(false) }
             .overlay(alignment: .topTrailing) { CountdownBadge(expiresAt: content.expiresAt).padding(Spacing.sm) }
-            .overlay(alignment: .bottomLeading) { caption.padding(Spacing.m).allowsHitTesting(false) }
-            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .overlay(alignment: .bottomLeading) {
+                caption
+                    .padding([.horizontal, .top], Spacing.m)
+                    .padding(.bottom, captionBottomInset)
+                    .allowsHitTesting(false)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .environment(\.colorScheme, .dark) // overlays sit on a dark scrim in both modes
     }
 
@@ -113,10 +131,10 @@ struct FitCard<Media: View>: View {
 
 extension FitCard where Media == FitCardPhoto {
     /// Card with the default photo for `content.photoURL`.
-    init(content: FitCardContent, aspectRatio: CGFloat = 4.0 / 5.0) {
-        self.content = content
-        self.aspectRatio = aspectRatio
-        self.media = { FitCardPhoto(url: content.photoURL) }
+    init(content: FitCardContent, aspectRatio: CGFloat = 4.0 / 5.0, cornerRadius: CGFloat = Radius.card) {
+        self.init(content: content, aspectRatio: aspectRatio, cornerRadius: cornerRadius) {
+            FitCardPhoto(url: content.photoURL)
+        }
     }
 }
 

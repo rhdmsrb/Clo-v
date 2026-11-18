@@ -38,17 +38,19 @@ struct FeedView: View {
     @State private var pendingLikeIDs: Set<UUID> = []
     @State private var loadID = UUID()
     @State private var showSearch = false
+    /// Selected Home filter chip (see `HomeFeedFilters`); unused in the vote queue.
+    @State private var homeFilter = HomeFeedFilters.popular
     @State private var showNotifications = false
     @State private var unreadCount = 0
     @State private var firstPhotoDisplayed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tabBarClearance) private var tabBarClearance
 
-    private static let pagePadding: CGFloat = 20
+    private static let pagePadding = Spacing.pageGutter
     private static let pageSize = 24
     private static let cardSpacing: CGFloat = 16
     /// Posts have no card surface any more, so they need more air between them.
-    private static let postSpacing: CGFloat = 28
+    private static let postSpacing = Spacing.l
     private static let noticeDuration: Duration = .seconds(3)
 
     private var emptyFeedText: String {
@@ -150,13 +152,18 @@ struct FeedView: View {
             // section instead of on the whole column.
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
                 header.padding(.horizontal, Self.pagePadding)
+                if style == .home {
+                    FilterChipRow(options: HomeFeedFilters.options(stylePreferences: appState.profile?.stylePreferences ?? []),
+                                  selection: $homeFilter, accessibilityLabel: "Feed filters")
+                }
                 feedList
                 olderFitChecksButton.padding(.horizontal, Self.pagePadding)
             }
-            .padding(.vertical, Self.cardSpacing)
+            .padding(.top, Spacing.s)
+            .padding(.bottom, Self.cardSpacing)
         }
         .safeAreaPadding(.bottom, tabBarClearance)
-        .background(Theme.background)
+        .background(PaperBackground().ignoresSafeArea())
         .statusBarBackdrop()
         .refreshable {
             await load(refreshGraph: true)
@@ -203,34 +210,42 @@ struct FeedView: View {
         }
     }
 
+    /// Home applies the selected filter chip; the vote queue shows its list as is.
+    private var shownItems: [FeedItemDTO] {
+        guard style == .home else { return visibleItems }
+        return HomeFeedFilters.apply(homeFilter, to: visibleItems, followingIDs: followingIDs)
+    }
+
     private var feedList: some View {
-        AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
-                       emptyText: emptyFeedText, topPadding: 40, hasLoaded: hasLoaded,
+        let shown = shownItems
+        return AsyncStateView(isLoading: isLoading, error: error, isEmpty: shown.isEmpty,
+                       emptyText: shown.isEmpty && !visibleItems.isEmpty
+                           ? "No looks match this filter yet. Try another one."
+                           : emptyFeedText,
+                       topPadding: 40, hasLoaded: hasLoaded,
                        retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
                        emptyTitle: "No Fit-Checks yet",
                        emptyActionTitle: "Find friends", emptyAction: { showFriends = true },
                        skeleton: .cards) {
             LazyVStack(spacing: Self.postSpacing) {
-                ForEach(visibleItems) { item in
-                    FeedPostCard(
+                ForEach(shown) { item in
+                    HomeFitCard(
                         item: item,
-                        isLiked: likedIDs.contains(item.id),
                         viewerId: appState.userId,
+                        isLiked: likedIDs.contains(item.id),
                         isFollowing: followingIDs.contains(item.creatorId),
                         showsFollow: item.creatorId != appState.userId,
                         onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) },
                         onLike: { like in try await setLiked(like, item: item) },
-                        onOpen: FitCheckReelView.isEnabled
-                            ? { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) }
-                            : nil,
-                        onVoteChange: { photoId, total in applyVote(photoId: photoId, total: total, itemID: item.id) },
                         onComment: { commentItem = item },
+                        onVoteChange: { photoId, total in applyVote(photoId: photoId, total: total, itemID: item.id) },
                         onPhotoDisplay: {
                             guard !firstPhotoDisplayed, item.id == visibleItems.first?.id else { return }
                             firstPhotoDisplayed = true
                             Log.performance.emitEvent("First home photo displayed")
                         }
                     )
+                    .padding(.horizontal, Self.pagePadding)
                     .scrollTransition(.animated(Theme.settle), axis: .vertical) { [reduceMotion] view, phase in
                         view
                             .opacity(reduceMotion || phase.isIdentity ? 1 : 0.6)
