@@ -96,7 +96,7 @@ struct PhotoCarousel: View {
         // drag would fire on the touch-down of a vertical feed scroll and stop rotation.
         .simultaneousGesture(
             DragGesture(minimumDistance: CarouselAutoAdvance.swipeThreshold)
-                .onChanged { if CarouselAutoAdvance.isHorizontalSwipe($0.translation) { stopForGood() } }
+                .onChanged { if CarouselAutoAdvance.isHorizontalSwipe($0.translation) { stopForGood(manualSelection: true) } }
         )
         .simultaneousGesture(TapGesture().onEnded { stopForGood(); onTap?() })
         .simultaneousGesture(
@@ -122,7 +122,7 @@ struct PhotoCarousel: View {
         .accessibilityLabel("Photos")
         .accessibilityValue(urls.isEmpty ? "" : "Photo \(logic.index + 1) of \(urls.count)")
         .accessibilityAdjustableAction { direction in
-            stopForGood()
+            stopForGood(manualSelection: true)
             switch direction {
             case .increment: setPage(logic.index + 1)
             case .decrement: setPage(logic.index - 1)
@@ -136,7 +136,7 @@ struct PhotoCarousel: View {
             get: { logic.index },
             set: { newValue in
                 // A page change we did not trigger from the timer is a user swipe.
-                if newValue != logic.index { stopForGood() }
+                if newValue != logic.index { stopForGood(manualSelection: true) }
                 setPage(newValue)
             }
         )
@@ -149,8 +149,8 @@ struct PhotoCarousel: View {
         currentIndex = newIndex
     }
 
-    private func stopForGood() {
-        guard !keepsRotatingAfterTouch, !logic.isStopped else { return }
+    private func stopForGood(manualSelection: Bool = false) {
+        guard !logic.isStopped, manualSelection || !keepsRotatingAfterTouch else { return }
         fadingPhoto = nil
         logic = logic.userInteracted()
     }

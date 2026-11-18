@@ -47,13 +47,20 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.buttons["feedTab"].exists)
     }
 
-    func testQuickPostIsAvailableAfterSelectingPhotos() {
+    func testQuickPostRequiresAnAudienceChoice() {
         let app = XCUIApplication()
         app.launchArguments = [Self.sampleDataArgument, "--uiTestCreatePhotos"]
         app.launch()
         app.buttons["tabPlusButton"].tap()
         app.buttons["createNextButton"].tap()
-        XCTAssertTrue(app.buttons["createQuickPost"].isEnabled)
+        let quickPost = app.buttons["createQuickPost"]
+        XCTAssertTrue(quickPost.waitForExistence(timeout: 5))
+        XCTAssertFalse(quickPost.isEnabled)
+        let everyone = app.buttons["Everyone"].firstMatch
+        for _ in 0..<4 where !everyone.isHittable { app.swipeUp() }
+        XCTAssertTrue(everyone.isHittable)
+        everyone.tap()
+        XCTAssertTrue(quickPost.isEnabled)
     }
 
     func testLandscapePhotoFillsTheFeedCardWithoutBars() throws {
