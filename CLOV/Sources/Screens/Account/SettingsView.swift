@@ -8,7 +8,7 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
 
-    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.rose.id
+    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.clay.id
     @AppStorage(AppearanceKey.colorScheme) private var colorSchemeRaw = AppearanceMode.system.rawValue
 
     @State private var pushPermission = PushPermission.unknown

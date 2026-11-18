@@ -36,10 +36,15 @@ final class AppearanceUITests: XCTestCase {
     func testSelectingPaletteStaysOnScreenAndPersists() throws {
         let app = launch()
         openAppearance(app)
-        app.buttons["palette_rose"].tap()
-        XCTAssertTrue(app.buttons["palette_rose"].isSelected)
-        XCTAssertEqual(app.buttons["palette_rose"].label, "Burgundy")
-        attach(app, "1-burgundy")
+        app.buttons["palette_clay"].tap()
+        XCTAssertTrue(app.buttons["palette_clay"].isSelected)
+        XCTAssertEqual(app.buttons["palette_clay"].label, "Clay")
+        attach(app, "1-clay")
+
+        app.buttons["palette_classic"].tap()
+        XCTAssertTrue(app.buttons["palette_classic"].isSelected)
+        XCTAssertEqual(app.buttons["palette_classic"].label, "Classic")
+        attach(app, "1b-classic")
 
         app.buttons["palette_forest"].tap()
         XCTAssertTrue(app.navigationBars["Appearance"].exists, "Changing palette must not pop the screen.")

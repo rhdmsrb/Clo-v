@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Capsule CTA: hero gradient fill, >= 52pt tall, press scale 0.96, soft haptic.
+/// Primary CTA: near-black pill with white text, >= 52pt tall, press scale 0.96, soft haptic.
 struct PrimaryButtonStyle: ButtonStyle {
     var isDisabled: Bool = false
     @Environment(\.isEnabled) private var isEnabled
-    private static let minHeight: CGFloat = 52
+    private static let minHeight = Theme.ctaHeight
 
     private var disabled: Bool { isDisabled || !isEnabled }
 
@@ -13,7 +13,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(Theme.headline)
             .frame(maxWidth: .infinity, minHeight: Self.minHeight)
             .padding(.horizontal, 20)
-            .foregroundStyle(disabled ? AnyShapeStyle(Theme.mutedForeground) : AnyShapeStyle(Color.white))
+            .foregroundStyle(disabled ? Theme.mutedForeground : Theme.primaryButtonText)
             .background(fill, in: Capsule(style: .continuous))
             .contentShape(Capsule(style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
@@ -24,7 +24,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 
     private var fill: AnyShapeStyle {
-        disabled ? AnyShapeStyle(Theme.muted) : AnyShapeStyle(Theme.heroGradient)
+        disabled ? AnyShapeStyle(Theme.muted) : AnyShapeStyle(Theme.primaryButtonFill)
     }
 }
 
@@ -33,7 +33,7 @@ struct OutlineButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(Theme.headline)
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .frame(maxWidth: .infinity, minHeight: Theme.ctaHeight)
             .padding(.horizontal, 20)
             .background(configuration.isPressed ? Theme.muted : Theme.cardElevated, in: Capsule(style: .continuous))
             .foregroundStyle(Theme.ink)
@@ -91,11 +91,11 @@ struct AvatarView: View {
     }
 }
 
-/// Shared chip look: selected = accentTint fill + accentDeep stroke/text (+ checkmark when
-/// Differentiate Without Color is on); unselected = muted fill with a control border.
+/// Shared chip look: selected = solid accent fill with accentForeground text (+ checkmark
+/// when Differentiate Without Color is on); unselected = card fill with a hairline outline.
 private struct ChipSurface: ViewModifier {
     let isSelected: Bool
-    var unselectedFill: Color = Theme.muted
+    var unselectedFill: Color = Theme.card
     @Environment(\.colorSchemeContrast) private var contrast
 
     func body(content: Content) -> some View {
@@ -103,11 +103,10 @@ private struct ChipSurface: ViewModifier {
         // renders squarish at the ends. `strokeBorder` draws the outline inside
         // the edge, so a scroll view around a chip row can't clip half of it.
         let shape = Capsule(style: .continuous)
-        let selectedWidth: CGFloat = contrast == .increased ? 2.5 : 1.5
+        let border = contrast == .increased ? Theme.ink.opacity(0.6) : Theme.controlBorder
         content
-            .background(isSelected ? Theme.accentTint : unselectedFill, in: shape)
-            .overlay(shape.strokeBorder(isSelected ? Theme.accentDeep : Theme.controlBorder,
-                                        lineWidth: isSelected ? selectedWidth : 1))
+            .background(isSelected ? Theme.accent : unselectedFill, in: shape)
+            .overlay(shape.strokeBorder(isSelected ? Color.clear : border, lineWidth: 1))
             .contentShape(shape)
     }
 }
@@ -136,7 +135,7 @@ struct ChipToggle: View {
         Button(action: action) {
             ChipLabel(isSelected: selected) { Text(label) }
                 .font(Theme.label)
-                .foregroundStyle(selected ? Theme.accentDeep : Theme.ink)
+                .foregroundStyle(selected ? Theme.accentForeground : Theme.ink)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
                 .frame(minHeight: Theme.minTapSize)
@@ -155,14 +154,14 @@ struct ChipButtonStyle: ButtonStyle {
     var isSelected: Bool
     var font: Font = Theme.caption
     var expands = false
-    var unselectedFill: Color = Theme.muted
+    var unselectedFill: Color = Theme.card
     var unselectedForeground: Color = Theme.ink
     var horizontalPadding: CGFloat = 12
 
     func makeBody(configuration: Configuration) -> some View {
         ChipLabel(isSelected: isSelected) { configuration.label }
             .font(font)
-            .foregroundStyle(isSelected ? Theme.accentDeep : unselectedForeground)
+            .foregroundStyle(isSelected ? Theme.accentForeground : unselectedForeground)
             .multilineTextAlignment(.center)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 8)

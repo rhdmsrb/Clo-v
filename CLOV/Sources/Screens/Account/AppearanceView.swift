@@ -3,7 +3,7 @@ import SwiftUI
 /// Lets the user pick the app's color palette and light/dark preference.
 /// Choices persist in AppStorage and apply live (see `ThemePalette`).
 struct AppearanceView: View {
-    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.rose.id
+    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.clay.id
     @AppStorage(AppearanceKey.colorScheme) private var colorSchemeRaw = AppearanceMode.system.rawValue
 
     private let swatchColumns = [GridItem(.adaptive(minimum: 88), spacing: 12)]
@@ -22,8 +22,8 @@ struct AppearanceView: View {
                 customPicker
                 SectionHeader(title: "Appearance")
                 modePicker
-                if paletteID != ThemePalette.rose.id {
-                    Button("Reset to Burgundy") { select(.rose) }
+                if ThemePalette.resolve(paletteID) != .clay {
+                    Button("Reset to Clay") { select(.clay) }
                         .buttonStyle(OutlineButtonStyle())
                         .accessibilityIdentifier("resetPaletteButton")
                 }
@@ -62,9 +62,9 @@ struct AppearanceView: View {
             }
             Text("Post a Fit-Check")
                 .font(Theme.bodyEmphasis)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.primaryButtonText)
                 .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
-                .background(Theme.heroGradient, in: Capsule())
+                .background(Theme.primaryButtonFill, in: Capsule())
         }
         .softCard()
         .accessibilityElement(children: .ignore)
@@ -84,7 +84,7 @@ struct AppearanceView: View {
                         if isSelected {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(palette.id == ThemePalette.rose.id ? Color.white : Color(uiColor: palette.color(.accentForeground, dark: false)))
+                                .foregroundStyle(palette.hue == nil ? Color.white : Color(uiColor: palette.color(.accentForeground, dark: false)))
                         }
                     }
                 Text(palette.name)

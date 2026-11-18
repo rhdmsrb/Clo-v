@@ -6,7 +6,7 @@ struct CLOVApp: App {
     @UIApplicationDelegateAdaptor(CLOVAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasAskedForPush = false
-    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.rose.id
+    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.clay.id
     @AppStorage(AppearanceKey.colorScheme) private var colorSchemeRaw = AppearanceMode.system.rawValue
 
     var body: some Scene {
