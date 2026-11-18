@@ -72,7 +72,7 @@ final class ImageCache {
         }
     }
 
-    private static func downsampled(_ data: Data) -> UIImage? {
+    private static func downsampled(_ data: Data, maxPixelSize: Int) -> UIImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
         let options = [

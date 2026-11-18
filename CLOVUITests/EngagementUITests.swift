@@ -29,6 +29,8 @@ final class EngagementUITests: XCTestCase {
         let field = app.textFields["search.query"]
         XCTAssertTrue(field.waitForExistence(timeout: 10), "Search field missing.")
         field.tap()
+        let clearHistory = app.buttons["search.clearRecents"]
+        if clearHistory.exists { clearHistory.tap() }
         let suggestion = app.buttons["suggestion_Brunch"]
         XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "Suggestions missing.")
         attach(app, "1-suggestions")

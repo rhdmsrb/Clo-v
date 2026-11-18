@@ -9,6 +9,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   ios:
     name: Build and unit tests
@@ -52,9 +55,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Every new migration has a rollback file
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           status=0
-          for f in $(git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}...HEAD" -- 'supabase/migrations/*.sql'); do
+          for f in $(git diff --name-only --diff-filter=A "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql'); do
             name=$(basename "$f")
             if ! [[ "$name" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]]; then
               echo "::error file=$f::Migration name must be <14-digit timestamp>_<snake_case>.sql"; status=1; continue

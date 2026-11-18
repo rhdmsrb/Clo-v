@@ -26,7 +26,8 @@ struct FeedCardVoteSection<Photos: View>: View {
     let textInset: CGFloat
     /// Called with the viewer's vote (`nil` after an undo) once the server has confirmed it.
     let onVoteChange: (UUID?) -> Void
-    @ViewBuilder let photos: (PhotoVoteAction) -> Photos
+    let showsCenteredResult: Bool
+    @ViewBuilder let photos: (PhotoVoteAction, ReelVoteModel) -> Photos
 
     @EnvironmentObject private var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,12 +35,14 @@ struct FeedCardVoteSection<Photos: View>: View {
 
 
     init(item: FeedItemDTO, viewerId: UUID, photoIndex: Int, textInset: CGFloat,
+         showsCenteredResult: Bool,
          onVoteChange: @escaping (UUID?) -> Void, service: ReelVoteService = .live,
-         @ViewBuilder photos: @escaping (PhotoVoteAction) -> Photos) {
+         @ViewBuilder photos: @escaping (PhotoVoteAction, ReelVoteModel) -> Photos) {
         self.item = item
         self.viewerId = viewerId
         self.photoIndex = photoIndex
         self.textInset = textInset
+        self.showsCenteredResult = showsCenteredResult
         self.onVoteChange = onVoteChange
         self.photos = photos
         _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId, service: service))
@@ -47,19 +50,18 @@ struct FeedCardVoteSection<Photos: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: VoteSectionMetrics.photoToVoteSpacing) {
-            photos(PhotoVoteAction(isEnabled: model.canVote, cast: castVoteForShownPhoto))
+            photos(PhotoVoteAction(isEnabled: model.canVote, cast: castVoteForShownPhoto), model)
                 .overlay(alignment: .center) {
-                    if model.isResultsRevealed { centerResult }
+                    if showsCenteredResult && model.isResultsRevealed { centerResult }
                 }
             status.padding(.horizontal, textInset)
         }
         .animation(Theme.animation(Theme.settle, reduceMotion: reduceMotion), value: model.myVote)
-        // The feed query carries no vote rows (other viewers' votes stay private), so the viewer's
-        // own vote, and the totals when they may see them, come from the summary request.
+        // Summary requests supply the latest authorized totals without exposing other voters.
         .task { await model.loadSummary() }
         // A vote made elsewhere (the vote screen) reaches this card through the reloaded item.
         .onChange(of: item.ownVote(voterId: viewerId)) { _, seeded in
-            guard let seeded, seeded != model.myVote else { return }
+            guard seeded != model.myVote else { return }
             Task { await model.refreshSummary() }
         }
     }

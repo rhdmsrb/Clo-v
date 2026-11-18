@@ -905,7 +905,6 @@
 						ProvisioningStyle = Automatic;
 					};
 					D702CA410856F4E8B00F1C96 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1391,7 +1390,7 @@
 				CODE_SIGN_ENTITLEMENTS = CLOV/CLOVRelease.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = V3WNNCCTXA;
 				INFOPLIST_FILE = CLOV/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

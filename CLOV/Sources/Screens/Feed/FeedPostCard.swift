@@ -61,13 +61,13 @@ struct FeedPostCard: View {
         VStack(alignment: .leading, spacing: 10) {
             withContextMenu(header.padding(.horizontal, Self.textInset))
             FeedCardVoteSection(item: item, viewerId: viewerId, photoIndex: photoIndex,
-                                textInset: Self.textInset, onVoteChange: onVoteChange) { vote in
+                                textInset: Self.textInset, showsCenteredResult: !comparing,
+                                onVoteChange: onVoteChange) { vote, model in
                 VStack(alignment: .leading, spacing: 10) {
                     // One timeline per card, ticking once at expiry.
                     TimelineView(.expiry(item.expiresAt)) { _ in
                         if comparing {
-                            InlineLookComparison(item: item, viewerId: viewerId,
-                                                 onOpen: FitCheckReelView.isEnabled ? onOpen : nil)
+                            InlineLookComparison(model: model, onOpen: onOpen, onVoteChange: onVoteChange)
                         } else {
                             photos(expired: isExpired(item.expiresAt), vote: vote)
                         }
@@ -356,14 +356,11 @@ struct FeedPostCard: View {
 }
 
 private struct InlineLookComparison: View {
-    @StateObject private var model: ReelVoteModel
+    @ObservedObject var model: ReelVoteModel
+    @EnvironmentObject private var appState: AppState
     /// Opens the vote screen on a look; `nil` while that screen is hidden.
     let onOpen: ((Int) -> Void)?
-
-    init(item: FeedItemDTO, viewerId: UUID, onOpen: ((Int) -> Void)?) {
-        _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId))
-        self.onOpen = onOpen
-    }
+    let onVoteChange: (UUID?) -> Void
 
     var body: some View {
         VStack {
@@ -379,7 +376,7 @@ private struct InlineLookComparison: View {
                         if model.summaryLoaded && model.isResultsRevealed && !model.isVoting {
                             Text("Look \(index + 1) · \(model.percent(for: photo.id))%")
                         } else {
-                            Button("Vote for look \(index + 1)") { _ = model.vote(for: photo.id) {} }
+                            Button("Vote for look \(index + 1)") { _ = model.vote(for: photo.id, onRecorded: recorded) }
                                 .frame(minHeight: Theme.minTapSize)
                                 .disabled(!model.canVote)
                                 .accessibilityIdentifier("feed.vote.\(index)")
@@ -388,7 +385,7 @@ private struct InlineLookComparison: View {
                 }
             }
             if model.canRetract {
-                Button("Undo vote") { model.retractVote {} }
+                Button("Undo vote") { model.retractVote(onRecorded: recorded) }
                     .frame(minHeight: Theme.minTapSize)
             }
             if model.summaryLoadFailed {
@@ -398,7 +395,11 @@ private struct InlineLookComparison: View {
         }
         .buttonStyle(.plain)
         .font(Theme.bodyEmphasis)
-        .task { await model.loadSummary() }
+    }
+
+    private func recorded() {
+        onVoteChange(model.myVote)
+        appState.contentDidChange(reloadHomeFeed: false)
     }
 
     private func lookImage(_ photo: FitCheckPhoto) -> some View {
