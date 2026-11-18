@@ -142,11 +142,9 @@ final class EngagementUITests: XCTestCase {
         attach(app, "3b-more-menu")
     }
 
-    /// The redesigned vote screen hides the total until the viewer votes: holding
-    /// the centre photo casts the vote, shows Undo, and reveals the count.
     /// A thin feed ends with an invite card; "Find friends" opens the Friends screen.
     func testThinFeedEndsWithAnInviteThatOpensFriends() throws {
-        let app = launch()
+        let app = launch(arguments: ["--uiTestThinFeed"])
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)["feed-invite-card"].firstMatch
         var swipes = 0
@@ -159,6 +157,7 @@ final class EngagementUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Friends"].firstMatch.waitForExistence(timeout: 5), "Find friends did not open Friends")
     }
 
+    /// Holding the centre photo casts a vote, shows Undo, and reveals the count.
     func testVotingRevealsTheResult() throws {
         let app = launch(arguments: ["--uiTestEnableFitCheckReel"])
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))

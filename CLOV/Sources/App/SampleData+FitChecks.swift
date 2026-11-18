@@ -121,7 +121,9 @@ extension SampleData {
     static func feedPage(offset: Int, limit: Int, search: String, occasion: String?,
                          followingIDs: Set<UUID>?) -> API.FeedPageResult {
         let term = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matching = publicFeed.filter { item in
+        let posts = publicFeed
+        let fixtureCount = ProcessInfo.processInfo.arguments.contains("--uiTestThinFeed") ? 2 : posts.count
+        let matching = posts.prefix(fixtureCount).filter { item in
             (followingIDs.map { $0.contains(item.creatorId) } ?? true)
                 && (occasion.map { item.occasion == $0 } ?? true)
                 && (term.isEmpty || (item.caption ?? "").lowercased().contains(term))
