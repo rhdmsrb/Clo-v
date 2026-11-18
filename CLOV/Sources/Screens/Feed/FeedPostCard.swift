@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Feed post: author, prompt title, auto-rotating photos, Like / Comment /
-/// Send row, occasion and description. Voting controls live in Compare looks.
+/// Feed post: author, prompt title, auto-rotating photos, a vote row (one button
+/// per look, then the results), Like / Comment / Send row, occasion and
+/// description. Votes are cast on the card.
 struct FeedPostCard: View {
     let item: FeedItemDTO
     let isLiked: Bool
@@ -15,17 +16,39 @@ struct FeedPostCard: View {
     let onOpen: ((Int) -> Void)?
     /// Opens the comment thread sheet.
     let onComment: () -> Void
+    /// The viewer's vote on this post once the server confirmed it (`nil` after an undo).
+    var onVoteChange: (UUID?) -> Void = { _ in }
     var onPhotoDisplay: (() -> Void)?
 
     @State private var comparing = false
     @State private var photoIndex = 0
+    /// True while a press-and-hold vote is in progress; the photos stop rotating so the press stays on one look.
+    @State private var isHoldingToVote = false
+    /// A hold that ends on the photo must not also count as a tap that opens the vote screen.
+    @State private var holdStartedAt: Date?
+    @State private var ignoreOpenUntil = Date.distantPast
+    /// Bumped by a tap on the photo while the vote screen is hidden, so the on-photo hint bounces.
+    @State private var holdHintNudge = 0
+    /// True for a moment after voting, so the carousel stays on the look the viewer picked.
+    @State private var isShowingOwnVote = false
+    @State private var voteDwellToken = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Slightly shorter than 4:5 so the action row and title come into view sooner.
-    private static let photoAspectRatio: CGFloat = 5.0 / 6.0
+    /// Tall 9:16 (width : height), like a phone photo or story, so the outfit gets most
+    /// of the screen. Each photo fills the frame, so other shapes lose a little at the edges
+    /// instead of showing bars.
+    private static let photoAspectRatio: CGFloat = 9.0 / 16.0
     private static let descriptionLineLimit = 2
     /// Side inset for text; the photo itself spans the full width.
     private static let textInset: CGFloat = 16
+    /// A press longer than this is a hold, so its release must not open the vote screen.
+    private static let holdMinimumDuration: TimeInterval = 0.25
+    private static let openSuppressionAfterHold: TimeInterval = 0.4
+    /// Longer than one carousel interval, so the picked look's result is the first one seen.
+    private static let voteDwellDuration: Duration = .seconds(5)
+    private static let photoBadgeInset: CGFloat = 12
+    private static let hintNudgeScale: CGFloat = 1.12
 
     private var posterName: String { item.profiles?.nickname ?? "Someone" }
     private var title: String { PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion) }
@@ -36,39 +59,53 @@ struct FeedPostCard: View {
         // Photo first: author, full-bleed photo, actions, then one title line.
         // No card surface or shadow, so the clothes carry the screen.
         VStack(alignment: .leading, spacing: 10) {
-            header.padding(.horizontal, Self.textInset)
-            // One timeline per card, ticking once at expiry.
-            TimelineView(.expiry(item.expiresAt)) { _ in
-                if comparing {
-                    InlineLookComparison(item: item, viewerId: viewerId, onOpen: onOpen)
-                } else {
-                    photos(expired: isExpired(item.expiresAt))
+            withContextMenu(header.padding(.horizontal, Self.textInset))
+            FeedCardVoteSection(item: item, viewerId: viewerId, photoIndex: photoIndex,
+                                textInset: Self.textInset, onVoteChange: onVoteChange) { vote in
+                VStack(alignment: .leading, spacing: 10) {
+                    // One timeline per card, ticking once at expiry.
+                    TimelineView(.expiry(item.expiresAt)) { _ in
+                        if comparing {
+                            InlineLookComparison(item: item, viewerId: viewerId,
+                                                 onOpen: FitCheckReelView.isEnabled ? onOpen : nil)
+                        } else {
+                            photos(expired: isExpired(item.expiresAt), vote: vote)
+                        }
+                    }
+                    if item.fitCheckPhotos.count >= 2 {
+                        Button(comparing ? "Show carousel" : "Compare looks") { comparing.toggle() }
+                            .font(Theme.bodyEmphasis)
+                            .frame(minHeight: Theme.minTapSize)
+                            .padding(.horizontal, Self.textInset)
+                            .accessibilityIdentifier("feed.compare")
+                    }
                 }
             }
-            if item.fitCheckPhotos.count >= 2 {
-                Button(comparing ? "Show carousel" : "Compare looks") { comparing.toggle() }
-                    .font(Theme.bodyEmphasis)
-                    .frame(minHeight: Theme.minTapSize)
-                    .padding(.horizontal, Self.textInset)
-                    .accessibilityIdentifier("feed.compare")
-            }
             actionRow.padding(.horizontal, Self.textInset - 6)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(Theme.headline)
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityAddTraits(.isHeader)
-                details
-            }
-            .padding(.horizontal, Self.textInset)
+            withContextMenu(
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title)
+                        .font(Theme.headline)
+                        .foregroundStyle(Theme.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    details
+                }
+                .padding(.horizontal, Self.textInset)
+            )
         }
-        .fitCheckContextMenu(
-            fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
-            isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
-        )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(posterName)’s Fit-Check")
         .accessibilityIdentifier("feed-post-card")
+        .task(id: voteDwellToken) { await endVoteDwell() }
+    }
+
+    /// The long-press menu (Share, Report, Block) is kept off the photos and the vote area: a long
+    /// press there is the vote, and a menu would take the press over. The "…" button offers the same entries.
+    private func withContextMenu<Content: View>(_ content: Content) -> some View {
+        content.fitCheckContextMenu(
+            fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
+            isFollowing: isFollowing, onToggleFollow: showsFollow ? onToggleFollow : nil
+        )
     }
 
     /// At accessibility text sizes the name and the Follow button stack, so
@@ -136,22 +173,106 @@ struct FeedPostCard: View {
         .accessibilityAddTraits(.isToggle)
     }
 
-    private func photos(expired: Bool) -> some View {
-        let openPhoto = onOpen.map { open in { open(photoIndex) } }
-        return PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex, autoAdvance: !expired,
-                             contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: openPhoto,
+    private func photos(expired: Bool, vote: PhotoVoteAction) -> some View {
+        let canVote = vote.isEnabled && !expired
+        return PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
+                             autoAdvance: !expired && !isHoldingToVote && !isShowingOwnVote,
+                             keepsRotatingAfterTouch: true,
+                             contentMode: .fill, accessibilityIdentifier: "feed-photo-carousel",
+                             onTap: { handlePhotoTap(canVote: canVote) },
                              prioritizesSelectedPhoto: true, onPhotoDisplay: onPhotoDisplay)
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
-            .background(Color.black)
             .overlay { if expired { endedOverlay } }
+            // The vote hint and the text below the photo sit under the fold on a tall photo,
+            // so the photo itself says how to vote and how many looks there are.
+            .overlay(alignment: .top) { photoBadges(canVote: canVote) }
             .clipped()
             .contentShape(Rectangle())
-            .accessibilityAddTraits(openPhoto == nil ? [] : .isButton)
+            .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote) { castAndShowOwnVote(vote) }
+            .onChange(of: isHoldingToVote) { _, holding in noteHold(holding) }
+            .accessibilityAddTraits(onOpen == nil ? [] : .isButton)
             .accessibilityActions {
-                if let openPhoto {
-                    Button(expired ? "See results" : "Open to vote", action: openPhoto)
+                if let onOpen {
+                    Button(expired ? "See results" : "Open to vote") { onOpen(photoIndex) }
                 }
             }
+    }
+
+    /// A tap opens the vote screen when it is shown. While it is hidden a tap would do nothing, so
+    /// it points at the hold instead. The release of a hold is not a tap.
+    private func handlePhotoTap(canVote: Bool) {
+        guard Date() >= ignoreOpenUntil else { return }
+        if let onOpen {
+            onOpen(photoIndex)
+            return
+        }
+        guard canVote else { return }
+        holdHintNudge += 1
+        Haptics.impact(.light)
+        AccessibilityNotification.Announcement("Press and hold the photo to vote").post()
+    }
+
+    /// Votes, then holds the carousel on the picked look so its result shows first.
+    private func castAndShowOwnVote(_ vote: PhotoVoteAction) {
+        vote.cast()
+        isShowingOwnVote = true
+        voteDwellToken += 1
+    }
+
+    /// Lets the carousel rotate again a few seconds after a vote. Re-keyed by each vote.
+    private func endVoteDwell() async {
+        guard isShowingOwnVote else { return }
+        try? await Task.sleep(for: Self.voteDwellDuration)
+        guard !Task.isCancelled else { return }
+        isShowingOwnVote = false
+    }
+
+    private func photoBadges(canVote: Bool) -> some View {
+        HStack(alignment: .top) {
+            if canVote { holdHint }
+            Spacer(minLength: 0)
+            if photoURLs.count > 1 { pageCounter }
+        }
+        .padding(Self.photoBadgeInset)
+        .allowsHitTesting(false)
+    }
+
+    private var holdHint: some View {
+        Label("Hold to vote", systemImage: "hand.tap.fill")
+            .font(Theme.font(.footnote, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(.black.opacity(0.55), in: Capsule())
+            .phaseAnimator([false, true, false], trigger: holdHintNudge) { content, isUp in
+                content.scaleEffect(isUp && !reduceMotion ? Self.hintNudgeScale : 1)
+            }
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Press and hold the photo to vote")
+            .accessibilityIdentifier("feed-photo-hold-hint")
+    }
+
+    /// "2/4": which look is showing. The dots at the photo's foot are under the fold on a tall photo.
+    private var pageCounter: some View {
+        Text("\(photoIndex + 1)/\(photoURLs.count)")
+            .font(Theme.font(.footnote, weight: .bold))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(.black.opacity(0.55), in: Capsule())
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            // The carousel already reads "Photo 2 of 4".
+            .accessibilityHidden(true)
+    }
+
+    private func noteHold(_ holding: Bool) {
+        if holding {
+            holdStartedAt = Date()
+            return
+        }
+        defer { holdStartedAt = nil }
+        guard let startedAt = holdStartedAt, Date().timeIntervalSince(startedAt) > Self.holdMinimumDuration else { return }
+        ignoreOpenUntil = Date().addingTimeInterval(Self.openSuppressionAfterHold)
     }
 
     private var endedOverlay: some View {
@@ -236,6 +357,7 @@ struct FeedPostCard: View {
 
 private struct InlineLookComparison: View {
     @StateObject private var model: ReelVoteModel
+    /// Opens the vote screen on a look; `nil` while that screen is hidden.
     let onOpen: ((Int) -> Void)?
 
     init(item: FeedItemDTO, viewerId: UUID, onOpen: ((Int) -> Void)?) {
@@ -252,7 +374,7 @@ private struct InlineLookComparison: View {
                             Button { onOpen(index) } label: { lookImage(photo) }
                                 .accessibilityLabel("Enlarge look \(index + 1)")
                         } else {
-                            lookImage(photo)
+                            lookImage(photo).accessibilityLabel("Look \(index + 1)")
                         }
                         if model.summaryLoaded && model.isResultsRevealed && !model.isVoting {
                             Text("Look \(index + 1) · \(model.percent(for: photo.id))%")

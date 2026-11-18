@@ -115,7 +115,10 @@ final class EngagementUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.otherElements.matching(NSPredicate(format: "label ENDSWITH %@", "’s Fit-Check")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "No Fit-Check card on the feed.")
-        card.press(forDuration: 1.2)
+        // The photos are for press-and-hold voting, so the menu lives on the author row and the text.
+        let authorName = card.staticTexts.firstMatch
+        XCTAssertTrue(authorName.waitForExistence(timeout: 5), "No author name on the card.")
+        authorName.press(forDuration: 1.2)
 
         XCTAssertTrue(app.buttons["Copy link"].waitForExistence(timeout: 5), "Long-press menu did not open.")
         XCTAssertTrue(app.buttons["Report"].exists, "Report missing from the menu.")
@@ -139,6 +142,21 @@ final class EngagementUITests: XCTestCase {
 
     /// The redesigned vote screen hides the total until the viewer votes: holding
     /// the centre photo casts the vote, shows Undo, and reveals the count.
+    /// A thin feed ends with an invite card; "Find friends" opens the Friends screen.
+    func testThinFeedEndsWithAnInviteThatOpensFriends() throws {
+        let app = launch()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
+        let card = app.descendants(matching: .any)["feed-invite-card"].firstMatch
+        var swipes = 0
+        while !card.isHittable && swipes < 12 { app.swipeUp(); swipes += 1 }
+        XCTAssertTrue(card.exists, "no invite card at the end of the sample feed")
+        XCTAssertTrue(app.descendants(matching: .any)["feed-invite-share"].firstMatch.exists, "no Invite friends button")
+        attach(app, "invite-card")
+
+        app.buttons["feed-invite-find"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Friends"].firstMatch.waitForExistence(timeout: 5), "Find friends did not open Friends")
+    }
+
     func testVotingRevealsTheResult() throws {
         let app = launch(arguments: ["--uiTestEnableFitCheckReel"])
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))

@@ -90,13 +90,19 @@ struct OccasionSection: View {
     @Binding var occasion: String
     let options: [String]
 
+    private var picked: [String] { CreateWizardModel(occasion: occasion).selectedOccasions }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: "What’s the occasion?")
+            Text("Pick all that apply")
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(options, id: \.self) { option in
-                        ChipToggle(label: option, selected: occasion == option) { occasion = occasion == option ? "" : option }
+                        ChipToggle(label: option, selected: picked.contains(option)) {
+                            occasion = CreateWizardModel.toggledOccasion(option, in: occasion)
+                        }
                     }
                 }
             }
@@ -128,6 +134,8 @@ struct AudienceSection: View {
     @Binding var selectedAudience: FitCheckAudience
     @Binding var selectedGroupId: UUID?
     let myGroups: [FashionGroup]
+    /// False until the user taps an option, so none is shown as selected.
+    let hasChosen: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -136,14 +144,14 @@ struct AudienceSection: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(FitCheckAudience.allCases) { option in audienceButton(option) }
             }
-            if selectedAudience == .group { groupChooser }
-            Text(selectedAudience.description)
+            if hasChosen, selectedAudience == .group { groupChooser }
+            Text(hasChosen ? selectedAudience.description : "Choose who can see this Fit-Check.")
                 .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         }
     }
 
     private func audienceButton(_ option: FitCheckAudience) -> some View {
-        let isSelected = selectedAudience == option
+        let isSelected = hasChosen && selectedAudience == option
         let shape = RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous)
         return Button {
             withAnimation(Theme.animation(Theme.press, reduceMotion: reduceMotion)) { selectedAudience = option }

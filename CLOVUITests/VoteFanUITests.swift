@@ -8,6 +8,8 @@ final class VoteFanUITests: XCTestCase {
     private static let sampleDataArgument = "--uiTestSampleData"
     private static let holdSeconds: TimeInterval = 1.2
     private static let earlyReleaseSeconds: TimeInterval = 0.2
+    /// Past one 3 s carousel interval but inside the card's 5 s stay on the picked look.
+    private static let voteDwellCheckSeconds: TimeInterval = 3.8
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -54,7 +56,7 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.buttons["createQuickPost"].isEnabled)
     }
 
-    func testLandscapePhotoFitsInsideFeedCard() throws {
+    func testLandscapePhotoFillsTheFeedCardWithoutBars() throws {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument, "--uiTestWidePhoto"]
         app.launch()
@@ -65,8 +67,8 @@ final class VoteFanUITests: XCTestCase {
         let frame = carousel.frame
         let window = app.windows.firstMatch.frame
         XCTAssertGreaterThan(frame.height, 0)
-        // A wide image inside the taller post has padding above and below it.
-        // The center must contain image pixels so a loading placeholder cannot pass.
+        // A wide image fills the tall post (cropped at the sides), so there are no black bars
+        // above or below it. The center must contain image pixels so a loading placeholder cannot pass.
         var fitted = false
         for _ in 0..<10 {
             let screenshot = XCUIScreen.main.screenshot().image
@@ -76,14 +78,14 @@ final class VoteFanUITests: XCTestCase {
             let bottom = CGPoint(x: x, y: frame.minY - window.minY + frame.height * 0.8)
             if let topRGB = pixel(in: screenshot, at: top), let centerRGB = pixel(in: screenshot, at: middle),
                let bottomRGB = pixel(in: screenshot, at: bottom),
-               topRGB.allSatisfy({ $0 < 30 }), bottomRGB.allSatisfy({ $0 < 30 }),
+               !topRGB.allSatisfy({ $0 < 30 }), !bottomRGB.allSatisfy({ $0 < 30 }),
                centerRGB.contains(where: { $0 > 60 }) {
                 fitted = true
                 break
             }
             _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(value: false), object: nil)], timeout: 0.5)
         }
-        XCTAssertTrue(fitted, "landscape photo should remain fully visible with padding")
+        XCTAssertTrue(fitted, "landscape photo should fill the post with no black bars")
     }
 
     private func pixel(in image: UIImage, at point: CGPoint) -> [UInt8]? {
@@ -162,6 +164,86 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertNil(count.label.rangeOfCharacter(from: .decimalDigits), "comments must not reveal results")
         app.buttons["reelBackButton"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10), "back did not return to the feed")
+    }
+
+    /// Voting happens on the post itself: press and hold the photo, see the results with Undo, take it back.
+    func testHoldingThePhotoOnTheFeedCardShowsResultsThenUndoBringsBackTheHint() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
+        var attempts = 0
+        while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "maya's post not found")
+
+        let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 5), "no photo carousel on the card")
+        let hint = card.descendants(matching: .any)["feed-vote-hint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 5), "no press-and-hold hint on the card")
+        XCTAssertFalse(card.buttons["feed-vote-button-1"].exists, "the vote buttons are gone; votes are cast on the photo")
+        let results = card.descendants(matching: .any)["feed-vote-results"]
+        XCTAssertFalse(results.exists, "results must stay hidden until the viewer votes")
+        let photoHint = card.descendants(matching: .any)["feed-photo-hold-hint"]
+        XCTAssertTrue(photoHint.waitForExistence(timeout: 5),
+                      "the photo itself must say how to vote; the hint below it is under the fold")
+        bringIntoOpenArea(carousel, in: app)
+        waitUntilStill(carousel)
+        attach(app, name: "feed-card-before-vote")
+
+        carousel.press(forDuration: 1.2)
+        XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after holding the photo")
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "a hold must vote, not open the vote screen")
+        let centredResult = card.descendants(matching: .any)["feed-photo-result"]
+        XCTAssertTrue(centredResult.waitForExistence(timeout: 5), "the shown photo's result is not centred on the photo after voting")
+        XCTAssertTrue(photoHint.waitForNonExistence(timeout: 5), "the hold hint stayed on the photo after voting")
+        let showsOwnPick = NSPredicate(format: "label CONTAINS 'your vote'")
+        XCTAssertTrue(showsOwnPick.evaluate(with: centredResult), "right after voting the photo should show the viewer's pick")
+        attach(app, name: "feed-card-voted")
+        // One carousel interval is 3 s; the card must still be on the picked look after it.
+        Thread.sleep(forTimeInterval: Self.voteDwellCheckSeconds)
+        XCTAssertTrue(showsOwnPick.evaluate(with: centredResult),
+                      "the carousel moved off the picked look right after the vote")
+        attach(app, name: "feed-card-voted-after-dwell")
+
+        let undo = card.buttons["feed-vote-undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo on the card after voting")
+        undo.tap()
+        XCTAssertTrue(hint.waitForExistence(timeout: 5), "the hint did not return after Undo")
+        XCTAssertTrue(centredResult.waitForNonExistence(timeout: 5), "the centred result stayed on the photo after Undo")
+    }
+
+    /// The full-screen vote screen is hidden for now: tapping a feed photo stays on the feed.
+    func testTappingTheFeedPhotoDoesNotOpenTheVoteScreen() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument]
+        app.launch()
+        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 15), "no photo on the feed")
+        carousel.tap()
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 3),
+                       "the vote screen is hidden and must not open")
+        XCTAssertTrue(carousel.exists, "tapping the photo should stay on the feed")
+    }
+
+    /// A profile tile opens the post as the feed card (with its vote hint), not the vote screen.
+    func testProfileTileOpensThePostAsAFeedCard() throws {
+        let app = XCUIApplication()
+        app.launchArguments += [Self.sampleDataArgument]
+        app.launch()
+        XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15), "tab bar never appeared")
+        app.buttons["accountTab"].tap()
+
+        let tile = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == 'My rainy day commute look'")).firstMatch
+        XCTAssertTrue(tile.waitForExistence(timeout: 10), "profile tile not found")
+        tile.tap()
+
+        let card = app.descendants(matching: .any)["feed-post-card"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "tapping a profile tile should show the post card")
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "the vote screen must not open directly")
+        attach(app, name: "profile-post-card")
     }
 
     // MARK: - Helpers

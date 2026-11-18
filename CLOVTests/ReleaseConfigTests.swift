@@ -37,3 +37,16 @@ final class ReleaseConfigTests: XCTestCase {
         XCTAssertTrue(schemes.contains(AppConfig.authCallbackURL.scheme ?? ""))
     }
 }
+
+/// Guards the app's production backend configuration.
+final class BackendSelectionTests: XCTestCase {
+    func testProductionConfigIsRemoteHttps() {
+        XCTAssertEqual(AppConfig.supabaseURL.scheme, "https")
+        XCTAssertNotEqual(AppConfig.supabaseURL.host, "127.0.0.1")
+        XCTAssertNotEqual(AppConfig.supabaseURL.host, "localhost")
+    }
+
+    func testProductionKeyIsPublishableNotServiceRole() {
+        XCTAssertTrue(AppConfig.supabaseAnonKey.hasPrefix("sb_publishable_"))
+    }
+}

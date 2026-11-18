@@ -36,6 +36,24 @@ struct CreateWizardModelTests {
         #expect(model.effectiveGroupId == nil)
     }
 
+    @Test("No audience is chosen for the user; Next waits for a tap")
+    func audienceNeedsAChoice() {
+        var model = CreateWizardModel()
+        #expect(!model.audienceChosen)
+        #expect(!model.audienceIsValid)
+        #expect(!model.canAdvance(from: .details))
+        model.audience = .everyone
+        #expect(model.audienceChosen)
+        #expect(model.canAdvance(from: .details))
+    }
+
+    @Test("Arriving from a group counts as chosen")
+    func preselectedGroupIsChosen() {
+        let model = CreateWizardModel(preselectedGroupId: UUID())
+        #expect(model.audienceChosen)
+        #expect(model.canAdvance(from: .details))
+    }
+
     @Test("Friends and Only me are valid and never carry a group")
     func friendsAndOnlyMeAreValid() {
         var model = CreateWizardModel()
@@ -80,6 +98,31 @@ struct CreateWizardModelTests {
         for index in 0..<12 { photo = photo.togglingPhotoTag("t\(index)", at: 0) }
         #expect(photo.photoDetails[0].tags.count == CreateWizardModel.maxTags)
         #expect(photo.togglingPhotoTag("x", at: 9) == photo)
+    }
+
+    @Test("Several occasions can be picked and are stored in one text")
+    func multipleOccasions() {
+        var model = CreateWizardModel()
+        model = model.togglingOccasion("Date").togglingOccasion("Work")
+        #expect(model.occasion == "Work, Date")
+        #expect(model.selectedOccasions == ["Work", "Date"])
+        model = model.togglingOccasion("Work")
+        #expect(model.occasion == "Date")
+        #expect(model.togglingOccasion("Date").occasion.isEmpty)
+        #expect(CreateWizardModel(occasion: "Everyday").togglingOccasion("Party").occasion == "Everyday, Party")
+    }
+
+    @Test("Typed tags are cleaned, de-duplicated and capped")
+    func customTags() {
+        var model = CreateWizardModel()
+        model = model.addingTag("  #  Boho   chic ").addingTag("boho CHIC").addingTag("casual").addingTag("   ")
+        #expect(model.tags == ["Boho chic", "Casual"])
+        #expect(CreateWizardModel().addingTag(String(repeating: "a", count: 80)).tags[0].count == FitCheckSubmission.maxTagLength)
+        var full = CreateWizardModel()
+        for index in 0..<12 { full = full.addingTag("tag\(index)") }
+        #expect(full.tags.count == CreateWizardModel.maxTags)
+        #expect(CreateWizardModel().addingPhotoTag("denim", at: 0).photoDetails[0].tags == ["denim"])
+        #expect(CreateWizardModel().addingPhotoTag("x", at: 9) == CreateWizardModel())
     }
 
     @Test("Photo description is clamped to 200 characters")

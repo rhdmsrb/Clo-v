@@ -174,7 +174,9 @@ final class FitCheckSubmissionTests: XCTestCase {
     // MARK: Feed column fallback and overlay copy
 
     func testPostCardOverlayContentRules() {
-        XCTAssertEqual(PostCardContent.handle(accountCode: "CLOV-AB12", nickname: "maya"), "@CLOV-AB12")
+        // A person's name reads friendlier than a generated code, so the nickname wins.
+        XCTAssertEqual(PostCardContent.handle(accountCode: "CLOV-AB12", nickname: "maya"), "@maya")
+        XCTAssertEqual(PostCardContent.handle(accountCode: "CLOV-AB12", nickname: " "), "@CLOV-AB12")
         XCTAssertEqual(PostCardContent.handle(accountCode: " ", nickname: "maya"), "@maya")
         XCTAssertEqual(PostCardContent.handle(accountCode: nil, nickname: nil), "@someone")
         XCTAssertEqual(PostCardContent.overlayDescription(photoDescription: "photo", caption: "post"), "photo")

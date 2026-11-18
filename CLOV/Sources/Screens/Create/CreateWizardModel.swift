@@ -18,6 +18,7 @@ struct CreateWizardModel: Equatable {
     static let maxTags = FitCheckSubmission.maxTags
     /// Style vocabulary shared with the wardrobe editor.
     static let tagVocabulary = ["Casual", "Minimal", "Streetwear", "Vintage", "Workwear", "Sporty", "Smart casual", "Monochrome", "Statement"]
+    static let occasionSeparator = ", "
     static let occasionOptions = ["Everyday", "Work", "Date", "Interview", "Party", "Travel", "Wedding"]
 
     /// Mutated only through `settingPhotoCount` / `settingFilledSlots` so the
@@ -28,7 +29,12 @@ struct CreateWizardModel: Equatable {
     var caption = ""
     var occasion = ""
     var tags: [String] = []
-    var audience: FitCheckAudience = .everyone
+    /// Starts as `.everyone` only as a placeholder: nothing counts as chosen
+    /// until the user taps an option (see `audienceChosen`).
+    var audience: FitCheckAudience = .everyone { didSet { audienceChosen = true } }
+    /// False until the user picks who can see the post, or arrives from a
+    /// group. Keeps "Everyone" from being chosen on their behalf.
+    private(set) var audienceChosen = false
     var groupId: UUID?
     var photoDetails: [PhotoDetail] = [.init(), .init()]
     var step: CreateWizardStep = .photos
@@ -39,6 +45,7 @@ struct CreateWizardModel: Equatable {
         self.occasion = occasion ?? ""
         if let preselectedGroupId {
             audience = .group
+            audienceChosen = true
             groupId = preselectedGroupId
         }
     }
@@ -49,7 +56,8 @@ struct CreateWizardModel: Equatable {
     var titleIsValid: Bool { title.count <= Self.maxTitleLength }
     var captionIsValid: Bool { caption.count <= Self.maxCaptionLength }
     var audienceIsValid: Bool {
-        switch audience {
+        guard audienceChosen else { return false }
+        return switch audience {
         case .everyone, .friends, .onlyMe: true
         case .group: groupId != nil
         }
@@ -102,6 +110,44 @@ struct CreateWizardModel: Equatable {
     func togglingTag(_ tag: String) -> CreateWizardModel {
         var copy = self
         copy.tags = Self.toggled(tag, in: tags, limit: Self.maxTags)
+        return copy
+    }
+
+    /// Adds a tag the viewer typed. It is cleaned like the server cleans it (no leading
+    /// `#`, single spaces, at most `FitCheckSubmission.maxTagLength` characters) and reuses
+    /// the suggested chip's spelling when it matches one. Duplicates and a full list are ignored.
+    /// The occasions the viewer has picked. They are stored in the single `occasion` text,
+    /// joined by `occasionSeparator`, so no schema change is needed.
+    var selectedOccasions: [String] {
+        occasion.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    func togglingOccasion(_ option: String) -> CreateWizardModel {
+        var copy = self
+        copy.occasion = Self.toggledOccasion(option, in: occasion)
+        return copy
+    }
+
+    /// Adds or removes `option` and returns the joined text, suggested options first in their
+    /// usual order, any other value (such as a challenge's) after them.
+    static func toggledOccasion(_ option: String, in current: String) -> String {
+        var picked = current.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if picked.contains(option) { picked.removeAll { $0 == option } } else { picked.append(option) }
+        let known = occasionOptions.filter(picked.contains)
+        let extras = picked.filter { !occasionOptions.contains($0) }
+        return (known + extras).joined(separator: occasionSeparator)
+    }
+
+    func addingTag(_ raw: String) -> CreateWizardModel {
+        var copy = self
+        copy.tags = Self.appended(raw, to: tags, limit: Self.maxTags)
+        return copy
+    }
+
+    func addingPhotoTag(_ raw: String, at index: Int) -> CreateWizardModel {
+        guard photoDetails.indices.contains(index) else { return self }
+        var copy = self
+        copy.photoDetails[index].tags = Self.appended(raw, to: photoDetails[index].tags, limit: Self.maxTags)
         return copy
     }
 
@@ -161,6 +207,21 @@ struct CreateWizardModel: Equatable {
     private static func nonEmpty(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func cleanedTag(_ raw: String) -> String? {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        while text.hasPrefix("#") { text.removeFirst() }
+        let words = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard !words.isEmpty else { return nil }
+        let clipped = String(words.prefix(FitCheckSubmission.maxTagLength))
+        return tagVocabulary.first { $0.caseInsensitiveCompare(clipped) == .orderedSame } ?? clipped
+    }
+
+    private static func appended(_ raw: String, to list: [String], limit: Int) -> [String] {
+        guard let tag = cleanedTag(raw), list.count < limit,
+              !list.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return list }
+        return list + [tag]
     }
 
     private static func toggled(_ tag: String, in list: [String], limit: Int) -> [String] {

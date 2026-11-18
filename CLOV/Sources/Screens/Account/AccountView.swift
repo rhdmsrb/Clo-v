@@ -19,7 +19,6 @@ struct AccountView: View {
     @State private var deleteTarget: UUID?
     @State private var isDeletingAccount = false
     @State private var showingDeleteAccountConfirmation = false
-    @State private var showingEditProfile = false
     @State private var showingAnalytics = false
     @State private var followerIDs: Set<UUID> = []
     @State private var followingIDs: Set<UUID> = []
@@ -64,10 +63,7 @@ struct AccountView: View {
             if newSegment == .saved && savedState == .notLoaded { Task { await loadSaved() } }
         }
         .navigationDestination(item: $destination) { destinationView($0) }
-        .navigationDestination(item: $openedRoute) { FitCheckVoteLoader(fitCheckId: $0.id) }
-        .sheet(isPresented: $showingEditProfile) {
-            EditProfileView(profile: appState.profile)
-        }
+        .navigationDestination(item: $openedRoute) { ProfilePostView(fitCheckId: $0.id) }
         .sheet(item: $groupAddMode) { mode in
             GroupAddSheet(initialMode: mode) { await load() }
         }
@@ -195,11 +191,7 @@ struct AccountView: View {
     }
 
     private var actionButtons: some View {
-        ProfileActionTabs(
-            onEdit: { showingEditProfile = true },
-            onAnalytics: { showingAnalytics.toggle() },
-            analyticsExpanded: showingAnalytics
-        ) {
+        ProfileActionTabs(onAnalytics: { showingAnalytics.toggle() }, analyticsExpanded: showingAnalytics) {
             ShareLink(item: shareText) { Text("Share") }
                 .accessibilityLabel("Share profile")
                 .accessibilityIdentifier("profile.share")

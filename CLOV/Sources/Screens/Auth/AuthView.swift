@@ -314,6 +314,9 @@ struct AuthView: View {
 struct AuthHeroBlock: View {
     let title: String
     let subtitle: String
+    /// Space above the wordmark. Auth passes a smaller value so the whole
+    /// login form fits above the home indicator on current iPhones.
+    var topInset: CGFloat = 72
 
     private static let bottomRadius: CGFloat = 36
 
@@ -342,7 +345,7 @@ struct AuthHeroBlock: View {
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
         .padding(.horizontal, 24)
-        .padding(.top, 72)
+        .padding(.top, topInset)
         .padding(.bottom, 32)
         .background {
             UnevenRoundedRectangle(bottomLeadingRadius: Self.bottomRadius, bottomTrailingRadius: Self.bottomRadius, style: .continuous)

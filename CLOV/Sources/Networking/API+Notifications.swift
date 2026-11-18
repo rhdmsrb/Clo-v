@@ -14,9 +14,13 @@ extension API {
             .select("id, type, is_read, created_at, fit_check_id, actor:profiles!notifications_actor_id_fkey(nickname, avatar_url)")
             .eq("recipient_id", value: recipientId)
             .order("created_at", ascending: false)
+            .limit(maxNotificationsLoaded)
             .execute()
             .value
     }
+
+    /// Every vote creates a notification, so the list is capped to the newest ones.
+    static let maxNotificationsLoaded = 100
 
     static func fetchUnreadNotificationCount(recipientId: UUID) async throws -> Int {
 #if DEBUG

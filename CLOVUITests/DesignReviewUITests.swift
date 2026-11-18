@@ -12,6 +12,7 @@ final class DesignReviewUITests: XCTestCase {
     private static let colorSchemeArgument = "-appearance.colorScheme"
     private static let extraLargeAccessibilitySize = "UICTContentSizeCategoryAccessibilityXL"
     private static let shortWait: TimeInterval = 5
+    private static let bellWait: TimeInterval = 15
     private static let settleDelay: TimeInterval = 1
 
     override func setUpWithError() throws {
