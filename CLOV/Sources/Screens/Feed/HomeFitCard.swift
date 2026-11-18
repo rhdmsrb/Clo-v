@@ -22,6 +22,7 @@ struct HomeFitCard: View {
     var onPhotoDisplay: (() -> Void)? = nil
 
     @EnvironmentObject private var appState: AppState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model: ReelVoteModel
     @State private var photoIndex = 0
     @State private var isHoldingToVote = false
@@ -110,6 +111,18 @@ struct HomeFitCard: View {
                 .padding(.bottom, -Self.hiddenDotsInset)
         }
         .overlay { if expired { endedOverlay } }
+        // Results pop into the middle of the photo once revealed, for the look on screen.
+        .overlay {
+            if model.isResultsRevealed {
+                // Centred in the space above the title, so it never covers the caption.
+                centerResult
+                    .transition(resultTransition)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, Spacing.xxl)
+                    .padding(.bottom, resultCaptionClearance)
+            }
+        }
+        .animation(Theme.animation(Self.resultSpring, reduceMotion: reduceMotion), value: model.isResultsRevealed)
         .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote) { castVoteForShownPhoto() }
         // The action row hangs half off the photo's bottom edge.
         .overlay(alignment: .bottom) {
@@ -192,33 +205,85 @@ struct HomeFitCard: View {
             .accessibilityLabel("Voting ended")
     }
 
-    // MARK: Voting
+    // MARK: Result on the photo
 
-    private var voteOptions: [VoteOption] {
-        let top = model.counts.values.max() ?? 0
-        return model.photos.map { photo in
-            VoteOption(id: photo.id, title: PostCardContent.voteButtonTitle(position: photo.position),
-                       percent: model.percent(for: photo.id),
-                       isLeading: top > 0 && (model.counts[photo.id] ?? 0) == top)
+    private static let resultSpring = Animation.spring(response: 0.42, dampingFraction: 0.68)
+    @ScaledMetric(relativeTo: .largeTitle) private var resultPercentSize: CGFloat = 64
+    /// Room kept free at the photo's foot for the occasion tag, the title and the hanging row.
+    @ScaledMetric(relativeTo: .title) private var resultCaptionClearance: CGFloat = 190
+
+    private var resultTransition: AnyTransition {
+        reduceMotion ? .opacity : .scale(scale: 0.55).combined(with: .opacity)
+    }
+
+    /// The shown look's share of the votes, large and centred. It follows the thumbnails
+    /// and swipes, so the viewer can compare each look's result on the photo itself.
+    @ViewBuilder
+    private var centerResult: some View {
+        if let photo = shownPhoto {
+            let percent = model.percent(for: photo.id)
+            let isMine = model.myVote == photo.id
+            let isLeading = isLeadingPhoto(photo.id)
+            let title = PostCardContent.voteButtonTitle(position: photo.position)
+            VStack(spacing: Spacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+                    if isLeading {
+                        Image(systemName: "crown.fill")
+                            .font(.system(size: resultPercentSize * 0.4))
+                            .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.35))
+                    }
+                    Text("\(percent)%")
+                        .font(.system(size: resultPercentSize, weight: .black))
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(percent)))
+                }
+                Label(isMine ? "\(title) · your pick" : title,
+                      systemImage: isMine ? "checkmark.circle.fill" : "hanger")
+                    .font(Theme.font(.subheadline, weight: .semibold))
+                if let insight = model.insight {
+                    Text(insight)
+                        .font(Theme.font(.footnote, weight: .medium))
+                        .multilineTextAlignment(.center)
+                        .opacity(0.9)
+                        .accessibilityIdentifier("feed-vote-insight")
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, Spacing.l)
+            .padding(.vertical, Spacing.m)
+            .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
+            .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+            .padding(.horizontal, Spacing.xl)
+            .motionSafeAnimation(Theme.snap, value: photo.id)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(title), \(percent) percent\(isMine ? ", your vote" : "")\(isLeading ? ", leading" : "")")
+            .accessibilityIdentifier("feed-vote-results")
         }
     }
 
-    /// Before voting: a hint (the thumbnails pick the look, Vote casts it). After voting,
-    /// or when results are open to the viewer: the insight and each look's share.
+    /// True for the look (or looks, on a tie) with the most votes, once anyone has voted.
+    private func isLeadingPhoto(_ id: UUID) -> Bool {
+        let top = model.counts.values.max() ?? 0
+        return top > 0 && (model.counts[id] ?? 0) == top
+    }
+
+    // MARK: Voting
+
+    /// Before voting: a hint (the thumbnails pick the look, Vote casts it). After voting the
+    /// result sits on the photo, so only the total and Undo remain here.
     @ViewBuilder
     private var voteStatus: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             if model.isResultsRevealed {
-                if let insight = model.insight {
-                    Label(insight, systemImage: "sparkles")
-                        .font(Theme.font(.subheadline, weight: .semibold))
-                        .foregroundStyle(Theme.accentDeep)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("feed-vote-insight")
+                HStack {
+                    Text(footerText)
+                        .font(Theme.caption)
+                        .foregroundStyle(Theme.mutedForeground)
+                    Spacer(minLength: 0)
+                    if model.canRetract { undoButton }
                 }
-                VoteButtons(options: voteOptions, highlightedID: shownPhoto?.id, myVote: model.myVote,
-                            isRevealed: true, canVote: false, footer: footerText, identifierPrefix: "feed-vote",
-                            onVote: { _ in }, onUndo: model.canRetract ? undo : nil)
             } else if model.canVote {
                 Text("Pick a look, then tap Vote. Or hold the photo.")
                     .font(Theme.caption)
@@ -233,6 +298,20 @@ struct HomeFitCard: View {
             }
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+    }
+
+    private var undoButton: some View {
+        Button(action: undo) {
+            Text("Undo")
+                .font(Theme.font(.footnote, weight: .semibold))
+                .foregroundStyle(Theme.accentDeep)
+                .padding(.horizontal, Spacing.sm)
+                .frame(minHeight: Theme.minTapSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Undo vote")
+        .accessibilityIdentifier("feed-vote-undo")
     }
 
     private var footerText: String {
