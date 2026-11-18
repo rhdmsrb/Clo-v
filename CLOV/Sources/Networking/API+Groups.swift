@@ -5,6 +5,89 @@ import Supabase
 extension API {
     // MARK: - Groups
 
+    struct GroupCardPreview {
+        let memberCount: Int
+        let liveCount: Int
+        let members: [GroupMemberDisplay]
+        let thumbnails: [URL]
+    }
+
+    private struct GroupCardRow: Decodable {
+        let groupId: UUID
+        let memberCount: Int
+        let liveCount: Int
+        let members: [MemberDTO]
+        let photoPaths: [String]
+    }
+
+    static func fetchGroupCardPreviews(groupIDs: [UUID]) async throws -> [UUID: GroupCardPreview]? {
+        guard !groupIDs.isEmpty else { return [:] }
+#if DEBUG
+        if SampleData.isActive {
+            return Dictionary(uniqueKeysWithValues: groupIDs.map { id in
+                let members = SampleData.members(groupId: id)
+                let posts = SampleData.groupFeed(groupId: id)
+                return (id, GroupCardPreview(memberCount: members.count, liveCount: posts.count,
+                    members: Array(members.prefix(4)),
+                    thumbnails: posts.prefix(3).compactMap { PostCardContent.photoURLs($0.fitCheckPhotos).first }))
+            })
+        }
+#endif
+        let interval = Log.performance.beginInterval("Group card previews", id: Log.performance.makeSignpostID())
+        defer { Log.performance.endInterval("Group card previews", interval) }
+        let availability = RuntimeReadAvailability.shared
+        guard await availability.shouldTry(.groupPreviews) else { return nil }
+        var rows: [GroupCardRow] = []
+        do {
+            for start in stride(from: 0, to: groupIDs.count, by: 32) {
+                try Task.checkCancellation()
+                let batch = Array(groupIDs[start..<min(start + 32, groupIDs.count)])
+                let result: [GroupCardRow] = try await client.rpc("group_card_previews_v1",
+                    params: ["p_group_ids": batch]).execute().value
+                rows.append(contentsOf: result)
+            }
+        } catch where isMissingColumnError(error) {
+            await availability.markUnavailable(.groupPreviews)
+            return nil
+        }
+        let urls = try await signedPhotoURLs(rows.flatMap(\.photoPaths), requireBatchSuccess: true)
+        return Dictionary(uniqueKeysWithValues: rows.map { row in
+            (row.groupId, GroupCardPreview(memberCount: row.memberCount, liveCount: row.liveCount,
+                members: row.members.map(groupMemberDisplay),
+                thumbnails: row.photoPaths.compactMap { urls[$0].flatMap { URL(string: $0) } }))
+        })
+    }
+
+    /// Bounded preview for deployments awaiting the new batch RPC.
+    static func fetchLegacyGroupCardPreview(groupId: UUID, blockedAuthors: Set<UUID>) async throws -> GroupCardPreview {
+        struct PreviewPost: Decodable {
+            struct Photo: Decodable { let imageUrl: String }
+            let fitCheckPhotos: [Photo]
+        }
+        async let members: PostgrestResponse<[MemberDTO]> = client.from("group_members")
+            .select("profile_id, profiles(nickname, avatar_url)", count: .exact)
+            .eq("group_id", value: groupId).order("profile_id").limit(4).execute()
+        let query = client.from("fit_checks").select("id, fit_check_photos(image_url)", count: .exact)
+            .eq("group_id", value: groupId).eq("status", value: "live").or(notExpiredFilter)
+        if !blockedAuthors.isEmpty {
+            _ = query.not("creator_id", operator: .in, value: "(\(blockedAuthors.map(\.uuidString).joined(separator: ",")))")
+        }
+        let posts: PostgrestResponse<[PreviewPost]> = try await query
+            .order("created_at", ascending: false).order("id", ascending: false)
+            .order("position", referencedTable: "fit_check_photos").order("id", referencedTable: "fit_check_photos")
+            .limit(3).limit(1, referencedTable: "fit_check_photos").execute()
+        let memberPage = try await members
+        let paths = posts.value.compactMap { $0.fitCheckPhotos.first?.imageUrl }
+        let urls = try await signedPhotoURLs(paths)
+        return GroupCardPreview(memberCount: memberPage.count ?? memberPage.value.count,
+            liveCount: posts.count ?? posts.value.count, members: memberPage.value.map(groupMemberDisplay),
+            thumbnails: paths.compactMap { urls[$0].flatMap { URL(string: $0) } })
+    }
+
+    private static func groupMemberDisplay(_ row: MemberDTO) -> GroupMemberDisplay {
+        GroupMemberDisplay(id: row.profileId, nickname: row.profiles?.nickname, avatarUrl: row.profiles?.avatarUrl)
+    }
+
     static func fetchMyGroups(profileId: UUID) async throws -> [FashionGroup] {
 #if DEBUG
         if SampleData.isActive { return SampleData.groups }
@@ -28,9 +111,7 @@ extension API {
             .eq("group_id", value: groupId)
             .execute()
             .value
-        return rows.map { row in
-            GroupMemberDisplay(id: row.profileId, nickname: row.profiles?.nickname, avatarUrl: row.profiles?.avatarUrl)
-        }
+        return rows.map(groupMemberDisplay)
     }
 
     static func isMember(groupId: UUID, profileId: UUID) async throws -> Bool {

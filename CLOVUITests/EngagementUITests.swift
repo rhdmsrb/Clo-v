@@ -6,9 +6,9 @@ final class EngagementUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launch() -> XCUIApplication {
+    private func launch(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["--uiTestSampleData", "-appearance.colorScheme", "light"]
+        app.launchArguments += ["--uiTestSampleData", "-appearance.colorScheme", "light"] + arguments
         app.launch()
         return app
     }
@@ -48,21 +48,27 @@ final class EngagementUITests: XCTestCase {
 
     func testFeedPhotosAutoAdvanceAndCanStillBeSwiped() throws {
         let app = launch()
-        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'"))
+            .firstMatch
+        let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
         XCTAssertTrue(carousel.waitForExistence(timeout: 15))
-        let firstValue = carousel.value as? String ?? ""
-        let changed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value != %@", firstValue), object: carousel
-        )
-        XCTAssertEqual(XCTWaiter().wait(for: [changed], timeout: 8), .completed,
-                       "The visible carousel did not advance automatically.")
-        let beforeSwipe = carousel.value as? String ?? ""
-        if beforeSwipe.hasPrefix("Photo 1 ") { carousel.swipeLeft() } else { carousel.swipeRight() }
-        let swiped = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value != %@", beforeSwipe), object: carousel
-        )
-        XCTAssertEqual(XCTWaiter().wait(for: [swiped], timeout: 5), .completed,
-                       "Swiping should still change the selected photo.")
+        let firstPhoto = NSPredicate(format: "value == %@", "Photo 1 of 2")
+        let secondPhoto = NSPredicate(format: "value == %@", "Photo 2 of 2")
+        let automaticAdvance = XCTNSPredicateExpectation(predicate: secondPhoto, object: carousel)
+        XCTAssertEqual(XCTWaiter().wait(for: [automaticAdvance], timeout: 8), .completed)
+
+        let automaticWrap = XCTNSPredicateExpectation(predicate: firstPhoto, object: carousel)
+        XCTAssertEqual(XCTWaiter().wait(for: [automaticWrap], timeout: 8), .completed)
+
+        carousel.swipeLeft()
+        let manualAdvance = XCTNSPredicateExpectation(predicate: secondPhoto, object: carousel)
+        XCTAssertEqual(XCTWaiter().wait(for: [manualAdvance], timeout: 3), .completed)
+
+        let unwantedAdvance = XCTNSPredicateExpectation(predicate: firstPhoto, object: carousel)
+        unwantedAdvance.isInverted = true
+        XCTAssertEqual(XCTWaiter().wait(for: [unwantedAdvance], timeout: 4), .completed,
+                       "The selected look should stay in place after a manual swipe.")
     }
 
     func testFeedHasNoSearchOrFilterHeader() throws {
@@ -152,8 +158,7 @@ final class EngagementUITests: XCTestCase {
     }
 
     func testVotingRevealsTheResult() throws {
-        throw XCTSkip("The full-screen vote screen is hidden for now (FitCheckReelView.isEnabled = false).")
-        let app = launch()
+        let app = launch(arguments: ["--uiTestEnableFitCheckReel"])
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch

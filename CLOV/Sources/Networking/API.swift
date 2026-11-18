@@ -216,6 +216,7 @@ enum API {
         let followedOrFriends = (followingIDs ?? []).union(friendIDs)
         if followingIDs != nil, followedOrFriends.isEmpty { return FeedPageResult(items: [], fetchedCount: 0) }
         let trimmedSearch = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        async let blockedTask = fetchBlockedUserIDs()
         var query = client.from("fit_checks")
             .select(feedColumns).eq("status", value: "live")
             .in("audience", values: mainFeedAudiences)
@@ -236,11 +237,11 @@ enum API {
         }
         let rows: [FeedItemDTO] = try await query
             .order("created_at", ascending: false)
+            .order("id", ascending: false)
             .range(from: offset, to: offset + max(0, limit - 1))
             .execute().value
-        let blocked = try await fetchBlockedUserIDs()
-        let promptedRows = await attachVotePrompts(rows)
-        let visible = try await signFeedPhotos(promptedRows.filter { !blocked.contains($0.creatorId) })
+        let blocked = try await blockedTask
+        let visible = try await hydrateFeedPhotosAndPrompts(rows.filter { !blocked.contains($0.creatorId) })
         return FeedPageResult(items: visible, fetchedCount: rows.count)
     }
 
@@ -591,16 +592,11 @@ enum API {
     // MARK: - Create Fit-Check
     // createFitCheck lives in API+CreateFitCheck.swift.
 
-    static func discardDraft(fitCheckId: UUID, creatorId: UUID, uploadedPaths: [String]) async {
+    static func discardDraft(fitCheckId: UUID, creatorId: UUID) async {
         // Detached so cleanup still runs when the caller was cancelled
         // (e.g. the create sheet was dismissed mid-upload).
         await Task.detached {
-            if !uploadedPaths.isEmpty {
-                do { _ = try await client.storage.from("fit-check-photos").remove(paths: uploadedPaths) }
-                catch { Log.storage.error("Draft photo cleanup failed: \(error.localizedDescription)") }
-            }
-            do { try await deleteFitCheck(id: fitCheckId, creatorId: creatorId) }
-            catch { Log.app.error("Draft cleanup failed: \(error.localizedDescription)") }
+            await cleanUpDrafts(creatorId: creatorId, id: fitCheckId)
         }.value
     }
 
@@ -659,7 +655,7 @@ enum API {
         })
     }
 
-    static func signedPhotoURLs(_ values: [String]) async throws -> [String: String] {
+    static func signedPhotoURLs(_ values: [String], requireBatchSuccess: Bool = false) async throws -> [String: String] {
         let paths = Array(Set(values.compactMap(photoPath)))
         guard !paths.isEmpty else { return [:] }
         var signed: [String: String] = [:]
@@ -673,6 +669,7 @@ enum API {
                     if let url = result.signedURL { signed[result.path] = url.absoluteString }
                 }
             } catch {
+                if requireBatchSuccess || error is CancellationError || Task.isCancelled { throw error }
                 Log.storage.error("Signing \(batch.count) Fit-Check photo(s) failed: \(error.localizedDescription)")
             }
         }
@@ -721,8 +718,8 @@ enum API {
         }
     }
 
-    static func signFeedPhotos(_ rows: [FeedItemDTO]) async throws -> [FeedItemDTO] {
-        let urls = try await signedPhotoURLs(rows.flatMap(\.fitCheckPhotos).map(\.imageUrl))
+    static func signFeedPhotos(_ rows: [FeedItemDTO], requireBatchSuccess: Bool = false) async throws -> [FeedItemDTO] {
+        let urls = try await signedPhotoURLs(rows.flatMap(\.fitCheckPhotos).map(\.imageUrl), requireBatchSuccess: requireBatchSuccess)
         return rows.map { row in
             var result = row
             result.fitCheckPhotos = row.fitCheckPhotos.map { photo in
@@ -731,6 +728,16 @@ enum API {
                 return signed
             }
             return result
+        }
+    }
+
+    private static func hydrateFeedPhotosAndPrompts(_ rows: [FeedItemDTO]) async throws -> [FeedItemDTO] {
+        async let prompted = attachVotePrompts(rows)
+        let signed = try await signFeedPhotos(rows)
+        return zip(signed, await prompted).map { item, prompt in
+            var item = item
+            item.votePrompt = prompt.votePrompt
+            return item
         }
     }
 

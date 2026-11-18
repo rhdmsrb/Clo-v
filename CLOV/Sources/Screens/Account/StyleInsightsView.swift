@@ -4,6 +4,7 @@
 struct StyleInsightsView: View {
     var inline = false
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var report: WeeklyStyleReport?
     @State private var isLoading = true
     @State private var hasLoaded = false
@@ -15,7 +16,7 @@ struct StyleInsightsView: View {
     var body: some View {
         Group {
             if inline {
-                reportContent
+                analyticsPanel
                     .accessibilityIdentifier("profile.analytics.content")
             } else {
                 ScrollView {
@@ -29,6 +30,124 @@ struct StyleInsightsView: View {
             }
         }
         .revisionTask(appState.contentRevision) { await load() }
+    }
+
+    private var analyticsPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Style momentum")
+                    .font(Theme.displayFont)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Last 7 days")
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.mutedForeground)
+            }
+            .padding(16)
+
+            AsyncStateView(isLoading: isLoading, error: error, topPadding: 0,
+                           hasLoaded: hasLoaded, retry: { await load() }) {
+                if let report {
+                    analyticsMetrics(report).padding(.horizontal, 16)
+                    analyticsHighlights(report)
+                }
+            }
+            .padding(.bottom, report == nil || error != nil ? 16 : 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.card)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.controlRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.controlRadius)
+                .strokeBorder(Theme.line.opacity(0.14), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+        .padding(.top, 4)
+    }
+
+    private func analyticsMetrics(_ report: WeeklyStyleReport) -> some View {
+        let count = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: count),
+                         alignment: .leading, spacing: 0) {
+            analyticsMetric("Votes", value: report.votesCast, id: "votes")
+            analyticsMetric("Fit-Checks", value: report.fitChecksPosted, id: "posts")
+            analyticsMetric("Comments", value: report.commentsWritten, id: "comments")
+            analyticsMetric("New pieces", value: report.wardrobePiecesAdded, id: "wardrobe")
+        }
+    }
+
+    private func analyticsMetric(_ title: String, value: Int, id: String) -> some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(title)
+                        .font(Theme.body)
+                        .foregroundStyle(Theme.mutedForeground)
+                    Spacer(minLength: 0)
+                    analyticsValue(value).fixedSize(horizontal: true, vertical: false)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    analyticsValue(value)
+                    Text(title)
+                        .font(Theme.label)
+                        .foregroundStyle(Theme.mutedForeground)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 9)
+        .overlay(alignment: .top) { Divider().overlay(Theme.line.opacity(0.08)) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value.formatted())
+        .accessibilityIdentifier("profile.analytics.\(id)")
+    }
+
+    private func analyticsValue(_ value: Int) -> some View {
+        Text(value.formatted())
+            .font(Theme.editorialFont(size: 31, relativeTo: .title2))
+            .monospacedDigit()
+            .foregroundStyle(Theme.ink)
+    }
+
+    private func analyticsHighlights(_ report: WeeklyStyleReport) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 16))
+        return layout {
+            analyticsHighlight(
+                "Current streak", value: "\(report.currentStreak.formatted()) \(report.currentStreak == 1 ? "day" : "days")",
+                symbol: "flame"
+            )
+            if let occasion = report.topOccasion, !occasion.isEmpty {
+                analyticsHighlight("Top occasion", value: occasion, symbol: "tag")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Theme.accentTint)
+    }
+
+    private func analyticsHighlight(_ title: String, value: String, symbol: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.accentDeep)
+                .padding(.top, 2)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(Theme.font(.footnote))
+                    .foregroundStyle(Theme.mutedForeground)
+                Text(value)
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.ink)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private var reportContent: some View {

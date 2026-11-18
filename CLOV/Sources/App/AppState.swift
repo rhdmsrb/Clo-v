@@ -5,8 +5,13 @@ import Supabase
 final class AppState: ObservableObject {
     /// Invalidates visible lists after successful content mutations.
     @Published private(set) var contentRevision = 0
+    @Published private(set) var homeFeedRevision = 0
 
-    func contentDidChange() { contentRevision += 1 }
+    /// Local vote updates still invalidate other screens that show engagement.
+    func contentDidChange(reloadHomeFeed: Bool = true) {
+        if reloadHomeFeed { homeFeedRevision += 1 }
+        contentRevision += 1
+    }
 
     @Published var session: Session?
     @Published var profile: Profile?
@@ -46,6 +51,7 @@ final class AppState: ObservableObject {
     }
 
     init() {
+        Log.performance.emitEvent("App state initialized")
         #if DEBUG
         if enterSampleModeIfRequested() { return }
         #endif
@@ -83,6 +89,8 @@ final class AppState: ObservableObject {
 
     func refreshProfile() async {
         guard let id = session?.user.id else { return }
+        let interval = Log.performance.beginInterval("Profile load", id: Log.performance.makeSignpostID())
+        defer { Log.performance.endInterval("Profile load", interval) }
         // Only block the UI with a spinner when there is no profile to show;
         // background refreshes must not tear down the signed-in screens.
         isLoadingProfile = profile?.id != id

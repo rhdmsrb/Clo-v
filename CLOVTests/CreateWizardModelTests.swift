@@ -28,29 +28,32 @@ struct CreateWizardModelTests {
     @Test("Group audience needs a group; everyone ignores it")
     func audienceValidation() {
         var model = CreateWizardModel()
-        model.audience = .group
+        #expect(!model.hasChosenAudience)
+        model.selectAudience(.group)
+        #expect(model.hasChosenAudience)
         #expect(!model.canAdvance(from: .details))
         model.groupId = UUID()
         #expect(model.canAdvance(from: .details))
-        model.audience = .everyone
+        model.selectAudience(.everyone)
+        #expect(model.groupId == nil)
         #expect(model.effectiveGroupId == nil)
     }
 
     @Test("No audience is chosen for the user; Next waits for a tap")
     func audienceNeedsAChoice() {
         var model = CreateWizardModel()
-        #expect(!model.audienceChosen)
+        #expect(!model.hasChosenAudience)
         #expect(!model.audienceIsValid)
         #expect(!model.canAdvance(from: .details))
-        model.audience = .everyone
-        #expect(model.audienceChosen)
+        model.selectAudience(.everyone)
+        #expect(model.hasChosenAudience)
         #expect(model.canAdvance(from: .details))
     }
 
     @Test("Arriving from a group counts as chosen")
     func preselectedGroupIsChosen() {
         let model = CreateWizardModel(preselectedGroupId: UUID())
-        #expect(model.audienceChosen)
+        #expect(model.hasChosenAudience)
         #expect(model.canAdvance(from: .details))
     }
 
@@ -59,7 +62,7 @@ struct CreateWizardModelTests {
         var model = CreateWizardModel()
         model.groupId = UUID()
         for audience in [FitCheckAudience.friends, .onlyMe] {
-            model.audience = audience
+            model.selectAudience(audience)
             #expect(model.audienceIsValid)
             #expect(model.canAdvance(from: .details))
             #expect(model.effectiveGroupId == nil)
@@ -84,6 +87,7 @@ struct CreateWizardModelTests {
         let id = UUID()
         let model = CreateWizardModel(preselectedGroupId: id)
         #expect(model.audience == .group)
+        #expect(model.hasChosenAudience)
         #expect(model.effectiveGroupId == id)
     }
 

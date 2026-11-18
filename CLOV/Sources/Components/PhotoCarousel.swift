@@ -15,6 +15,8 @@ struct PhotoCarousel: View {
     var accessibilityIdentifier: String = "photo-carousel"
     /// Called on a tap, from the carousel's own gesture (a parent's tap gesture is not reliably reached through the paged TabView).
     var onTap: (() -> Void)?
+    var prioritizesSelectedPhoto = false
+    var onPhotoDisplay: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
@@ -24,7 +26,8 @@ struct PhotoCarousel: View {
     /// Inactive tabs stay mounted at opacity 0, so `onDisappear` never fires for them.
     @Environment(\.isTabActive) private var isTabActive
     @State private var isOnScreen = false
-    @State private var fadingPhoto: URL?
+    @State private var hasDisplayedPhoto = false
+    @State private var fadingPhoto: UIImage?
     @State private var fadingOpacity = 0.0
 
     init(
@@ -34,7 +37,9 @@ struct PhotoCarousel: View {
         keepsRotatingAfterTouch: Bool = false,
         contentMode: ContentMode = .fill,
         accessibilityIdentifier: String = "photo-carousel",
-        onTap: (() -> Void)? = nil
+        onTap: (() -> Void)? = nil,
+        prioritizesSelectedPhoto: Bool = false,
+        onPhotoDisplay: (() -> Void)? = nil
     ) {
         self.urls = urls
         self._currentIndex = currentIndex
@@ -43,11 +48,13 @@ struct PhotoCarousel: View {
         self.contentMode = contentMode
         self.accessibilityIdentifier = accessibilityIdentifier
         self.onTap = onTap
+        self.prioritizesSelectedPhoto = prioritizesSelectedPhoto
+        self.onPhotoDisplay = onPhotoDisplay
         _logic = State(initialValue: CarouselAutoAdvance(pageCount: urls.count, index: currentIndex.wrappedValue))
     }
 
     private static let holdDuration: TimeInterval = 0.4
-    private static let transitionDuration: TimeInterval = 0.45
+    private static let transitionDuration: TimeInterval = 0.32
     private static let transitionSetupDelay: TimeInterval = 0.05
 
     private var shouldRun: Bool {
@@ -59,16 +66,29 @@ struct PhotoCarousel: View {
     var body: some View {
         TabView(selection: pageBinding) {
             ForEach(Array(urls.enumerated()), id: \.offset) { offset, url in
-                page(url).tag(offset)
+                Group {
+                    if shouldLoadPhoto(at: offset) {
+                        page(url, index: offset)
+                    } else {
+                        Theme.muted
+                    }
+                }
+                .tag(offset)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         .overlay {
             if let fadingPhoto {
-                page(fadingPhoto)
-                    .opacity(fadingOpacity)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+                GeometryReader { proxy in
+                    photo(Image(uiImage: fadingPhoto), in: proxy.size)
+                        .background(Color.black)
+                        .clipped()
+                }
+                // Fade the photo and its letterbox as a single layer.
+                .compositingGroup()
+                .opacity(fadingOpacity)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
         }
         .overlay(alignment: .bottom) { PageDots(count: urls.count, index: logic.index).padding(.bottom, 10) }
@@ -85,9 +105,8 @@ struct PhotoCarousel: View {
         )
         .onAppear { isOnScreen = true }
         .onDisappear { isOnScreen = false }
-        // Re-keyed on `shouldRun`, so leaving the screen or stopping cancels the sleep.
-        // A page change (swipe or timer) also re-keys it, so every photo gets a full interval.
-        .task(id: "\(shouldRun)-\(logic.index)") { await runTimer() }
+        // Leaving the screen, stopping, or replacing the photos cancels a pending transition.
+        .task(id: shouldRun ? urls : []) { await runTimer() }
         .onChange(of: currentIndex) { _, newValue in
             if newValue != logic.index {
                 fadingPhoto = nil
@@ -141,15 +160,21 @@ struct PhotoCarousel: View {
         while shouldRun, !Task.isCancelled {
             try? await Task.sleep(for: .seconds(delay))
             guard shouldRun, !Task.isCancelled else { return }
+            let index = logic.index
             let next = logic.advanced()
-            guard urls.indices.contains(logic.index), next.index != logic.index else { continue }
-            fadingPhoto = urls[logic.index]
-            fadingOpacity = 1
-            // The old image stays above the new page, so even the wrap from
-            // the last image to the first is a single, gentle transition.
+            delay = CarouselAutoAdvance.interval
+            // Keep the current outfit visible until both images are decoded.
+            // Holding the outgoing bitmap also prevents a loading flash during the fade.
+            guard urls.indices.contains(index), urls.indices.contains(next.index), next.index != index,
+                  let outgoing = ImageCache.shared.cachedImage(for: urls[index]),
+                  await ImageCache.shared.image(for: urls[next.index]) != nil else { continue }
+            guard shouldRun, !Task.isCancelled else { return }
+            guard index == logic.index else { continue }
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
+                fadingPhoto = outgoing
+                fadingOpacity = 1
                 logic = next
                 currentIndex = next.index
             }
@@ -163,15 +188,28 @@ struct PhotoCarousel: View {
         }
     }
 
-    private func page(_ url: URL) -> some View {
+    private func shouldLoadPhoto(at index: Int) -> Bool {
+        guard prioritizesSelectedPhoto else { return true }
+        guard isTabActive, scenePhase == .active else { return false }
+        let distance = abs(index - logic.index)
+        // Wait for the selected photo before preloading its neighbors.
+        return distance == 0 || (hasDisplayedPhoto && (distance == 1 || distance == urls.count - 1))
+    }
+
+    private func page(_ url: URL, index: Int) -> some View {
         Color.clear
             .overlay {
                 GeometryReader { proxy in
                     CachedImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
-                            image.resizable().aspectRatio(contentMode: contentMode)
-                                .frame(width: proxy.size.width, height: proxy.size.height)
+                            photo(image, in: proxy.size)
+                                .onAppear {
+                                    if index == logic.index {
+                                        hasDisplayedPhoto = true
+                                        onPhotoDisplay?()
+                                    }
+                                }
                         case .loading:
                             Theme.muted.overlay(ProgressView())
                         case .failure:
@@ -186,6 +224,12 @@ struct PhotoCarousel: View {
             }
             .clipped()
             .accessibilityHidden(true)
+    }
+
+    private func photo(_ image: Image, in size: CGSize) -> some View {
+        image.resizable()
+            .aspectRatio(contentMode: contentMode)
+            .frame(width: size.width, height: size.height)
     }
 }
 

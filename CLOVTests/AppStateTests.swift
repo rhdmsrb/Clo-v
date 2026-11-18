@@ -31,6 +31,14 @@ final class AppStateTests: XCTestCase {
         let before = state.contentRevision
         state.contentDidChange()
         XCTAssertEqual(state.contentRevision, before + 1)
+        XCTAssertEqual(state.homeFeedRevision, 1)
+    }
+
+    func testLocallyAppliedVoteSkipsHomeReload() {
+        let state = AppState()
+        state.contentDidChange(reloadHomeFeed: false)
+        XCTAssertEqual(state.contentRevision, 1)
+        XCTAssertEqual(state.homeFeedRevision, 0)
     }
 }
 

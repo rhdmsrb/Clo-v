@@ -3,7 +3,7 @@ import SwiftUI
 struct NotificationsView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.tabBarClearance) private var tabBarClearance
-    let onRead: () -> Void
+    let onUnreadCountChanged: (Int) -> Void
 
     @State private var notifications: [NotificationDTO] = []
     @State private var incomingRequestCount = 0
@@ -87,17 +87,14 @@ struct NotificationsView: View {
 
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Activity")
+            Text("Notifications")
+                .accessibilityIdentifier("notifications.title")
                 .font(Theme.editorialFont(size: 34, relativeTo: .largeTitle))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .accessibilityAddTraits(.isHeader)
-            Text("YOUR CIRCLE")
-                .font(Theme.micro)
-                .tracking(1.4)
-                .foregroundStyle(Theme.accentDeep)
             Text(hasUnread ? "\(unreadCount) new update\(unreadCount == 1 ? "" : "s")" : "Votes, comments, and friend updates in one place.")
                 .font(Theme.body)
                 .foregroundStyle(Theme.mutedForeground)
@@ -241,6 +238,7 @@ struct NotificationsView: View {
         async let requestTask = API.fetchFriendRequests(userId: appState.userId, incoming: true)
         do {
             notifications = try await notificationTask
+            onUnreadCountChanged(unreadCount)
             do { incomingRequestCount = try await requestTask.count } catch {
                 Log.app.error("Load friend requests failed: \(error.localizedDescription)")
                 // keep the last known count; 0 would claim there are no requests
@@ -259,7 +257,7 @@ struct NotificationsView: View {
         notifications[index].isRead = true
         do {
             try await API.markNotificationRead(id: notification.id, recipientId: appState.userId)
-            onRead()
+            onUnreadCountChanged(unreadCount)
         } catch {
             if let index = notifications.firstIndex(where: { $0.id == notification.id }) { notifications[index].isRead = false }
             self.error = "Couldn’t update this activity. Please try again."
@@ -270,7 +268,7 @@ struct NotificationsView: View {
         do {
             try await API.markAllNotificationsRead(recipientId: appState.userId)
             notifications = notifications.map(\.markedRead)
-            onRead()
+            onUnreadCountChanged(unreadCount)
         } catch {
             self.error = "Couldn’t update activity. Please try again."
         }

@@ -130,7 +130,6 @@ struct MainTabView: View {
             tab = initial
         }
         #endif
-        .task { await premountRemainingTabs() }
         .sensoryFeedback(.selection, trigger: tab)
         .sensoryFeedback(.impact(weight: .medium), trigger: showCreate) { _, new in new }
     }
@@ -140,17 +139,6 @@ struct MainTabView: View {
             resetNavigation(for: target)
         } else {
             tab = target
-        }
-    }
-
-    /// Builds the other tabs shortly after launch so the first tap on one
-    /// doesn't pay for constructing its view tree. Inactive tabs skip data
-    /// loading (see `revisionTask`), so this adds no network work.
-    private func premountRemainingTabs() async {
-        for target in [MainTab.vote, .weather, .account] {
-            try? await Task.sleep(for: .milliseconds(400))
-            if Task.isCancelled { return }
-            mountedTabs.insert(target)
         }
     }
 

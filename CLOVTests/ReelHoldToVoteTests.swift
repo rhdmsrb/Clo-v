@@ -99,27 +99,40 @@ final class ReelHoldToVoteTests: XCTestCase {
         let network = FakeVoteNetwork()
         network.holdRetract = true
         let model = makeModel(votes: viewerVoteA, network: network)
-        model.retractVote {}
+        var reportedUndo = false
+        model.retractVote {
+            XCTAssertFalse(model.isRetracting)
+            XCTAssertTrue(model.canVote)
+            reportedUndo = true
+        }
         XCTAssertNil(model.myVote)
         XCTAssertFalse(model.canVote)
         XCTAssertFalse(model.voteForCurrentLook {})
+        XCTAssertFalse(reportedUndo)
         network.releaseRetract()
         await model.waitUntilIdle()
         XCTAssertEqual(network.castCalls, 0)
-        XCTAssertTrue(model.canVote)
+        XCTAssertTrue(reportedUndo)
     }
 
     func testRetractIsBlockedWhileVoteIsInFlight() async {
         let network = FakeVoteNetwork()
         network.holdCast = true
         let model = makeModel(network: network)
-        XCTAssertTrue(model.voteForCurrentLook {})
+        var reportedVote = false
+        XCTAssertTrue(model.voteForCurrentLook {
+            XCTAssertFalse(model.isVoting)
+            XCTAssertTrue(model.canRetract)
+            reportedVote = true
+        })
         XCTAssertFalse(model.canRetract)
         model.retractVote {}
         XCTAssertEqual(model.myVote, photoA)
+        XCTAssertFalse(reportedVote)
         network.releaseCast()
         await model.waitUntilIdle()
         XCTAssertEqual(network.retractCalls, 0)
+        XCTAssertTrue(reportedVote)
     }
 
     func testRetractFailureRestoresVoteAndCounts() async {

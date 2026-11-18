@@ -11,13 +11,19 @@ struct CreateDetailsStep: View {
     }
     private var audienceBinding: Binding<FitCheckAudience> {
         Binding(get: { model.audience }, set: { newValue in
-            model.audience = newValue
-            if newValue == .group { model.groupId = model.groupId ?? myGroups.first?.id } else { model.groupId = nil }
+            model.selectAudience(newValue)
+            if newValue == .group && model.groupId == nil { model.groupId = myGroups.first?.id }
         })
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            AudienceSection(
+                selectedAudience: audienceBinding,
+                selectedGroupId: $model.groupId,
+                myGroups: myGroups,
+                hasChosenAudience: model.hasChosenAudience
+            )
             VStack(alignment: .leading, spacing: 6) {
                 SectionHeader(title: "Title")
                 LabeledField(padding: 12) {
@@ -35,12 +41,6 @@ struct CreateDetailsStep: View {
                          onToggle: { model = model.togglingTag($0) },
                          onAdd: { model = model.addingTag($0) })
             VotingWindowSection(votingDuration: $votingDuration)
-            AudienceSection(
-                selectedAudience: audienceBinding,
-                selectedGroupId: $model.groupId,
-                myGroups: myGroups,
-                hasChosen: model.audienceChosen
-            )
         }
     }
 }

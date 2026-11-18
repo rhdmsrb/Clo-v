@@ -48,8 +48,8 @@ struct ProfilePostView: View {
                 onToggleFollow: { setFollowing($0, creatorId: item.creatorId) },
                 onLike: { try await setLiked($0, item: item) },
                 onOpen: { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) },
-                onComment: { commentItem = item },
-                onVoteChange: { applyVote($0, to: item) }
+                onVoteChange: { photoId, _ in applyVote(photoId, to: item) },
+                onComment: { commentItem = item }
             )
             .padding(.vertical, Self.verticalPadding)
         }

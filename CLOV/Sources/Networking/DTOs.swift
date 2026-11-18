@@ -34,6 +34,9 @@ struct FeedItemDTO: Codable, Identifiable {
     var likeCount: Int? = nil
     /// fit_checks.vote_count (publicly readable total); nil on older rows.
     var voteCount: Int? = nil
+    var visibleCommentCount: Int? = nil
+
+    var commentCount: Int { visibleCommentCount ?? fitCheckComments.count }
 }
 
 
@@ -43,6 +46,7 @@ extension FeedItemDTO {
     private enum CodingKeys: String, CodingKey {
         case id, creatorId, caption, occasion, audience, votePrompt, createdAt, expiresAt
         case fitCheckPhotos, fitCheckVotes, fitCheckComments, profiles, isPublic, tags, likeCount, voteCount
+        case visibleCommentCount
     }
 
     init(from decoder: Decoder) throws {
@@ -57,12 +61,13 @@ extension FeedItemDTO {
         expiresAt = try values.decodeIfPresent(Date.self, forKey: .expiresAt)
         fitCheckPhotos = try values.decode([FitCheckPhoto].self, forKey: .fitCheckPhotos)
         fitCheckVotes = try values.decodeIfPresent([VoteRef].self, forKey: .fitCheckVotes) ?? []
-        fitCheckComments = try values.decode([CommentRef].self, forKey: .fitCheckComments)
+        fitCheckComments = try values.decodeIfPresent([CommentRef].self, forKey: .fitCheckComments) ?? []
         profiles = try values.decodeIfPresent(AuthorInfo.self, forKey: .profiles)
         isPublic = try values.decodeIfPresent(Bool.self, forKey: .isPublic)
         tags = try values.decodeIfPresent([String].self, forKey: .tags)
         likeCount = try values.decodeIfPresent(Int.self, forKey: .likeCount)
         voteCount = try values.decodeIfPresent(Int.self, forKey: .voteCount)
+        visibleCommentCount = try values.decodeIfPresent(Int.self, forKey: .visibleCommentCount)
     }
 }
 

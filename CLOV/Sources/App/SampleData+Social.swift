@@ -4,10 +4,14 @@ import Foundation
 extension SampleData {
     // MARK: - Notifications
 
+    @MainActor private static var readNotificationIDs: Set<UUID> = []
+
+    @MainActor
     static var notifications: [NotificationDTO] {
         func make(_ number: Int, _ type: String, read: Bool, hoursAgo: Double,
                   actor: Person, fitCheck: Int?) -> NotificationDTO {
-            NotificationDTO(id: uuid(4_000 + number), type: type, isRead: read,
+            let id = uuid(4_000 + number)
+            return NotificationDTO(id: id, type: type, isRead: read || readNotificationIDs.contains(id),
                             createdAt: Date().addingTimeInterval(-hours(hoursAgo)),
                             fitCheckId: fitCheck.map { uuid(1_000 + $0) }, actor: actor.info)
         }
@@ -20,7 +24,18 @@ extension SampleData {
         ]
     }
 
+    @MainActor
     static var unreadNotificationCount: Int { notifications.filter { !$0.isRead }.count }
+
+    @MainActor
+    static func markNotificationRead(_ id: UUID) {
+        readNotificationIDs.insert(id)
+    }
+
+    @MainActor
+    static func markAllNotificationsRead() {
+        readNotificationIDs.formUnion(notifications.map(\.id))
+    }
 
     // MARK: - Groups
 
