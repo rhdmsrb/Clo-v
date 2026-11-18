@@ -22,6 +22,7 @@ struct FeedView: View {
     @State private var signalScores: [UUID: Int] = [:]
     @State private var nextOffset = 0
     @State private var canLoadMore = true
+    @State private var showFriends = false
     @State private var isLoadingMore = false
     @State private var loadMoreFailed = false
     @State private var pendingFollowIDs: Set<UUID> = []
@@ -45,6 +46,7 @@ struct FeedView: View {
         .navigationBarHidden(true)
         .navigationDestination(for: FitCheckRoute.self) { route in routeDestination(route) }
         .navigationDestination(item: $openedRoute) { route in routeDestination(route) }
+        .navigationDestination(isPresented: $showFriends) { FriendsView() }
         .revisionTask(appState.contentRevision) {
             if commentRevision != appState.contentRevision {
                 await load(refreshGraph: graphRevision != appState.contentRevision)
@@ -141,6 +143,7 @@ struct FeedView: View {
                        emptyText: emptyFeedText, topPadding: 40, hasLoaded: hasLoaded,
                        retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
                        emptyTitle: "No Fit-Checks yet",
+                       emptyActionTitle: "Find friends", emptyAction: { showFriends = true },
                        skeleton: .cards) {
             LazyVStack(spacing: Self.postSpacing) {
                 ForEach(visibleItems) { item in
@@ -162,6 +165,10 @@ struct FeedView: View {
                             .scaleEffect(reduceMotion || phase.isIdentity ? 1 : 0.97)
                     }
                     .onAppear { logImpression(for: item) }
+                }
+                if FeedInvite.shouldShow(postCount: visibleItems.count, hasLoaded: hasLoaded) {
+                    FeedInviteCard { showFriends = true }
+                        .padding(.horizontal, Self.pagePadding)
                 }
                 loadMoreFooter
             }

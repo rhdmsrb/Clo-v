@@ -31,9 +31,9 @@ enum PostCardContent {
         return shown.indices.contains(index) ? shown[index] : nil
     }
 
-    /// "@CODE" when the account code is known, else "@nickname", else "@someone".
+    /// "@nickname" when set, else "@CODE" (the generated CLO·V ID), else "@someone".
     static func handle(accountCode: String?, nickname: String?) -> String {
-        for candidate in [accountCode, nickname] {
+        for candidate in [nickname, accountCode] {
             let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !trimmed.isEmpty { return "@\(trimmed)" }
         }
