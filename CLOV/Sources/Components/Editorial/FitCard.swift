@@ -105,6 +105,7 @@ struct FitCard<Media: View>: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("fitcard-title")
                 StyleTagRow(tags: content.tags, style: .onPhoto)
             }
             Spacer(minLength: 0)

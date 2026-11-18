@@ -28,12 +28,13 @@ final class DesignReviewUITests: XCTestCase {
         let post = app.descendants(matching: .any)["feed-post-card"].firstMatch
         XCTAssertTrue(post.waitForExistence(timeout: 10))
         XCTAssertLessThan(logo.frame.maxY, post.frame.minY)
-        let prompt = post.staticTexts["feed.postPrompt"]
+        // The prompt is set over the bottom of the photo, editorial style.
+        let prompt = post.staticTexts["fitcard-title"]
         let photos = post.descendants(matching: .any)["feed-photo-carousel"].firstMatch
         XCTAssertTrue(prompt.exists)
         XCTAssertTrue(photos.exists)
-        XCTAssertLessThanOrEqual(prompt.frame.maxY, photos.frame.minY)
-        attach(app, name: "feed-prompt-above-photo")
+        XCTAssertTrue(photos.frame.insetBy(dx: -1, dy: -1).contains(prompt.frame), "the prompt should sit on the photo")
+        attach(app, name: "feed-prompt-on-photo")
     }
 
     func testProfileOpensNotificationsAndClearsUnreadBadge() {
@@ -85,9 +86,7 @@ final class DesignReviewUITests: XCTestCase {
 
     func testGroupFeedOpensPostDetail() {
         let app = launchApp()
-        let groups = app.buttons["groupsTab"]
-        XCTAssertTrue(groups.waitForExistence(timeout: 10))
-        groups.tap()
+        app.openGroups()
         let group = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sunday Stylists'")).firstMatch
         XCTAssertTrue(group.waitForExistence(timeout: 10))
         group.tap()
@@ -103,7 +102,7 @@ final class DesignReviewUITests: XCTestCase {
 
     func testExploreSearchAcceptsText() {
         let app = launchApp()
-        app.buttons["searchTab"].tap()
+        app.openExplore()
         let field = app.textFields["search.query"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
@@ -111,17 +110,21 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "fit")
     }
 
-    func testFeedHeaderControlsAreAbsent() {
+    /// Home's header: wordmark, floating search and notifications, and the filter chips.
+    /// The older header controls (mode segments, sort menu, watch-reel button) stay gone.
+    func testHomeHeaderShowsSearchNotificationsAndFilters() {
         let app = launchApp()
-        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["home.search"].exists)
+        XCTAssertTrue(app.buttons["home.notifications"].exists)
+        XCTAssertTrue(app.buttons["filter.popular"].exists)
+        XCTAssertTrue(app.buttons["filter.popular"].isSelected)
         XCTAssertFalse(app.buttons["watchFeedButton"].exists)
         XCTAssertFalse(app.buttons["feedMode_ForYou"].exists)
-        XCTAssertFalse(app.buttons["feedMode_Following"].exists)
-        XCTAssertFalse(app.buttons["Search Fit-Checks"].exists)
-        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch.exists)
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sort:'")).firstMatch.exists)
-        XCTAssertFalse(app.buttons["Everyday"].exists)
-        XCTAssertTrue(app.buttons["searchTab"].exists)
+        app.buttons["filter.new"].tap()
+        XCTAssertTrue(app.buttons["filter.new"].isSelected)
+        attach(app, name: "home-filter-new")
     }
 
     func testAnalyticsExpandsOnProfile() {
@@ -179,7 +182,10 @@ final class DesignReviewUITests: XCTestCase {
         openCommentSheet(app, prefix: "ax")
         openFeedComparison(app, prefix: "ax")
         dismissSheet(app)
-        tapTab(app, "searchTab", shot: "ax-04-search-tab")
+        app.openExplore()
+        settle()
+        attach(app, name: "ax-04-search-sheet")
+        dismissSheet(app)
         tapTab(app, "accountTab", shot: "ax-05-account-tab")
         tapTab(app, "feedTab", shot: "ax-06-feed-tab-bar")
     }
@@ -277,7 +283,9 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     private func walkSearch(_ app: XCUIApplication, prefix: String = "search") {
-        tapTab(app, "searchTab", shot: "\(prefix)-01-tab")
+        app.openExplore()
+        settle()
+        attach(app, name: "\(prefix)-01-sheet")
         let field = app.textFields["search.query"]
         if field.waitForExistence(timeout: Self.shortWait) { attach(app, name: "\(prefix)-02-search") }
     }

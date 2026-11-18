@@ -37,15 +37,16 @@ final class BottomClearanceUITests: XCTestCase {
         assertClearance(app, screen: "appearance", lastRow: nil)
     }
 
-    func testExploreClearsTabBar() {
+    /// Explore is a sheet over Home now, so there is no tab bar to clear; it must still open.
+    func testExploreOpensAsSheetFromHome() {
         let app = launchApp()
-        app.buttons["searchTab"].tap()
-        assertClearance(app, screen: "explore", lastRow: nil)
+        app.openExplore()
+        XCTAssertTrue(app.textFields["search.query"].waitForExistence(timeout: 10))
     }
 
     func testGroupsClearsTabBar() {
         let app = launchApp()
-        app.buttons["groupsTab"].tap()
+        app.openGroups()
         assertClearance(app, screen: "groups", lastRow: nil)
     }
 

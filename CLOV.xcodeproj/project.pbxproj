@@ -29,6 +29,7 @@
 		118541A8AF721E1364902256 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 68DDD5B1819611152BC31098 /* Assets.xcassets */; };
 		1267FD131D55BC817D82F49D /* ThemePalette+Classic.swift in Sources */ = {isa = PBXBuildFile; fileRef = A85B072371241542CC9ADEE6 /* ThemePalette+Classic.swift */; };
 		13CCC216EE028EFC1BCC127F /* ThemeControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01529DE304519A9EA4671E49 /* ThemeControls.swift */; };
+		13F1E3DD21786B739C1ED0D8 /* TabNavigationHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5E1D895609A39698220F69F /* TabNavigationHelpers.swift */; };
 		142BA3EAA3B19DB3DE0A9844 /* WeatherOutfitSuggesterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2467194F7ED24A8CEB03300 /* WeatherOutfitSuggesterTests.swift */; };
 		15F9E9A3505DA0EC7BA67211 /* PhotoCropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 768A9E908DEA8E8DC586F0F4 /* PhotoCropView.swift */; };
 		166212FEB21FC47EBB9A85B8 /* StyleInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC19350E507C9127B8C2C03 /* StyleInsightsView.swift */; };
@@ -461,6 +462,7 @@
 		F4B5BC0D0C82501089C0C4B3 /* SampleData+Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SampleData+Images.swift"; sourceTree = "<group>"; };
 		F4E725A874DE9D3F0C9B4430 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		F54177AC62EB6C84A6A098C9 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
+		F5E1D895609A39698220F69F /* TabNavigationHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabNavigationHelpers.swift; sourceTree = "<group>"; };
 		F66DA471181A907BD8E9AB96 /* PostProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostProgress.swift; sourceTree = "<group>"; };
 		F694B4E3E4119C3A1DD3FBCD /* RecentSearches.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentSearches.swift; sourceTree = "<group>"; };
 		F76C60301A76086D0734E036 /* ProfileActionTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileActionTabs.swift; sourceTree = "<group>"; };
@@ -922,6 +924,7 @@
 				C267EA71EB846D0620978C79 /* EngagementUITests.swift */,
 				756A5407D4877C806BEEE7DE /* PlusButtonUITests.swift */,
 				19FB42377A3C78A15AC85682 /* SettingsUITests.swift */,
+				F5E1D895609A39698220F69F /* TabNavigationHelpers.swift */,
 				E51862D627F6C31E8869C2AC /* VoteFanUITests.swift */,
 				A0888EA64C0BD0AD631D601B /* WardrobeFlowUITests.swift */,
 			);
@@ -1284,6 +1287,7 @@
 				D9A94794036C13EFDC5B3C50 /* EngagementUITests.swift in Sources */,
 				DCB202932B3E17F4F5FDB65D /* PlusButtonUITests.swift in Sources */,
 				93D8A46B50A06CF2DD00FD64 /* SettingsUITests.swift in Sources */,
+				13F1E3DD21786B739C1ED0D8 /* TabNavigationHelpers.swift in Sources */,
 				6E7F1D8161842D664BE7D71D /* VoteFanUITests.swift in Sources */,
 				4337AA08C93B7391EB7877C0 /* WardrobeFlowUITests.swift in Sources */,
 			);

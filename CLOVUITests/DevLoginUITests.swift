@@ -10,8 +10,7 @@ final class DevLoginUITests: XCTestCase {
         let loading = app.descendants(matching: .any)["launch.loading"]
         let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: loading)
         XCTAssertEqual(XCTWaiter().wait(for: [dismissed], timeout: 5), .completed)
-        let search = app.buttons["searchTab"]
-        search.tap()
+        app.openExplore()
         XCTAssertTrue(app.textFields["search.query"].waitForExistence(timeout: 5))
     }
     override func setUpWithError() throws {

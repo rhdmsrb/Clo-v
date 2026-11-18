@@ -22,8 +22,7 @@ final class EngagementUITests: XCTestCase {
 
     func testSearchRemembersRecentsAndCanClearThem() throws {
         let app = launch()
-        XCTAssertTrue(app.buttons["searchTab"].waitForExistence(timeout: 15))
-        app.buttons["searchTab"].tap()
+        app.openExplore()
 
         // Focusing the empty field shows ideas to try (no history yet).
         let field = app.textFields["search.query"]
@@ -81,8 +80,7 @@ final class EngagementUITests: XCTestCase {
 
     func testExploreShowsEmptyStateWhenTagExcludesSearchResults() throws {
         let app = launch()
-        XCTAssertTrue(app.buttons["searchTab"].waitForExistence(timeout: 15))
-        app.buttons["searchTab"].tap()
+        app.openExplore()
         XCTAssertTrue(app.buttons["explore.filters"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["explore-tile"].firstMatch.waitForExistence(timeout: 10))
         app.buttons["explore.filters"].tap()
@@ -98,8 +96,7 @@ final class EngagementUITests: XCTestCase {
 
     func testExploreTilesHaveMatchingDimensions() throws {
         let app = launch()
-        XCTAssertTrue(app.buttons["searchTab"].waitForExistence(timeout: 15))
-        app.buttons["searchTab"].tap()
+        app.openExplore()
         let tiles = app.descendants(matching: .any).matching(identifier: "explore-tile")
         XCTAssertTrue(tiles.firstMatch.waitForExistence(timeout: 10))
         XCTAssertGreaterThanOrEqual(tiles.count, 2)
