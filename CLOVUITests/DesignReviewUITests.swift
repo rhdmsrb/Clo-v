@@ -110,13 +110,14 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "fit")
     }
 
-    /// Home's header: wordmark, floating search and notifications, and the filter chips.
-    /// The older header controls (mode segments, sort menu, watch-reel button) stay gone.
-    func testHomeHeaderShowsSearchNotificationsAndFilters() {
+    /// The feed header: wordmark and filter chips. Search stays a tab; the older header
+    /// controls (search field, bell, mode segments, sort menu, watch-reel button) stay gone.
+    func testFeedHeaderShowsFiltersAndSearchStaysATab() {
         let app = launchApp()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["home.search"].exists)
-        XCTAssertTrue(app.buttons["home.notifications"].exists)
+        XCTAssertTrue(app.buttons["searchTab"].exists)
+        XCTAssertTrue(app.buttons["groupsTab"].exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch.exists)
         XCTAssertTrue(app.buttons["filter.popular"].exists)
         XCTAssertTrue(app.buttons["filter.popular"].isSelected)
         XCTAssertFalse(app.buttons["watchFeedButton"].exists)
@@ -182,10 +183,7 @@ final class DesignReviewUITests: XCTestCase {
         openCommentSheet(app, prefix: "ax")
         openFeedComparison(app, prefix: "ax")
         dismissSheet(app)
-        app.openExplore()
-        settle()
-        attach(app, name: "ax-04-search-sheet")
-        dismissSheet(app)
+        tapTab(app, "searchTab", shot: "ax-04-search-tab")
         tapTab(app, "accountTab", shot: "ax-05-account-tab")
         tapTab(app, "feedTab", shot: "ax-06-feed-tab-bar")
     }
@@ -283,9 +281,7 @@ final class DesignReviewUITests: XCTestCase {
     }
 
     private func walkSearch(_ app: XCUIApplication, prefix: String = "search") {
-        app.openExplore()
-        settle()
-        attach(app, name: "\(prefix)-01-sheet")
+        tapTab(app, "searchTab", shot: "\(prefix)-01-tab")
         let field = app.textFields["search.query"]
         if field.waitForExistence(timeout: Self.shortWait) { attach(app, name: "\(prefix)-02-search") }
     }

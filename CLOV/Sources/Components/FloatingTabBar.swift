@@ -1,12 +1,12 @@
 import SwiftUI
 
 enum MainTab: Hashable {
-    case feed, vote, weather, account
+    case feed, groups, search, account
 }
 
-/// Floating bottom bar: Home · Vote · (Post) · Weather · Profile. A white capsule with
+/// Floating bottom bar: Feed · Group · (Post) · Search · Profile. A white capsule with
 /// a soft shadow; the selected tab's icon turns accent and fills. Post is an emphasised
-/// black circle in the centre that opens Create. Search lives on Home, Groups on Profile.
+/// black circle in the centre that opens Create.
 struct FloatingTabBar: View {
     let selection: MainTab
     let onSelect: (MainTab) -> Void
@@ -27,15 +27,15 @@ struct FloatingTabBar: View {
 
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            tabItem(.feed, label: "Home", systemImage: "house")
+            tabItem(.feed, label: "Feed", systemImage: "house")
                 .accessibilityIdentifier("feedTab")
-            tabItem(.vote, label: "Vote", systemImage: "hand.thumbsup")
-                .accessibilityIdentifier("voteTab")
+            tabItem(.groups, label: "Group", systemImage: "person.3")
+                .accessibilityIdentifier("groupsTab")
 
             createButton
 
-            tabItem(.weather, label: "Weather", systemImage: "cloud.sun")
-                .accessibilityIdentifier("weatherTab")
+            tabItem(.search, label: "Search", systemImage: "magnifyingglass", hasFilledVariant: false)
+                .accessibilityIdentifier("searchTab")
             tabItem(.account, label: "Profile", systemImage: "person")
                 .accessibilityIdentifier("accountTab")
         }
@@ -72,13 +72,14 @@ struct FloatingTabBar: View {
 
     /// Icon above label. The selected tab fills its icon in the accent and bolds its label.
     @ViewBuilder
-    private func tabItem(_ target: MainTab, label: String, systemImage: String) -> some View {
+    private func tabItem(_ target: MainTab, label: String, systemImage: String,
+                         hasFilledVariant: Bool = true) -> some View {
         let isSelected = selection == target
         let showsIcon = dynamicTypeSize < Self.iconHiddenFrom
         Button { onSelect(target) } label: {
             VStack(spacing: Self.iconLabelSpacing) {
                 if showsIcon {
-                    Image(systemName: isSelected ? "\(systemImage).fill" : systemImage)
+                    Image(systemName: isSelected && hasFilledVariant ? "\(systemImage).fill" : systemImage)
                         .font(.system(size: tabIconSize, weight: isSelected ? .semibold : .regular))
                         .foregroundStyle(isSelected ? Theme.accent : Theme.mutedForeground)
                         .frame(height: tabIconSize + 4)

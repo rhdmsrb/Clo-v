@@ -20,17 +20,16 @@ struct MainTabView: View {
     @State private var isTabBarHidden = false
     @State private var feedPath = NavigationPath()
     @State private var accountPath = NavigationPath()
-    @State private var weatherPath = NavigationPath()
 
     #if DEBUG
-    /// `-CLOVInitialTab feed|vote|weather|profile` for screenshot walkthroughs.
+    /// `-CLOVInitialTab feed|groups|search|profile` for screenshot walkthroughs.
     private static var debugInitialTab: MainTab? {
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: "-CLOVInitialTab"), index + 1 < args.count else { return nil }
         switch args[index + 1] {
         case "feed", "home": return .feed
-        case "vote": return .vote
-        case "weather": return .weather
+        case "groups": return .groups
+        case "search": return .search
         case "profile", "account": return .account
         default: return nil
         }
@@ -43,8 +42,11 @@ struct MainTabView: View {
         ZStack(alignment: .bottom) {
             ZStack {
                 tabRoot(.feed) { NavigationStack(path: $feedPath) { FeedView() } }
-                tabRoot(.vote) { VoteTabView() }
-                tabRoot(.weather) { NavigationStack(path: $weatherPath) { WeatherView() } }
+                tabRoot(.search) {
+                    // SearchExploreView registers its own FitCheckRoute destination.
+                    NavigationStack { SearchExploreView() }
+                }
+                tabRoot(.groups) { GroupsView() }
                 tabRoot(.account) { NavigationStack(path: $accountPath) { AccountView() } }
             }
             .safeAreaInset(edge: .bottom) { Color.clear.frame(height: barHeight + Self.contentClearance) }
@@ -146,8 +148,7 @@ struct MainTabView: View {
         switch target {
         case .feed: feedPath = NavigationPath()
         case .account: accountPath = NavigationPath()
-        case .weather: weatherPath = NavigationPath()
-        case .vote: break
+        case .search, .groups: break
         }
     }
 

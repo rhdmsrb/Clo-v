@@ -1,14 +1,6 @@
 import SwiftUI
 
-/// Which screen the feed is serving: Home (everything, ranked) or the Vote tab
-/// (only live posts the viewer has not voted on yet).
-enum FeedStyle {
-    case home, voteQueue
-}
-
 struct FeedView: View {
-    var style: FeedStyle = .home
-
     @EnvironmentObject private var appState: AppState
 
     @State private var items: [FeedItemDTO] = []
@@ -37,11 +29,8 @@ struct FeedView: View {
     @State private var pendingFollowIDs: Set<UUID> = []
     @State private var pendingLikeIDs: Set<UUID> = []
     @State private var loadID = UUID()
-    @State private var showSearch = false
-    /// Selected Home filter chip (see `HomeFeedFilters`); unused in the vote queue.
+    /// Selected filter chip (see `HomeFeedFilters`).
     @State private var homeFilter = HomeFeedFilters.popular
-    @State private var showNotifications = false
-    @State private var unreadCount = 0
     @State private var firstPhotoDisplayed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tabBarClearance) private var tabBarClearance
@@ -54,29 +43,7 @@ struct FeedView: View {
     private static let noticeDuration: Duration = .seconds(3)
 
     private var emptyFeedText: String {
-        switch style {
-        case .home: "Your feed is waiting for its first look. Post a Fit-Check to get started."
-        case .voteQueue: "You’re all caught up. New looks to vote on will show up here."
-        }
-    }
-
-    @ViewBuilder
-    private var header: some View {
-        switch style {
-        case .home:
-            HomeHeader(nickname: appState.profile?.nickname, unreadCount: unreadCount,
-                       onSearch: { showSearch = true },
-                       onNotifications: { showNotifications = true })
-        case .voteQueue:
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Looks waiting on you")
-                    .font(Theme.serifGreeting)
-                    .foregroundStyle(Theme.mutedForeground)
-                EditorialTitle("Cast your", emphasis: "vote")
-                    .accessibilityIdentifier("vote.headline")
-            }
-            .dynamicTypeSize(...DynamicTypeSize.accessibility2)
-        }
+        "Your feed is waiting for its first look. Post a Fit-Check to get started."
     }
 
     var body: some View {
@@ -85,14 +52,6 @@ struct FeedView: View {
         .navigationDestination(for: FitCheckRoute.self) { route in routeDestination(route) }
         .navigationDestination(item: $openedRoute) { route in routeDestination(route) }
         .navigationDestination(isPresented: $showFriends) { FriendsView() }
-        .navigationDestination(isPresented: $showNotifications) {
-            NotificationsView(onUnreadCountChanged: { unreadCount = $0 })
-        }
-        .sheet(isPresented: $showSearch) { searchSheet }
-        .task(id: appState.contentRevision) { await loadUnreadCount() }
-        .onChange(of: showNotifications) { _, showing in
-            if !showing { Task { await loadUnreadCount() } }
-        }
         .revisionTask(appState.homeFeedRevision) {
             if commentRevision != appState.homeFeedRevision {
                 await load(refreshGraph: graphRevision != appState.homeFeedRevision)
@@ -151,11 +110,10 @@ struct FeedView: View {
             // Posts run edge to edge, so the page padding is applied per
             // section instead of on the whole column.
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
-                header.padding(.horizontal, Self.pagePadding)
-                if style == .home {
-                    FilterChipRow(options: HomeFeedFilters.options(stylePreferences: appState.profile?.stylePreferences ?? []),
-                                  selection: $homeFilter, accessibilityLabel: "Feed filters")
-                }
+                HomeHeader(nickname: appState.profile?.nickname)
+                    .padding(.horizontal, Self.pagePadding)
+                FilterChipRow(options: HomeFeedFilters.options(stylePreferences: appState.profile?.stylePreferences ?? []),
+                              selection: $homeFilter, accessibilityLabel: "Feed filters")
                 feedList
                 olderFitChecksButton.padding(.horizontal, Self.pagePadding)
             }
@@ -169,28 +127,6 @@ struct FeedView: View {
             await load(refreshGraph: true)
         }
         .onDisappear { flushImpressions() }
-    }
-
-    /// Explore, presented over Home. It hides its own navigation bar, so the sheet adds a close button.
-    private var searchSheet: some View {
-        NavigationStack {
-            SearchExploreView()
-                .environment(\.tabBarClearance, 0)
-                .overlay(alignment: .topTrailing) {
-                    FloatingIconButton(systemImage: "xmark", accessibilityLabel: "Close search",
-                                       identifier: "search.close") { showSearch = false }
-                        .padding(.trailing, Self.pagePadding)
-                        .padding(.top, Spacing.s)
-                }
-        }
-    }
-
-    private func loadUnreadCount() async {
-        if let count = await Log.attempt("Load unread count", {
-            try await API.fetchUnreadNotificationCount(recipientId: appState.userId)
-        }) {
-            unreadCount = count
-        }
     }
 
     @ViewBuilder
@@ -210,10 +146,9 @@ struct FeedView: View {
         }
     }
 
-    /// Home applies the selected filter chip; the vote queue shows its list as is.
+    /// The ranked feed narrowed or reordered by the selected filter chip.
     private var shownItems: [FeedItemDTO] {
-        guard style == .home else { return visibleItems }
-        return HomeFeedFilters.apply(homeFilter, to: visibleItems, followingIDs: followingIDs)
+        HomeFeedFilters.apply(homeFilter, to: visibleItems, followingIDs: followingIDs)
     }
 
     private var feedList: some View {
@@ -321,9 +256,7 @@ struct FeedView: View {
             }
             return result
         }
-        let unanswered = varied(ranked.filter { !answered.contains($0.id) })
-        if style == .voteQueue { return unanswered.filter { $0.creatorId != appState.userId } }
-        return unanswered + varied(ranked.filter { answered.contains($0.id) })
+        return varied(ranked.filter { !answered.contains($0.id) }) + varied(ranked.filter { answered.contains($0.id) })
     }
 
     private func refreshVisibleItems() {

@@ -31,7 +31,7 @@ struct FitCheckReelView: View {
         if Self.isEnabled {
             reel
         } else {
-            ProfilePostView(fitCheckId: item.id)
+            FitCheckDetailView(fitCheckId: item.id)
         }
     }
 

@@ -50,20 +50,18 @@ final class PlusButtonUITests: XCTestCase {
         XCTAssertTrue(createTitle.waitForExistence(timeout: 5), "Tapping the plus button did not open the Create Fit-Check screen.")
     }
 
-    func testTabBarShowsVoteAndWeatherAndGroupsMovedToProfile() throws {
+    func testTabBarShowsGroupTabAndNoActivityTab() throws {
         let app = XCUIApplication()
         app.launchArguments += ["--uiTestAutoLogin"]
         app.launchEnvironment["UITEST_EMAIL"] = "clov-ui-test@example.com"
         app.launchEnvironment["UITEST_PASSWORD"] = "uiTestPass123"
         app.launch()
 
-        XCTAssertTrue(app.buttons["voteTab"].waitForExistence(timeout: 15), "Vote tab never appeared.")
-        XCTAssertTrue(app.buttons["weatherTab"].exists, "Weather tab missing.")
-        for gone in ["groupsTab", "searchTab", "activityTab"] {
-            XCTAssertFalse(app.buttons[gone].exists, "\(gone) should no longer be a tab.")
-        }
-        app.openGroups()
+        let groupsTab = app.buttons["groupsTab"]
+        XCTAssertTrue(groupsTab.waitForExistence(timeout: 15), "Group tab never appeared.")
+        XCTAssertFalse(app.buttons["activityTab"].exists, "Activity tab should be replaced by Group.")
+        groupsTab.tap()
         let groupsRoot = app.descendants(matching: .any)["groups.root"]
-        XCTAssertTrue(groupsRoot.waitForExistence(timeout: 5), "Groups did not open from the Profile menu.")
+        XCTAssertTrue(groupsRoot.waitForExistence(timeout: 5), "Group tab did not show the groups screen.")
     }
 }

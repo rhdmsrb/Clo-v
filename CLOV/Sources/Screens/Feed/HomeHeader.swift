@@ -16,13 +16,10 @@ enum HomeGreeting {
     }
 }
 
-/// Top of Home: serif wordmark with floating search and notification buttons, an
-/// italic serif greeting, and the editorial headline.
+/// Top of the feed: serif wordmark, an italic serif greeting, and the editorial headline.
+/// (Search is its own tab; notifications live on Profile.)
 struct HomeHeader: View {
     let nickname: String?
-    let unreadCount: Int
-    let onSearch: () -> Void
-    let onNotifications: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -35,12 +32,7 @@ struct HomeHeader: View {
                     .accessibilityLabel("CLO V")
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("feed.logo")
-                Spacer(minLength: Spacing.s)
-                FloatingIconButton(systemImage: "magnifyingglass", accessibilityLabel: "Search",
-                                   identifier: "home.search", action: onSearch)
-                FloatingIconButton(systemImage: "bell", accessibilityLabel: "Notifications",
-                                   badgeCount: unreadCount, identifier: "home.notifications",
-                                   action: onNotifications)
+                Spacer(minLength: 0)
             }
             TimelineView(.everyMinute) { context in
                 Text(HomeGreeting.text(hour: Calendar.current.component(.hour, from: context.date), nickname: nickname))
@@ -58,7 +50,7 @@ struct HomeHeader: View {
 }
 
 #Preview("Home header") {
-    HomeHeader(nickname: "maya", unreadCount: 3, onSearch: {}, onNotifications: {})
+    HomeHeader(nickname: "maya")
         .padding(Spacing.m)
         .background(PaperBackground())
 }
