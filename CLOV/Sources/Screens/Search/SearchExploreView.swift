@@ -30,24 +30,22 @@ struct SearchExploreView: View {
     @Environment(\.isTabActive) private var isTabActive
 
     private static let pagePadding: CGFloat = 20
+    private static let gridColumns = 3
+    private static let gridSpacing: CGFloat = 12
     private static let pageSize = 30
     private static let recentStore = RecentSearchStore()
     /// Shown until the user has searches of their own.
     private static let suggestions = ["Wedding guest", "Interview", "Date night", "Brunch", "Travel fit", "Streetwear"]
     private static let prefetchTileCount = 6
-    private static let captionAvatarSize: CGFloat = 24
-    private static let captionSpacing: CGFloat = 6
-    private static let captionPadding: CGFloat = 8
-    private static let captionScrimHeight: CGFloat = 64
     private static let searchDebounce: Duration = .milliseconds(300)
     private var searchTerm: String { SearchTerm.sanitized(query) }
     private var requestKey: String { "\(searchTerm)|\(filter.occasion ?? "")" }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
+            LazyVStack(alignment: .leading, spacing: Spacing.m) {
                 Text("Explore")
-                    .font(Theme.displayFont).foregroundStyle(Theme.ink)
+                    .font(Theme.font(.title2, weight: .bold)).foregroundStyle(Theme.ink)
                     .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     .accessibilityAddTraits(.isHeader)
                 HStack(spacing: 10) {
@@ -55,6 +53,9 @@ struct SearchExploreView: View {
                     filtersButton
                 }
                 searchSuggestions
+                ExploreQuickFilters(filter: filter, onChange: applyFilter)
+                    .padding(.horizontal, -Self.pagePadding)
+                Divider()
                 AsyncStateView(isLoading: isLoading, error: error,
                                isEmpty: displayed.isEmpty && !canLoadMore,
                                emptyText: hasLoaded && error == nil
@@ -62,12 +63,16 @@ struct SearchExploreView: View {
                                 : "No looks to explore yet. Check back when your circle starts posting.",
                                topPadding: 28, hasLoaded: hasLoaded, retry: { await load() }) {
                     if let relationshipsNotice { relationshipsBanner(relationshipsNotice) }
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Self.gridSpacing), count: Self.gridColumns),
+                              spacing: Spacing.l) {
                         ForEach(displayed) { item in
                             Button { openedRoute = FitCheckRoute(id: item.id, photoIndex: nil) } label: {
-                                tile(item)
-                                    .aspectRatio(3 / 4, contentMode: .fit)
-                                    .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+                                VStack(alignment: .leading, spacing: Spacing.xs + 2) {
+                                    tile(item)
+                                        .aspectRatio(3 / 4, contentMode: .fit)
+                                        .clipShape(RoundedRectangle(cornerRadius: Radius.hero, style: .continuous))
+                                    tileFooter(item)
+                                }
                             }
                             .buttonStyle(InstantPressStyle())
                             .onAppear { prefetchIfNeeded(after: item) }
@@ -80,8 +85,8 @@ struct SearchExploreView: View {
         }
         .clearsTabBar()
         .scrollDismissesKeyboard(.interactively)
-        .background(Theme.background)
-        .statusBarBackdrop()
+        .background(Theme.card)
+        .statusBarBackdrop(Theme.card)
         .navigationBarHidden(true)
         .onChange(of: isTabActive) { _, active in
             if !active { isSearchFocused = false }
@@ -149,9 +154,8 @@ struct SearchExploreView: View {
             }
         }
         .font(Theme.body)
-        .padding(.horizontal, 15).frame(minHeight: 52)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+        .padding(.horizontal, 15).frame(minHeight: Theme.minTapSize + 4)
+        .background(Theme.muted, in: Capsule(style: .continuous))
     }
 
     // MARK: - Recent searches and suggestions
@@ -295,7 +299,6 @@ struct SearchExploreView: View {
                     Theme.muted
                 }
             }
-            .overlay(alignment: .bottomLeading) { tileCaption(item) }
             .clipped()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion))
@@ -304,25 +307,24 @@ struct SearchExploreView: View {
             .accessibilityIdentifier("explore-tile")
     }
 
-    /// Author avatar and like count over a soft scrim. Text stays white on the
-    /// scrim so it reads on any photo; the count is hidden when unknown or zero.
-    private func tileCaption(_ item: FeedItemDTO) -> some View {
-        HStack(spacing: Self.captionSpacing) {
-            AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: Self.captionAvatarSize)
+    /// Author under the tile in small gray text, like a label under a product shot,
+    /// with the like count when there is one.
+    private func tileFooter(_ item: FeedItemDTO) -> some View {
+        HStack(spacing: Spacing.xs) {
+            Text(item.profiles?.nickname ?? "someone")
+                .font(Theme.font(.caption))
+                .foregroundStyle(Theme.mutedForeground)
+                .lineLimit(1)
             Spacer(minLength: 0)
             if let likes = PostCardContent.displayLikeCount(item.likeCount) {
-                Label("\(likes)", systemImage: "heart.fill")
-                    .labelStyle(.titleAndIcon)
-                    .font(Theme.micro)
-                    .foregroundStyle(.white)
+                Label("\(likes)", systemImage: "heart")
+                    .labelStyle(CompactLabelStyle())
+                    .font(Theme.font(.caption2))
+                    .foregroundStyle(Theme.mutedForeground)
                     .lineLimit(1)
             }
         }
-        .padding(Self.captionPadding)
-        .frame(maxWidth: .infinity)
-        .background(alignment: .bottom) {
-            Theme.photoScrim.frame(height: Self.captionScrimHeight).allowsHitTesting(false)
-        }
+        .accessibilityHidden(true)
     }
 
     private func tileAccessibilityValue(_ item: FeedItemDTO) -> String {

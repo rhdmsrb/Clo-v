@@ -10,7 +10,6 @@ struct MainTabView: View {
     /// Measured height of the floating bar (including its outer padding), so
     /// content is inset by the real size rather than a fixed guess.
     @State private var barHeight: CGFloat = 76
-    private static let barBottomPadding: CGFloat = 4
     /// Extra scroll room so the last row clears the bar's shadow.
     private static let contentClearance: CGFloat = 12
     @State private var showCreate = false
@@ -64,8 +63,6 @@ struct MainTabView: View {
             .opacity(isBarHidden ? 0 : 1)
             .allowsHitTesting(!isBarHidden)
             .accessibilityHidden(isBarHidden)
-            .padding(.horizontal, Spacing.m)
-            .padding(.bottom, Self.barBottomPadding)
             .background(GeometryReader { proxy in
                 Color.clear.preference(key: BarHeightKey.self, value: proxy.size.height)
             })

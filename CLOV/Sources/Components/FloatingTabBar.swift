@@ -4,9 +4,9 @@ enum MainTab: Hashable {
     case feed, groups, search, account
 }
 
-/// Floating bottom bar: Feed · Group · (Post) · Search · Profile. A white capsule with
-/// a soft shadow; the selected tab's icon turns accent and fills. Post is an emphasised
-/// black circle in the centre that opens Create.
+/// Bottom bar: Feed · Group · (Post) · Search · Profile. A flat white bar across the
+/// bottom edge with a hairline on top; the selected tab turns ink and fills, the rest
+/// stay gray. Post is an emphasised black circle in the centre that opens Create.
 struct FloatingTabBar: View {
     let selection: MainTab
     let onSelect: (MainTab) -> Void
@@ -42,14 +42,18 @@ struct FloatingTabBar: View {
         .motionSafeAnimation(Theme.quick, value: selection)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Main navigation")
-        .padding(.horizontal, Spacing.s)
-        .padding(.vertical, Spacing.xs + 2)
-        .background(Theme.cardElevated, in: Capsule(style: .continuous))
-        .overlay {
-            Capsule(style: .continuous)
-                .strokeBorder(contrast == .increased ? Theme.controlBorder : Theme.line.opacity(0.06), lineWidth: 1)
+        .padding(.horizontal, Spacing.m)
+        .padding(.top, Spacing.xs + 2)
+        .background(alignment: .top) {
+            // Runs under the home indicator so the bar reads as one surface.
+            Theme.cardElevated
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(contrast == .increased ? Theme.controlBorder : Theme.line.opacity(0.1))
+                        .frame(height: 0.5)
+                }
+                .ignoresSafeArea(edges: .bottom)
         }
-        .elevatedShadow()
     }
 
     private var createButton: some View {
@@ -70,7 +74,7 @@ struct FloatingTabBar: View {
         }
     }
 
-    /// Icon above label. The selected tab fills its icon in the accent and bolds its label.
+    /// Icon above label. The selected tab fills its icon in ink and bolds its label.
     @ViewBuilder
     private func tabItem(_ target: MainTab, label: String, systemImage: String,
                          hasFilledVariant: Bool = true) -> some View {
@@ -81,12 +85,12 @@ struct FloatingTabBar: View {
                 if showsIcon {
                     Image(systemName: isSelected && hasFilledVariant ? "\(systemImage).fill" : systemImage)
                         .font(.system(size: tabIconSize, weight: isSelected ? .semibold : .regular))
-                        .foregroundStyle(isSelected ? Theme.accent : Theme.mutedForeground)
+                        .foregroundStyle(isSelected ? Theme.ink : Theme.mutedForeground)
                         .frame(height: tabIconSize + 4)
                 }
                 Text(label)
                     .font(Theme.font(.caption2, weight: isSelected ? .bold : .medium))
-                    .foregroundStyle(isSelected ? Theme.accentDeep : Theme.mutedForeground)
+                    .foregroundStyle(isSelected ? Theme.ink : Theme.mutedForeground)
                     .lineLimit(1)
                     .minimumScaleFactor(Self.labelMinScale)
             }

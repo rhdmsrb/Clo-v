@@ -35,11 +35,11 @@ struct FeedView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tabBarClearance) private var tabBarClearance
 
-    private static let pagePadding = Spacing.pageGutter
+    private static let pagePadding = Spacing.l
     private static let pageSize = 24
     private static let cardSpacing: CGFloat = 16
     /// Posts have no card surface any more, so they need more air between them.
-    private static let postSpacing = Spacing.l
+    private static let postSpacing = Spacing.xl
     private static let noticeDuration: Duration = .seconds(3)
 
     private var emptyFeedText: String {
@@ -121,7 +121,7 @@ struct FeedView: View {
             .padding(.bottom, Self.cardSpacing)
         }
         .safeAreaPadding(.bottom, tabBarClearance)
-        .background(PaperBackground().ignoresSafeArea())
+        .background(MarbleBackground().ignoresSafeArea())
         .statusBarBackdrop()
         .refreshable {
             await load(refreshGraph: true)
@@ -173,6 +173,9 @@ struct FeedView: View {
                         onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) },
                         onLike: { like in try await setLiked(like, item: item) },
                         onComment: { commentItem = item },
+                        onOpen: FitCheckReelView.isEnabled
+                            ? { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) }
+                            : nil,
                         onVoteChange: { photoId, total in applyVote(photoId: photoId, total: total, itemID: item.id) },
                         onPhotoDisplay: {
                             guard !firstPhotoDisplayed, item.id == visibleItems.first?.id else { return }
@@ -520,10 +523,12 @@ struct FeedView: View {
 /// never runs under (and collides with) the clock and battery. Drawn as an
 /// overlay, so it does not change layout.
 private struct StatusBarBackdrop: ViewModifier {
+    var color: Color = Theme.background
+
     func body(content: Content) -> some View {
         content.overlay(alignment: .top) {
             GeometryReader { proxy in
-                Theme.background
+                color
                     .frame(height: proxy.safeAreaInsets.top)
                     .ignoresSafeArea(edges: .top)
             }
@@ -535,5 +540,5 @@ private struct StatusBarBackdrop: ViewModifier {
 }
 
 extension View {
-    func statusBarBackdrop() -> some View { modifier(StatusBarBackdrop()) }
+    func statusBarBackdrop(_ color: Color = Theme.background) -> some View { modifier(StatusBarBackdrop(color: color)) }
 }

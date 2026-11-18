@@ -19,6 +19,13 @@ struct EditorialComponentsTests {
         #expect(CountdownText.label(remaining: remaining) == expected)
     }
 
+    @Test("The boxed badge drops the 'ends in' prefix")
+    func countdownCompact() {
+        #expect(CountdownText.compact(remaining: 18_059) == "5h")
+        #expect(CountdownText.compact(remaining: 750) == "12m")
+        #expect(CountdownText.compact(remaining: 0) == "Ended")
+    }
+
     @Test("Countdown speaks whole words, not abbreviations")
     func countdownAccessibility() {
         #expect(CountdownText.accessibilityLabel(remaining: 5 * 3_600) == "Voting ends in 5 hours")

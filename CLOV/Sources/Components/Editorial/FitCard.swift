@@ -32,22 +32,22 @@ extension FitCardContent {
     }
 }
 
-/// Full-bleed fit photo with 24pt corners and a bottom gradient. Over the photo: the
-/// author (top left), the countdown (top right), and at the bottom a serif-italic
-/// occasion, a bold title, style tags and the vote count.
+/// Editorial hero photo: full-bleed, nearly square corners and a bottom gradient. A white
+/// tag at the top right shows the time left ("5h"); at the bottom left, the occasion sits in
+/// a white box in serif italic above a large bold title.
 ///
 /// `media` replaces the default photo, so a caller can put a carousel (with its own
 /// gestures) in the photo slot while the overlays stay the same.
 struct FitCard<Media: View>: View {
     let content: FitCardContent
     var aspectRatio: CGFloat = 4.0 / 5.0
-    var cornerRadius: CGFloat = Radius.card
-    /// Space under the caption; raise it when the media draws its own controls at the
-    /// bottom (a carousel's page dots), so the two never overlap.
+    var cornerRadius: CGFloat = Radius.hero
+    /// Space under the caption; raise it when something overlaps the photo's foot
+    /// (page dots, a row of buttons hanging off the edge).
     var captionBottomInset: CGFloat = Spacing.m
     @ViewBuilder let media: () -> Media
 
-    init(content: FitCardContent, aspectRatio: CGFloat = 4.0 / 5.0, cornerRadius: CGFloat = Radius.card,
+    init(content: FitCardContent, aspectRatio: CGFloat = 4.0 / 5.0, cornerRadius: CGFloat = Radius.hero,
          captionBottomInset: CGFloat = Spacing.m, @ViewBuilder media: @escaping () -> Media) {
         self.content = content
         self.aspectRatio = aspectRatio
@@ -61,78 +61,46 @@ struct FitCard<Media: View>: View {
             .aspectRatio(aspectRatio, contentMode: .fit)
             .overlay { media() }
             .overlay { Theme.photoScrim.allowsHitTesting(false) }
-            .overlay(alignment: .topLeading) { author.padding(Spacing.sm).allowsHitTesting(false) }
-            .overlay(alignment: .topTrailing) { CountdownBadge(expiresAt: content.expiresAt).padding(Spacing.sm) }
+            .overlay(alignment: .topTrailing) {
+                CountdownBadge(expiresAt: content.expiresAt, style: .boxed).padding(Spacing.sm)
+            }
             .overlay(alignment: .bottomLeading) {
                 caption
-                    .padding([.horizontal, .top], Spacing.m)
+                    .padding([.horizontal, .top], Spacing.m + Spacing.xs)
                     .padding(.bottom, captionBottomInset)
                     .allowsHitTesting(false)
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .environment(\.colorScheme, .dark) // overlays sit on a dark scrim in both modes
-    }
-
-    private var author: some View {
-        HStack(spacing: Spacing.s) {
-            AvatarView(url: content.avatarURL, nickname: content.username, size: 28)
-            Text(content.username)
-                .font(Theme.font(.subheadline, weight: .semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-        }
-        .padding(.leading, Spacing.xs)
-        .padding(.trailing, Spacing.sm)
-        .padding(.vertical, Spacing.xs)
-        .background(.black.opacity(0.28), in: Capsule(style: .continuous))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Posted by \(content.username)")
     }
 
     private var caption: some View {
-        HStack(alignment: .bottom, spacing: Spacing.s) {
-            VStack(alignment: .leading, spacing: Spacing.xs + 2) {
-                if let occasion = content.occasion {
-                    Text(occasion)
-                        .font(Theme.serifLabel)
-                        .foregroundStyle(.white.opacity(0.92))
-                        .lineLimit(1)
-                }
-                Text(content.title)
-                    .font(Theme.font(.title2, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("fitcard-title")
-                StyleTagRow(tags: content.tags, style: .onPhoto)
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            if let occasion = content.occasion {
+                Text(occasion)
+                    .font(Theme.serifTag)
+                    .foregroundStyle(Color.black)
+                    .lineLimit(1)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(Color.white)
             }
-            Spacer(minLength: 0)
-            if let votes = content.voteCount { voteCount(votes) }
+            Text(content.title)
+                .font(Theme.font(.title, weight: .bold))
+                .foregroundStyle(.white)
+                .lineLimit(3)
+                .minimumScaleFactor(0.75)
+                .shadow(color: .black.opacity(0.25), radius: 6, y: 1)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("fitcard-title")
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
-    }
-
-    private func voteCount(_ votes: Int) -> some View {
-        VStack(spacing: 0) {
-            Text("\(votes)")
-                .font(Theme.font(.title3, weight: .bold))
-                .monospacedDigit()
-                .contentTransition(.numericText())
-            Text(votes == 1 ? "vote" : "votes")
-                .font(Theme.micro)
-        }
-        .foregroundStyle(.white)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(votes == 1 ? "1 vote" : "\(votes) votes")
-        .accessibilityIdentifier("fitcard-vote-count")
     }
 }
 
 extension FitCard where Media == FitCardPhoto {
     /// Card with the default photo for `content.photoURL`.
-    init(content: FitCardContent, aspectRatio: CGFloat = 4.0 / 5.0, cornerRadius: CGFloat = Radius.card) {
+    init(content: FitCardContent, aspectRatio: CGFloat = 4.0 / 5.0, cornerRadius: CGFloat = Radius.hero) {
         self.init(content: content, aspectRatio: aspectRatio, cornerRadius: cornerRadius) {
             FitCardPhoto(url: content.photoURL)
         }

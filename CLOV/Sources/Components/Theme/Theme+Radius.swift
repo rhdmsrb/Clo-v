@@ -7,6 +7,8 @@ enum Radius {
     static let small: CGFloat = 12
     static let control: CGFloat = 16
     static let pill: CGFloat = 999
+    /// Editorial hero photos: almost square.
+    static let hero: CGFloat = 4
 }
 
 extension Theme {

@@ -18,6 +18,8 @@ extension Theme {
     static let display = Font.system(.largeTitle, design: .serif)
     /// Smaller serif headline (28pt title) for screen headers under a wordmark.
     static let headlineSerif = Font.system(.title, design: .serif)
+    /// Serif italic in a white tag over a hero photo ("Date night").
+    static let serifTag = Font.system(.title3, design: .serif).italic()
     /// Serif italic label that sits on photos ("Date night", "Campus").
     static let serifLabel = Font.system(.subheadline, design: .serif).italic()
     /// Serif italic line under the wordmark ("Good evening, Maya").

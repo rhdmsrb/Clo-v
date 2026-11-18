@@ -112,8 +112,9 @@ final class EngagementUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.otherElements.matching(NSPredicate(format: "label ENDSWITH %@", "’s Fit-Check")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "No Fit-Check card on the feed.")
-        // The photos are for press-and-hold voting, so the menu lives on the author row and the text.
-        let authorName = card.staticTexts.firstMatch
+        // The photos are for press-and-hold voting, so the menu lives on the author row under the photo.
+        let posterName = card.label.replacingOccurrences(of: "’s Fit-Check", with: "")
+        let authorName = card.staticTexts[posterName].firstMatch
         XCTAssertTrue(authorName.waitForExistence(timeout: 5), "No author name on the card.")
         authorName.press(forDuration: 1.2)
 

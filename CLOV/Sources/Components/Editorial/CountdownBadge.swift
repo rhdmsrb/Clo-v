@@ -15,6 +15,12 @@ enum CountdownText {
         return "ends in <1m"
     }
 
+    /// Short form for a boxed badge: "2d", "5h", "12m", "<1m", or "Ended".
+    static func compact(remaining: TimeInterval) -> String {
+        let full = label(remaining: remaining)
+        return full.hasPrefix("ends in ") ? String(full.dropFirst("ends in ".count)) : full
+    }
+
     /// Spoken form: "Voting ends in 5 hours".
     static func accessibilityLabel(remaining: TimeInterval) -> String {
         guard remaining > 0 else { return "Voting ended" }
@@ -31,10 +37,11 @@ enum CountdownText {
 /// minute; hidden for posts with no expiry.
 struct CountdownBadge: View {
     let expiresAt: Date?
-    /// `.onPhoto` sits over a photo (white on translucent black); `.onSurface` sits on a card.
+    /// `.onPhoto`: white pill over a photo. `.onSurface`: gray pill on a card.
+    /// `.boxed`: a square-cornered white tag with the short form ("5h"), editorial style.
     var style: Style = .onPhoto
 
-    enum Style { case onPhoto, onSurface }
+    enum Style { case onPhoto, onSurface, boxed }
 
     private static let refresh: TimeInterval = 60
 
@@ -42,15 +49,16 @@ struct CountdownBadge: View {
         if let expiresAt {
             TimelineView(.periodic(from: .now, by: Self.refresh)) { context in
                 let remaining = expiresAt.timeIntervalSince(context.date)
-                Label(CountdownText.label(remaining: remaining), systemImage: remaining > 0 ? "hourglass" : "checkmark.seal")
-                    .font(Theme.font(.caption, weight: .semibold))
+                Label(style == .boxed ? CountdownText.compact(remaining: remaining) : CountdownText.label(remaining: remaining),
+                      systemImage: remaining > 0 ? "hourglass" : "checkmark.seal")
+                    .font(Theme.font(style == .boxed ? .subheadline : .caption, weight: style == .boxed ? .bold : .semibold))
                     .monospacedDigit()
                     .labelStyle(CompactLabelStyle())
-                    // On a photo the pill is always white, so its text stays dark in dark mode too.
-                    .foregroundStyle(style == .onPhoto ? Color.black : Theme.ink)
+                    // On a photo the tag is always white, so its text stays dark in dark mode too.
+                    .foregroundStyle(style == .onSurface ? Theme.ink : Color.black)
                     .padding(.horizontal, Spacing.s + 2)
                     .padding(.vertical, Spacing.xs + 1)
-                    .background(background, in: Capsule(style: .continuous))
+                    .background(background, in: RoundedRectangle(cornerRadius: style == .boxed ? 2 : 100, style: .continuous))
                     .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(CountdownText.accessibilityLabel(remaining: remaining))
@@ -60,7 +68,11 @@ struct CountdownBadge: View {
     }
 
     private var background: Color {
-        style == .onPhoto ? Color.white.opacity(0.92) : Theme.muted
+        switch style {
+        case .onPhoto: Color.white.opacity(0.92)
+        case .onSurface: Theme.muted
+        case .boxed: Color.white
+        }
     }
 }
 
@@ -79,6 +91,7 @@ struct CompactLabelStyle: LabelStyle {
         CountdownBadge(expiresAt: .now.addingTimeInterval(5 * 3_600 + 60))
         CountdownBadge(expiresAt: .now.addingTimeInterval(12 * 60 + 5), style: .onSurface)
         CountdownBadge(expiresAt: .now.addingTimeInterval(-10))
+        CountdownBadge(expiresAt: .now.addingTimeInterval(5 * 3_600 + 60), style: .boxed)
     }
     .padding(Spacing.l)
     .background(Color.gray)

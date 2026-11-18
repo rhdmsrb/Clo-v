@@ -31,12 +31,12 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(app.buttons["feedTab"].isHittable)
     }
 
-    /// The pill vote buttons under the photo vote without leaving Home, then Undo brings them back.
-    func testVotePillsVoteWithoutLeavingFeed() {
+    /// The black Vote pill on the photo votes without leaving the feed, then Undo brings it back.
+    func testVotePillVotesWithoutLeavingFeed() {
         let app = XCUIApplication()
         app.launchArguments = [Self.sampleDataArgument]
         app.launch()
-        let vote = app.buttons["feed-vote-button-1"].firstMatch
+        let vote = app.buttons["feed-vote-hero"].firstMatch
         XCTAssertTrue(vote.waitForExistence(timeout: 15))
         bringIntoOpenArea(vote, in: app)
         vote.tap()
@@ -48,8 +48,8 @@ final class VoteFanUITests: XCTestCase {
 
         bringIntoOpenArea(undo, in: app)
         undo.tap()
-        XCTAssertTrue(vote.waitForExistence(timeout: 5))
-        XCTAssertFalse(undo.exists)
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(vote.isEnabled)
     }
 
     func testQuickPostRequiresAnAudienceChoice() {
@@ -206,7 +206,7 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(carousel.waitForExistence(timeout: 5), "no photo carousel on the card")
         let hint = card.descendants(matching: .any)["feed-vote-hint"]
         XCTAssertTrue(hint.waitForExistence(timeout: 5), "no vote hint on the card")
-        XCTAssertTrue(card.buttons["feed-vote-button-1"].exists, "the pill vote buttons should sit under the photo")
+        XCTAssertTrue(card.buttons["feed-vote-hero"].exists, "the Vote pill should hang off the photo")
         let results = card.descendants(matching: .any)["feed-vote-results"]
         XCTAssertFalse(results.exists, "results must stay hidden until the viewer votes")
         bringIntoOpenArea(carousel, in: app)

@@ -32,23 +32,6 @@ struct PaperBackground: View {
     }
 }
 
-/// Small deterministic generator (SplitMix64) so the grain never shimmers between renders.
-private struct SeededRandom {
-    private var state: UInt64
-
-    init(seed: UInt64) { state = seed }
-
-    /// Uniform value in 0..<1.
-    mutating func next() -> CGFloat {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        z ^= z >> 31
-        return CGFloat(z >> 11) / CGFloat(1 << 53)
-    }
-}
-
 #Preview("Paper") {
     PaperBackground().frame(height: 240)
 }
