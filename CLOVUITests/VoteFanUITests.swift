@@ -200,19 +200,21 @@ final class VoteFanUITests: XCTestCase {
         attach(app, name: "feed-card-before-vote")
 
         carousel.press(forDuration: 1.2)
-        XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after holding the photo")
-        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "a hold must vote, not open the vote screen")
+        let pressFinishedAt = ProcessInfo.processInfo.systemUptime
         let centredResult = card.descendants(matching: .any)["feed-photo-result"]
         XCTAssertTrue(centredResult.waitForExistence(timeout: 5), "the shown photo's result is not centred on the photo after voting")
-        XCTAssertTrue(photoHint.waitForNonExistence(timeout: 5), "the hold hint stayed on the photo after voting")
         let showsOwnPick = NSPredicate(format: "label CONTAINS 'your vote'")
         XCTAssertTrue(showsOwnPick.evaluate(with: centredResult), "right after voting the photo should show the viewer's pick")
         attach(app, name: "feed-card-voted")
-        // One carousel interval is 3 s; the card must still be on the picked look after it.
-        Thread.sleep(forTimeInterval: Self.voteDwellCheckSeconds)
+        // Measure from the press so accessibility queries and attachments do not extend the wait.
+        let remainingDwellCheck = Self.voteDwellCheckSeconds - (ProcessInfo.processInfo.systemUptime - pressFinishedAt)
+        if remainingDwellCheck > 0 { Thread.sleep(forTimeInterval: remainingDwellCheck) }
         XCTAssertTrue(showsOwnPick.evaluate(with: centredResult),
                       "the carousel moved off the picked look right after the vote")
         attach(app, name: "feed-card-voted-after-dwell")
+        XCTAssertTrue(results.exists, "results did not appear after holding the photo")
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "a hold must vote, not open the vote screen")
+        XCTAssertTrue(photoHint.waitForNonExistence(timeout: 5), "the hold hint stayed on the photo after voting")
 
         let undo = card.buttons["feed-vote-undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo on the card after voting")
