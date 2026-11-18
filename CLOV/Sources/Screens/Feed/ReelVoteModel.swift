@@ -132,27 +132,31 @@ final class ReelVoteModel: ObservableObject {
         total = before.total + 1
 
         pendingTask = Task {
-            defer { isVoting = false }
+            var didRecordVote = false
+            defer {
+                isVoting = false
+                if didRecordVote { onRecorded() }
+            }
             do {
                 try await service.cast(item, photoId, voterId)
                 Haptics.success()
                 streak = VoteStreakStore.recordVote(for: voterId)
                 await syncAfterWrite(fallbackVote: photoId)
-                onRecorded()
+                didRecordVote = true
             } catch APIError.alreadyVoted {
                 // The server already had a vote: drop our optimistic increment, then resync.
                 error = APIError.alreadyVoted.localizedDescription
                 counts = before.counts
                 total = before.total
                 await resyncFromServer(fallbackVote: photoId)
-                onRecorded()
+                didRecordVote = true
             } catch {
                 // A timeout can lose the response after the vote landed; trust the server.
                 if let summary = await serverSummary(), summary.myVote == photoId {
                     Haptics.success()
                     streak = VoteStreakStore.recordVote(for: voterId)
                     apply(summary, fallbackVote: photoId)
-                    onRecorded()
+                    didRecordVote = true
                     return
                 }
                 Haptics.error()
@@ -176,18 +180,22 @@ final class ReelVoteModel: ObservableObject {
         total = max(0, before.total - 1)
 
         pendingTask = Task {
-            defer { isRetracting = false }
+            var didRetractVote = false
+            defer {
+                isRetracting = false
+                if didRetractVote { onRecorded() }
+            }
             do {
                 try await service.retract(item, voterId)
                 streak = VoteStreakStore.unrecordVote(for: voterId)
                 await syncAfterWrite(fallbackVote: nil)
-                onRecorded()
+                didRetractVote = true
             } catch {
                 // The undo may have landed even though its response was lost.
                 if let summary = await serverSummary(), summary.myVote == nil {
                     streak = VoteStreakStore.unrecordVote(for: voterId)
                     apply(summary, fallbackVote: nil)
-                    onRecorded()
+                    didRetractVote = true
                     return
                 }
                 Haptics.error()

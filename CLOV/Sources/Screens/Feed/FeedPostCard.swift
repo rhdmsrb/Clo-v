@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Feed post: author, prompt title, auto-rotating photos, Like / Comment /
+/// Feed post: author and prompt, auto-rotating photos, Like / Comment /
 /// Send row, occasion and description. Voting controls live in Compare looks.
 struct FeedPostCard: View {
     let item: FeedItemDTO
@@ -13,15 +13,17 @@ struct FeedPostCard: View {
     let onLike: (Bool) async throws -> Void
     /// Opens the vote screen on the photo currently showing in the carousel.
     let onOpen: ((Int) -> Void)?
+    let onVoteChange: (UUID?, Int) -> Void
     /// Opens the comment thread sheet.
     let onComment: () -> Void
     var onPhotoDisplay: (() -> Void)?
 
     @State private var comparing = false
+    @State private var comparisonModel: ReelVoteModel?
     @State private var photoIndex = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Slightly shorter than 4:5 so the action row and title come into view sooner.
+    /// Leaves room for the prompt and Compare looks around the photo.
     private static let photoAspectRatio: CGFloat = 5.0 / 6.0
     private static let descriptionLineLimit = 2
     /// Side inset for text; the photo itself spans the full width.
@@ -33,34 +35,31 @@ struct FeedPostCard: View {
     private var commentCount: Int { item.commentCount }
 
     var body: some View {
-        // Photo first: author, full-bleed photo, actions, then one title line.
-        // No card surface or shadow, so the clothes carry the screen.
         VStack(alignment: .leading, spacing: 10) {
-            header.padding(.horizontal, Self.textInset)
-            // One timeline per card, ticking once at expiry.
-            TimelineView(.expiry(item.expiresAt)) { _ in
-                if comparing {
-                    InlineLookComparison(item: item, viewerId: viewerId, onOpen: onOpen)
-                } else {
-                    photos(expired: isExpired(item.expiresAt))
-                }
-            }
-            if item.fitCheckPhotos.count >= 2 {
-                Button(comparing ? "Show carousel" : "Compare looks") { comparing.toggle() }
-                    .font(Theme.bodyEmphasis)
-                    .frame(minHeight: Theme.minTapSize)
-                    .padding(.horizontal, Self.textInset)
-                    .accessibilityIdentifier("feed.compare")
-            }
-            actionRow.padding(.horizontal, Self.textInset - 6)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                header
                 Text(title)
                     .font(Theme.headline)
                     .foregroundStyle(Theme.ink)
                     .accessibilityAddTraits(.isHeader)
-                details
+                    .accessibilityIdentifier("feed.postPrompt")
             }
             .padding(.horizontal, Self.textInset)
+            TimelineView(.expiry(item.expiresAt)) { _ in
+                VStack(alignment: .leading, spacing: 10) {
+                    if comparing, let comparisonModel {
+                        compareButton
+                        InlineLookComparison(model: comparisonModel, onOpen: onOpen, onVoteChange: onVoteChange)
+                            .padding(.horizontal, Self.textInset)
+                    } else {
+                        photos(expired: isExpired(item.expiresAt))
+                        if item.fitCheckPhotos.count >= 2 { compareButton }
+                    }
+                }
+            }
+            actionRow.padding(.horizontal, Self.textInset - 6)
+            VStack(alignment: .leading, spacing: 6) { details }
+                .padding(.horizontal, Self.textInset)
         }
         .fitCheckContextMenu(
             fitCheckId: item.id, creatorId: item.creatorId, posterName: posterName, viewerId: viewerId,
@@ -69,6 +68,23 @@ struct FeedPostCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(posterName)’s Fit-Check")
         .accessibilityIdentifier("feed-post-card")
+    }
+
+    private var compareButton: some View {
+        Button {
+            if comparisonModel == nil { comparisonModel = ReelVoteModel(item: item, voterId: viewerId) }
+            comparing.toggle()
+        } label: {
+            Label(comparing ? "Show carousel" : "Compare looks",
+                  systemImage: comparing ? "rectangle" : "rectangle.split.2x1")
+                .font(Theme.bodyEmphasis)
+                .foregroundStyle(Theme.accentDeep)
+                .frame(minHeight: Theme.minTapSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(InstantPressStyle())
+        .padding(.horizontal, Self.textInset)
+        .accessibilityIdentifier("feed.compare")
     }
 
     /// At accessibility text sizes the name and the Follow button stack, so
@@ -235,52 +251,107 @@ struct FeedPostCard: View {
 }
 
 private struct InlineLookComparison: View {
-    @StateObject private var model: ReelVoteModel
+    @ObservedObject var model: ReelVoteModel
     let onOpen: ((Int) -> Void)?
+    let onVoteChange: (UUID?, Int) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    init(item: FeedItemDTO, viewerId: UUID, onOpen: ((Int) -> Void)?) {
-        _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId))
-        self.onOpen = onOpen
+    private var showsResults: Bool {
+        model.summaryLoaded && model.isResultsRevealed && !model.isVoting && !model.isRetracting
     }
 
     var body: some View {
-        VStack {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
+        VStack(alignment: .leading, spacing: 10) {
+            if let error = model.error {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .foregroundStyle(Theme.danger)
+            }
+            if model.summaryLoadFailed {
+                Button("Retry loading votes") { Task { await model.refreshSummary() } }
+                    .frame(minHeight: Theme.minTapSize)
+            } else if !model.summaryLoaded {
+                ProgressView("Loading voting…")
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 14) {
                 ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
-                    VStack {
+                    VStack(spacing: 6) {
                         if let onOpen {
                             Button { onOpen(index) } label: { lookImage(photo) }
                                 .accessibilityLabel("Enlarge look \(index + 1)")
                         } else {
                             lookImage(photo)
                         }
-                        if model.summaryLoaded && model.isResultsRevealed && !model.isVoting {
-                            Text("Look \(index + 1) · \(model.percent(for: photo.id))%")
-                        } else {
-                            Button("Vote for look \(index + 1)") { _ = model.vote(for: photo.id) {} }
-                                .frame(minHeight: Theme.minTapSize)
-                                .disabled(!model.canVote)
-                                .accessibilityIdentifier("feed.vote.\(index)")
-                        }
+                        lookAction(photo, number: index + 1)
                     }
                 }
             }
-            if model.canRetract {
-                Button("Undo vote") { model.retractVote {} }
+
+            if model.isRetracting {
+                ProgressView("Undoing your vote…")
                     .frame(minHeight: Theme.minTapSize)
+            } else if model.canRetract {
+                Button("Undo vote", systemImage: "arrow.uturn.backward") { undoVote() }
+                    .frame(minHeight: Theme.minTapSize)
+                    .foregroundStyle(Theme.accentDeep)
             }
-            if model.summaryLoadFailed {
-                Button("Retry loading votes") { Task { await model.refreshSummary() } }
-            }
-            if let error = model.error { Text(error).font(Theme.caption) }
         }
         .buttonStyle(.plain)
         .font(Theme.bodyEmphasis)
-        .task { await model.loadSummary() }
+        .task(id: model.isEnded) { await model.loadSummary() }
+        .onChange(of: model.error) { _, error in
+            if let error { AccessibilityNotification.Announcement(error).post() }
+        }
+    }
+
+    @ViewBuilder
+    private func lookAction(_ photo: FitCheckPhoto, number: Int) -> some View {
+        if showsResults {
+            if model.myVote == photo.id {
+                Label("Look \(number) · \(model.percent(for: photo.id))%", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(Theme.accentDeep)
+                    .accessibilityValue("Your vote")
+                    .frame(minHeight: Theme.minTapSize)
+            } else {
+                Text("Look \(number) · \(model.percent(for: photo.id))%")
+                    .frame(minHeight: Theme.minTapSize)
+            }
+        } else if model.isVoting, model.myVote == photo.id {
+            ProgressView("Saving…")
+                .frame(minHeight: Theme.minTapSize)
+                .accessibilityIdentifier("feed.votePending")
+        } else {
+            Button {
+                if model.vote(for: photo.id, onRecorded: {
+                    onVoteChange(model.myVote, model.total)
+                    if model.error == nil { AccessibilityNotification.Announcement("Vote recorded").post() }
+                }) {
+                    AccessibilityNotification.Announcement("Saving your vote").post()
+                }
+            } label: {
+                Text("Vote for look \(number)")
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
+                    .padding(.horizontal, 8)
+                    .foregroundStyle(model.canVote ? Theme.accentDeep : Theme.mutedForeground)
+                    .background(Theme.muted, in: RoundedRectangle(cornerRadius: Theme.smallRadius))
+                    .contentShape(Rectangle())
+            }
+            .disabled(!model.canVote)
+            .accessibilityIdentifier("feed.vote.\(number - 1)")
+        }
+    }
+
+    private func undoVote() {
+        model.retractVote {
+            onVoteChange(model.myVote, model.total)
+            AccessibilityNotification.Announcement("Vote undone. Pick again.").post()
+        }
     }
 
     private func lookImage(_ photo: FitCheckPhoto) -> some View {
         Color.black.aspectRatio(3 / 4, contentMode: .fit)
             .overlay { RemoteImage(url: photo.imageUrl, contentMode: .fit) }
+            .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius))
     }
 }

@@ -7,7 +7,7 @@ extension API {
 
     static func fetchNotifications(recipientId: UUID) async throws -> [NotificationDTO] {
 #if DEBUG
-        if SampleData.isActive { return SampleData.notifications }
+        if SampleData.isActive { return await SampleData.notifications }
 #endif
         return try await client
             .from("notifications")
@@ -20,7 +20,7 @@ extension API {
 
     static func fetchUnreadNotificationCount(recipientId: UUID) async throws -> Int {
 #if DEBUG
-        if SampleData.isActive { return SampleData.unreadNotificationCount }
+        if SampleData.isActive { return await SampleData.unreadNotificationCount }
 #endif
         let response = try await client
             .from("notifications")
@@ -33,7 +33,10 @@ extension API {
 
     static func markAllNotificationsRead(recipientId: UUID) async throws {
 #if DEBUG
-        if SampleData.isActive { return }
+        if SampleData.isActive {
+            await SampleData.markAllNotificationsRead()
+            return
+        }
 #endif
         try await client
             .from("notifications")
@@ -45,7 +48,10 @@ extension API {
 
     static func markNotificationRead(id: UUID, recipientId: UUID) async throws {
 #if DEBUG
-        if SampleData.isActive { return }
+        if SampleData.isActive {
+            await SampleData.markNotificationRead(id)
+            return
+        }
 #endif
         try await client
             .from("notifications")

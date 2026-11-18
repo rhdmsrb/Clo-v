@@ -128,22 +128,25 @@ struct AudienceSection: View {
     @Binding var selectedAudience: FitCheckAudience
     @Binding var selectedGroupId: UUID?
     let myGroups: [FashionGroup]
+    let hasChosenAudience: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             SectionHeader(title: "Who can see this?")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 8) {
                 ForEach(FitCheckAudience.allCases) { option in audienceButton(option) }
             }
             if selectedAudience == .group { groupChooser }
-            Text(selectedAudience.description)
+            Text(hasChosenAudience ? selectedAudience.description : "Choose who can see your Fit-Check.")
                 .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         }
     }
 
     private func audienceButton(_ option: FitCheckAudience) -> some View {
-        let isSelected = selectedAudience == option
+        let isSelected = hasChosenAudience && selectedAudience == option
         let shape = RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous)
         return Button {
             withAnimation(Theme.animation(Theme.press, reduceMotion: reduceMotion)) { selectedAudience = option }
@@ -163,6 +166,7 @@ struct AudienceSection: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("createAudience.\(option.rawValue)")
     }
 
     @ViewBuilder

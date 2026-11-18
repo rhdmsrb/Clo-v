@@ -134,11 +134,11 @@ struct FeedView: View {
         if let notice {
             Text(notice)
                 .font(Theme.bodyEmphasis)
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.inverseText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(Theme.ink.opacity(0.92), in: Capsule())
+                .background(Theme.ink, in: RoundedRectangle(cornerRadius: Theme.controlRadius))
                 .padding(.bottom, tabBarClearance + 12)
                 .transition(.opacity)
                 .accessibilityIdentifier("feed-notice")
@@ -165,6 +165,7 @@ struct FeedView: View {
                         onOpen: FitCheckReelView.isEnabled
                             ? { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) }
                             : nil,
+                        onVoteChange: { photoId, total in applyVote(photoId: photoId, total: total, itemID: item.id) },
                         onComment: { commentItem = item },
                         onPhotoDisplay: {
                             guard !firstPhotoDisplayed, item.id == visibleItems.first?.id else { return }

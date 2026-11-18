@@ -28,11 +28,14 @@ struct CreateWizardModelTests {
     @Test("Group audience needs a group; everyone ignores it")
     func audienceValidation() {
         var model = CreateWizardModel()
-        model.audience = .group
+        #expect(!model.hasChosenAudience)
+        model.selectAudience(.group)
+        #expect(model.hasChosenAudience)
         #expect(!model.canAdvance(from: .details))
         model.groupId = UUID()
         #expect(model.canAdvance(from: .details))
-        model.audience = .everyone
+        model.selectAudience(.everyone)
+        #expect(model.groupId == nil)
         #expect(model.effectiveGroupId == nil)
     }
 
@@ -41,7 +44,7 @@ struct CreateWizardModelTests {
         var model = CreateWizardModel()
         model.groupId = UUID()
         for audience in [FitCheckAudience.friends, .onlyMe] {
-            model.audience = audience
+            model.selectAudience(audience)
             #expect(model.audienceIsValid)
             #expect(model.canAdvance(from: .details))
             #expect(model.effectiveGroupId == nil)
@@ -66,6 +69,7 @@ struct CreateWizardModelTests {
         let id = UUID()
         let model = CreateWizardModel(preselectedGroupId: id)
         #expect(model.audience == .group)
+        #expect(model.hasChosenAudience)
         #expect(model.effectiveGroupId == id)
     }
 

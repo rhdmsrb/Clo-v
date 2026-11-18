@@ -41,17 +41,41 @@ final class VoteFanUITests: XCTestCase {
         let vote = app.buttons["feed.vote.0"].firstMatch
         XCTAssertTrue(vote.waitForExistence(timeout: 5))
         vote.tap()
-        XCTAssertTrue(app.buttons["Undo vote"].waitForExistence(timeout: 5))
+        let undo = app.buttons["Undo vote"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["feedTab"].exists)
+        attach(app, name: "feed-comparison-voted")
+
+        undo.tap()
+        XCTAssertTrue(vote.waitForExistence(timeout: 5))
+        XCTAssertFalse(undo.exists)
     }
 
-    func testQuickPostIsAvailableAfterSelectingPhotos() {
+    func testQuickPostRequiresAnAudienceChoice() {
         let app = XCUIApplication()
         app.launchArguments = [Self.sampleDataArgument, "--uiTestCreatePhotos"]
         app.launch()
         app.buttons["tabPlusButton"].tap()
         app.buttons["createNextButton"].tap()
-        XCTAssertTrue(app.buttons["createQuickPost"].isEnabled)
+
+        let quickPost = app.buttons["createQuickPost"]
+        XCTAssertTrue(quickPost.waitForExistence(timeout: 5))
+        XCTAssertFalse(quickPost.isEnabled)
+        attach(app, name: "create-details-before-audience")
+
+        app.buttons["createAudience.public"].tap()
+        XCTAssertTrue(quickPost.isEnabled)
+        let audience = app.staticTexts["createAudienceSummary"]
+        XCTAssertTrue(audience.label.contains("Everyone"))
+        attach(app, name: "create-details-everyone")
+
+        app.buttons["createAudience.private"].tap()
+        XCTAssertTrue(quickPost.isEnabled)
+        XCTAssertTrue(audience.label.contains("Only me"))
+        app.buttons["createSkipPhotoDetails"].tap()
+        XCTAssertTrue(app.buttons["createUploadButton"].waitForExistence(timeout: 5))
+        XCTAssertTrue(audience.label.contains("Only me"))
+        attach(app, name: "create-preview-private")
     }
 
     func testLandscapePhotoFitsInsideFeedCard() throws {
@@ -130,8 +154,8 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(undo.waitForExistence(timeout: 5), "could not vote again after Undo, so the vote was not retracted")
     }
 
-    func testVoteScreenShowsFanCommentsAndAcceptsAComment() throws {
-        let app = openMayasVoteScreen()
+    func testVoteScreenShowsFanCommentsAndAcceptsACommentAtLargeTextSize() throws {
+        let app = openMayasVoteScreen(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"])
         XCTAssertTrue(app.descendants(matching: .any)["voteFan"].waitForExistence(timeout: 5), "photo fan missing")
         XCTAssertFalse(app.buttons["feedTab"].isHittable, "floating tab bar should be hidden on the vote screen")
         attach(app, name: "vote-01-top")
@@ -208,9 +232,9 @@ final class VoteFanUITests: XCTestCase {
         }
     }
 
-    private func openMayasVoteScreen() -> XCUIApplication {
+    private func openMayasVoteScreen(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += [Self.sampleDataArgument, "--uiTestEnableFitCheckReel"]
+        app.launchArguments += [Self.sampleDataArgument, "--uiTestEnableFitCheckReel"] + arguments
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)

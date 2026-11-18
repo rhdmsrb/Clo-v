@@ -28,7 +28,8 @@ struct CreateWizardModel: Equatable {
     var caption = ""
     var occasion = ""
     var tags: [String] = []
-    var audience: FitCheckAudience = .everyone
+    private(set) var audience: FitCheckAudience = .everyone
+    private(set) var hasChosenAudience = false
     var groupId: UUID?
     var photoDetails: [PhotoDetail] = [.init(), .init()]
     var step: CreateWizardStep = .photos
@@ -40,7 +41,14 @@ struct CreateWizardModel: Equatable {
         if let preselectedGroupId {
             audience = .group
             groupId = preselectedGroupId
+            hasChosenAudience = true
         }
+    }
+
+    mutating func selectAudience(_ selection: FitCheckAudience) {
+        audience = selection
+        hasChosenAudience = true
+        if selection != .group { groupId = nil }
     }
 
     // MARK: - Validation

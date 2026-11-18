@@ -3,13 +3,17 @@ import PhotosUI
 
 /// Where the profile menu navigates.
 private enum ProfileDestination: Hashable {
-    case wardrobe, groups, friends, yourWeek, privacy, appearance, settings
+    case wardrobe, groups, friends, yourWeek, privacy, appearance, settings, notifications
 }
 
 @MainActor
 struct AccountView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.isTabActive) private var isTabActive
+    @Environment(\.scenePhase) private var scenePhase
 
+    @State private var unreadCount = 0
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
@@ -59,12 +63,21 @@ struct AccountView: View {
         .background(Theme.background)
         .accessibilityIdentifier("profile.root")
         .revisionTask(appState.contentRevision) { await load() }
-        .refreshable { await load() }
+        .task(id: isTabActive && scenePhase == .active) {
+            guard isTabActive, scenePhase == .active else { return }
+            await loadUnreadCount()
+        }
+        .refreshable {
+            async let reloadInbox: Void = loadUnreadCount()
+            await load()
+            await reloadInbox
+        }
         .onChange(of: segment) { _, newSegment in
             if newSegment == .saved && savedState == .notLoaded { Task { await loadSaved() } }
         }
         .navigationDestination(item: $destination) { destinationView($0) }
         .navigationDestination(item: $openedRoute) { FitCheckVoteLoader(fitCheckId: $0.id) }
+        .navigationDestination(for: FitCheckRoute.self) { FitCheckVoteLoader(fitCheckId: $0.id) }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView(profile: appState.profile)
         }
@@ -115,31 +128,75 @@ struct AccountView: View {
 
     // MARK: - Header
 
-    @MainActor private var topRow: some View {
-        let nickname = appState.profile?.nickname
-        return HStack(spacing: 14) {
-            PhotosPicker(selection: $avatarItem, matching: .images) {
-                ZStack {
-                    AvatarView(url: appState.profile?.avatarUrl, nickname: nickname, size: Self.heroAvatarSize, ringed: true)
-                    if isUploadingAvatar { ProgressView().tint(.white) }
-                }
-                .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
-                .contentShape(Circle())
+    @ViewBuilder
+    private var topRow: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                headerActions.frame(maxWidth: .infinity, alignment: .trailing)
+                HStack(spacing: 14) { profileIdentity }
             }
-            .onChange(of: avatarItem) { _, newItem in
-                Task { await uploadAvatar(newItem) }
+        } else {
+            HStack(spacing: 14) {
+                profileIdentity
+                headerActions
             }
-            .accessibilityLabel("Change profile photo")
+        }
+    }
 
-            Text(nickname ?? "Your profile")
-                .font(Theme.editorialFont(size: 28, relativeTo: .title))
-                .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityAddTraits(.isHeader)
+    @ViewBuilder
+    @MainActor private var profileIdentity: some View {
+        let nickname = appState.profile?.nickname
+        let avatarURL = appState.profile?.avatarUrl
+        let avatarSize = Self.heroAvatarSize
+        let uploading = isUploadingAvatar
+        PhotosPicker(selection: $avatarItem, matching: .images) {
+            ZStack {
+                AvatarView(url: avatarURL, nickname: nickname, size: avatarSize, ringed: true)
+                if uploading { ProgressView().tint(.white) }
+            }
+            .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+            .contentShape(Circle())
+        }
+        .onChange(of: avatarItem) { _, newItem in
+            Task { await uploadAvatar(newItem) }
+        }
+        .accessibilityLabel("Change profile photo")
+
+        Text(nickname ?? "Your profile")
+            .font(Theme.editorialFont(size: 28, relativeTo: .title))
+            .foregroundStyle(Theme.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var headerActions: some View {
+        HStack(spacing: 8) {
+            Button { destination = .notifications } label: {
+                FeedBellIcon(unreadCount: unreadCount)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            }
+            .buttonStyle(InstantPressStyle())
+            .accessibilityLabel("Notifications")
+            .accessibilityValue(unreadCount > 0 ? "\(unreadCount) unread" : "")
+            .accessibilityIdentifier("profile.notifications")
+
             menu
+        }
+    }
+
+    private func loadUnreadCount() async {
+        guard destination != .notifications else { return }
+        do {
+            let count = try await API.fetchUnreadNotificationCount(recipientId: appState.userId)
+            guard !Task.isCancelled, destination != .notifications else { return }
+            unreadCount = count
+        } catch {
+            if !Task.isCancelled {
+                Log.app.error("Load unread notifications failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -191,6 +248,7 @@ struct AccountView: View {
         case .privacy: PrivacyView()
         case .appearance: AppearanceView()
         case .settings: SettingsView()
+        case .notifications: NotificationsView { unreadCount = $0 }
         }
     }
 
