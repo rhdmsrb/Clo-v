@@ -77,6 +77,7 @@
 		4313E6915B4F0846F81AE2E5 /* FeedHeaderViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9ABA4546C072A611826735 /* FeedHeaderViews.swift */; };
 		4337AA08C93B7391EB7877C0 /* WardrobeFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0888EA64C0BD0AD631D601B /* WardrobeFlowUITests.swift */; };
 		4369051888FB26486ABE49B3 /* EditorialComponentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 556C2CECEDC937C56B8F109C /* EditorialComponentsTests.swift */; };
+		43FA2C5BA9E15B2AA82684A5 /* AuthScreenParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EE0FEA62744C08C361814F /* AuthScreenParts.swift */; };
 		45522DA8DC08C63FB4BBC9EA /* ProfilePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3798ACC5FBFF7A7EA46283F /* ProfilePostView.swift */; };
 		467A992627B99EE77B99C1D4 /* CLOVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6DB76DA8C1250DACE0AAD2 /* CLOVApp.swift */; };
 		493C8A7F54B47F2562B6C9BC /* FloatingTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA907F10260484A4664EBBB1 /* FloatingTabBar.swift */; };
@@ -326,6 +327,7 @@
 		556C2CECEDC937C56B8F109C /* EditorialComponentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorialComponentsTests.swift; sourceTree = "<group>"; };
 		56644B936F8A4EE73A465AD8 /* FloatingIconButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingIconButton.swift; sourceTree = "<group>"; };
 		5889C4659072A3B9EB4B56F9 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		59EE0FEA62744C08C361814F /* AuthScreenParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthScreenParts.swift; sourceTree = "<group>"; };
 		5B427C3356B3CD90432379A1 /* ImageCacheKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCacheKeyTests.swift; sourceTree = "<group>"; };
 		5BE97C2D698CC732F98485BB /* FitCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCard.swift; sourceTree = "<group>"; };
 		5C81E751494D3DA615A360CB /* UIImage+CLOV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+CLOV.swift"; sourceTree = "<group>"; };
@@ -746,6 +748,7 @@
 		BC8BDFBDB8F982BB8227467C /* Auth */ = {
 			isa = PBXGroup;
 			children = (
+				59EE0FEA62744C08C361814F /* AuthScreenParts.swift */,
 				A76AFFFECC8F625E8DE559E1 /* AuthView.swift */,
 				FED9C5BD98E79FE4B46C54B7 /* NewPasswordView.swift */,
 			);
@@ -1117,6 +1120,7 @@
 				899C22C54D0475054F9784DE /* AspectFitTile.swift in Sources */,
 				417994268B412F637833543A /* AsyncStateView.swift in Sources */,
 				247D6AA65E6F8F6FBF1A9D76 /* AuthCallbackGate.swift in Sources */,
+				43FA2C5BA9E15B2AA82684A5 /* AuthScreenParts.swift in Sources */,
 				06CB6BD290AD4EC6551B6D3A /* AuthView.swift in Sources */,
 				5EF7BD1FAA8984E40388FCFF /* BlockedUsersView.swift in Sources */,
 				C541F1C9079F881906325675 /* BlurReveal.swift in Sources */,

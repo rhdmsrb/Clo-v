@@ -7,17 +7,17 @@ struct AuthView: View {
     @EnvironmentObject private var appState: AppState
 
     private enum Mode {
-        case signIn, signUp
+        case welcome, signIn, signUp
 
-        var title: String { self == .signIn ? "Log in" : "Sign up" }
+        var title: String { self == .signUp ? "Sign up" : "Log in" }
+        var heading: String { self == .signUp ? "Create your account" : "Welcome back!" }
         var subtitle: String {
-            self == .signIn
-                ? "Your next great look starts here."
-                : "Share your looks and get a little help choosing."
+            self == .signUp
+                ? "Join CLO·V and share your looks with your circle."
+                : "Log in to see what your circle is wearing."
         }
-        var switchPrompt: String {
-            self == .signIn ? "No account? Sign up" : "Already have an account? Log in"
-        }
+        var switchPrompt: String { self == .signUp ? "Already have an account?" : "Don’t have an account?" }
+        var switchAction: String { self == .signUp ? "Log in" : "Sign up" }
     }
 
     private enum Field: Hashable {
@@ -25,9 +25,10 @@ struct AuthView: View {
         case password
     }
 
-    @State private var mode: Mode = .signIn
+    @State private var mode: Mode = .welcome
     @State private var email = ""
     @State private var password = ""
+    @State private var isPasswordVisible = false
     @State private var error: String?
     @State private var isSubmitting = false
     @State private var checkEmailNotice = false
@@ -35,6 +36,12 @@ struct AuthView: View {
     @State private var resetEmail = ""
     @State private var resetNotice: String?
     @FocusState private var focusedField: Field?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Share of the screen the photo keeps above the form sheet.
+    private static let heroFraction: CGFloat = 0.36
+    private static let sheetRadius: CGFloat = 28
+    private static let maxFormWidth: CGFloat = 520
 
     private var canSubmit: Bool {
         let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -42,40 +49,10 @@ struct AuthView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                authHeader
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(mode.title)
-                        .font(Theme.editorialFont(size: 40, relativeTo: .largeTitle))
-                        .foregroundStyle(Theme.ink)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(mode.subtitle)
-                        .font(Theme.body)
-                        .foregroundStyle(Theme.mutedForeground)
-                }
-                if checkEmailNotice { checkEmailBanner }
-                fields
-                if mode == .signIn { passwordResetButton }
-                if let error {
-                    Label(error, systemImage: "exclamationmark.circle.fill")
-                        .font(Theme.caption)
-                        .foregroundStyle(Theme.danger)
-                }
-                submitButton
-                orDivider
-                SocialSignInButtons(error: $error, isBusy: $isSubmitting)
-                secondaryActions
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 16)
-            .padding(.bottom, 28)
-            .frame(maxWidth: 520)
-            .frame(maxWidth: .infinity)
+        Group {
+            if mode == .welcome { welcome } else { form }
         }
-        .background(Theme.background)
-        .scrollDismissesKeyboard(.interactively)
-        .motionSafeAnimation(Theme.settle, value: mode)
+        .animation(Theme.animation(Theme.settle, reduceMotion: reduceMotion), value: mode)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -85,32 +62,130 @@ struct AuthView: View {
         .sheet(isPresented: $showingPasswordReset) { resetSheet }
     }
 
-    private var authHeader: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
-                .background(Theme.heroGradient, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("CLO·V")
-                    .font(Theme.editorialFont(size: 27, relativeTo: .title2))
-                    .foregroundStyle(Theme.ink)
-                Text("YOUR LOOK, YOUR CIRCLE")
-                    .font(Theme.micro)
-                    .tracking(1.2)
-                    .foregroundStyle(Theme.accentDeep)
+    // MARK: - Welcome
+
+    /// Full-bleed cover photo with the wordmark and two choices at the foot.
+    private var welcome: some View {
+        AuthHeroPhoto()
+            .ignoresSafeArea()
+            .overlay {
+                LinearGradient(colors: [.black.opacity(0.25), .clear, .clear, .black.opacity(0.45)],
+                               startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
             }
-            Spacer(minLength: 0)
+            .overlay(alignment: .topLeading) {
+                AuthWordmark(tagline: "Your look, your circle")
+                    .padding(.horizontal, Spacing.l)
+                    .padding(.top, Spacing.m)
+            }
+            .overlay(alignment: .bottom) {
+                VStack(spacing: Spacing.sm) {
+                    Button("Log in") { open(.signIn) }
+                        .buttonStyle(AuthCoverButtonStyle())
+                        .accessibilityIdentifier("auth.welcome.login")
+                    Button("Sign up") { open(.signUp) }
+                        .buttonStyle(AuthCoverButtonStyle(isFrosted: true))
+                        .accessibilityIdentifier("auth.welcome.signup")
+                }
+                .padding(.horizontal, Spacing.l)
+                .padding(.bottom, Spacing.l)
+                .frame(maxWidth: Self.maxFormWidth)
+            }
+            .transition(.opacity)
+    }
+
+    // MARK: - Log in / Sign up
+
+    /// Photo on top, a white rounded sheet with the form below.
+    private var form: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    formHero(height: proxy.size.height * Self.heroFraction + proxy.safeAreaInsets.top)
+                    formSheet
+                        .padding(.top, -Self.sheetRadius)
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .ignoresSafeArea(edges: .top)
         }
-        .accessibilityElement(children: .combine)
+        .background(Theme.card.ignoresSafeArea())
+        .transition(.opacity)
+    }
+
+    private func formHero(height: CGFloat) -> some View {
+        AuthHeroPhoto()
+            .frame(height: height)
+            .overlay {
+                LinearGradient(colors: [.black.opacity(0.3), .clear], startPoint: .top, endPoint: .center)
+                    .allowsHitTesting(false)
+            }
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    Button { open(.welcome) } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                            .background(.black.opacity(0.25), in: Circle())
+                    }
+                    .accessibilityLabel("Back")
+                    .accessibilityIdentifier("auth.back")
+                    AuthWordmark(tagline: "Your look, your circle")
+                }
+                .padding(.horizontal, Spacing.l)
+                .padding(.top, Spacing.xxl + Spacing.m)
+            }
+    }
+
+    private var formSheet: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(mode.heading)
+                    .font(Theme.font(.title2, weight: .bold))
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text(mode.subtitle)
+                    .font(Theme.font(.subheadline))
+                    .foregroundStyle(Theme.mutedForeground)
+            }
+            if checkEmailNotice { checkEmailBanner }
+            fields
+            if mode == .signIn { passwordResetButton }
+            if let error {
+                Label(error, systemImage: "exclamationmark.circle.fill")
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.danger)
+            }
+            submitButton
+            orDivider
+            SocialSignInButtons(error: $error, isBusy: $isSubmitting)
+            secondaryActions
+        }
+        .padding(.horizontal, Spacing.l)
+        .padding(.top, Spacing.l + Spacing.xs)
+        .padding(.bottom, Spacing.xl)
+        .frame(maxWidth: Self.maxFormWidth)
+        .frame(maxWidth: .infinity)
+        .background {
+            UnevenRoundedRectangle(topLeadingRadius: Self.sheetRadius, topTrailingRadius: Self.sheetRadius,
+                                   style: .continuous)
+                .fill(Theme.card)
+        }
+    }
+
+    private func open(_ target: Mode) {
+        mode = target
+        error = nil
+        if target == .welcome { checkEmailNotice = false }
+        focusedField = nil
     }
 
     private var orDivider: some View {
         HStack(spacing: 12) {
             Rectangle().fill(Theme.controlBorder).frame(height: 1)
-            Text("or continue with")
+            Text("or")
                 .font(Theme.caption)
                 .foregroundStyle(Theme.mutedForeground)
                 .fixedSize()
@@ -125,13 +200,13 @@ struct AuthView: View {
             .foregroundStyle(Theme.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(Theme.accentTint, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+            .background(Theme.accentTint, in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
     }
 
     private var fields: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            LabeledField(label: "Email", isFocused: focusedField == .email) {
-                TextField("you@example.com", text: $email)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            AuthInputRow(systemImage: "envelope", isFocused: focusedField == .email) {
+                TextField("Email address", text: $email)
                     .keyboardType(.emailAddress)
                     .textContentType(.emailAddress)
                     .textInputAutocapitalization(.never)
@@ -142,12 +217,12 @@ struct AuthView: View {
                     .accessibilityLabel("Email")
                     .accessibilityIdentifier("auth.email")
             }
-            LabeledField(
-                label: "Password",
+            AuthInputRow(
+                systemImage: "lock",
                 isFocused: focusedField == .password,
                 errorMessage: !password.isEmpty && password.count < 6 ? "Use at least 6 characters." : nil
             ) {
-                SecureField("", text: $password)
+                passwordField
                     .textContentType(mode == .signIn ? .password : .newPassword)
                     .focused($focusedField, equals: .password)
                     .submitLabel(.go)
@@ -157,7 +232,27 @@ struct AuthView: View {
                     }
                     .accessibilityLabel("Password")
                     .accessibilityIdentifier("auth.password")
+            } trailing: {
+                Button { isPasswordVisible.toggle() } label: {
+                    Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                        .foregroundStyle(Theme.mutedForeground)
+                        .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var passwordField: some View {
+        if isPasswordVisible {
+            TextField("Password", text: $password)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        } else {
+            SecureField("Password", text: $password)
         }
     }
 
@@ -182,13 +277,11 @@ struct AuthView: View {
 
     private var secondaryActions: some View {
         Button {
-            mode = mode == .signIn ? .signUp : .signIn
-            error = nil
-            checkEmailNotice = false
+            open(mode == .signIn ? .signUp : .signIn)
         } label: {
-            Text(mode.switchPrompt)
-                .font(Theme.bodyEmphasis)
-                .foregroundStyle(Theme.accentDeep)
+            (Text(mode.switchPrompt + " ").foregroundStyle(Theme.mutedForeground)
+                + Text(mode.switchAction).foregroundStyle(Theme.accentDeep).bold())
+                .font(Theme.font(.subheadline))
                 .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
                 .contentShape(Rectangle())
         }
@@ -196,15 +289,20 @@ struct AuthView: View {
     }
 
     private var passwordResetButton: some View {
-        Button("Forgot password?") {
+        Button {
             resetEmail = email.trimmingCharacters(in: .whitespaces)
             resetNotice = nil
             showingPasswordReset = true
+        } label: {
+            // The whole row is the target, not just the words at its trailing edge.
+            Text("Forgot password?")
+                .font(Theme.font(.footnote, weight: .semibold))
+                .foregroundStyle(Theme.accentDeep)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTapSize, alignment: .trailing)
+                .contentShape(Rectangle())
         }
-        .font(Theme.label)
-        .foregroundStyle(Theme.accentDeep)
-        .frame(maxWidth: .infinity, minHeight: Theme.minTapSize, alignment: .trailing)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .padding(.top, -Spacing.s)
         .accessibilityIdentifier("auth.forgotPassword")
     }
 
@@ -216,7 +314,7 @@ struct AuthView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Reset your password")
-                    .font(Theme.editorialFont(size: 30, relativeTo: .title2))
+                    .font(Theme.font(.title2, weight: .bold))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
@@ -225,8 +323,8 @@ struct AuthView: View {
                 Text("We'll send a secure password reset link to your email.")
                     .font(Theme.body)
                     .foregroundStyle(Theme.mutedForeground)
-                LabeledField(label: "Email") {
-                    TextField("you@example.com", text: $resetEmail)
+                AuthInputRow(systemImage: "envelope") {
+                    TextField("Email address", text: $resetEmail)
                         .keyboardType(.emailAddress)
                         .textContentType(.emailAddress)
                         .textInputAutocapitalization(.never)
@@ -244,7 +342,7 @@ struct AuthView: View {
                 Spacer()
             }
             .padding(24)
-            .background(Theme.background)
+            .background(Theme.card)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -290,6 +388,8 @@ struct AuthView: View {
                     checkEmailNotice = true
                     mode = .signIn
                 }
+            case .welcome:
+                return // The welcome cover has no form to submit.
             }
         } catch {
             self.error = error.localizedDescription
@@ -364,12 +464,27 @@ struct SocialSignInButtons: View {
     @Binding var error: String?
     @Binding var isBusy: Bool
     @State private var rawNonce = ""
-    @Environment(\.colorScheme) private var colorScheme
     /// Scales with the "Continue with Google" label beside it.
     @ScaledMetric(relativeTo: .body) private var googleGlyphSize: CGFloat = 20
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Spacing.sm) {
+            Button { Task { await signInWithGoogle() } } label: {
+                HStack(spacing: 10) {
+                    Text("G").font(.system(size: googleGlyphSize, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
+                        .accessibilityHidden(true)
+                    Text("Continue with Google").font(Theme.bodyEmphasis)
+                }
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity, minHeight: Self.buttonHeight)
+                .background(Theme.card, in: Capsule(style: .continuous))
+                .overlay(Capsule(style: .continuous).strokeBorder(Theme.controlBorder, lineWidth: 1))
+                .contentShape(Capsule(style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isBusy)
+
             SignInWithAppleButton(.continue) { request in
                 rawNonce = Self.randomNonce()
                 request.requestedScopes = [.fullName, .email]
@@ -377,25 +492,16 @@ struct SocialSignInButtons: View {
             } onCompletion: { result in
                 Task { await handleApple(result) }
             }
-            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-            .frame(height: 50)
-            .disabled(isBusy)
-
-            Button { Task { await signInWithGoogle() } } label: {
-                HStack(spacing: 10) {
-                    Text("G").font(.system(size: googleGlyphSize, weight: .bold, design: .rounded))
-                        .accessibilityHidden(true)
-                    Text("Continue with Google").font(Theme.bodyEmphasis)
-                }
-                .foregroundStyle(Theme.ink)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(Theme.background, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
+            // Borderless style, clipped to a pill, with our own outline so it matches Google's.
+            .signInWithAppleButtonStyle(.white)
+            .frame(height: Self.buttonHeight)
+            .clipShape(Capsule(style: .continuous))
+            .overlay(Capsule(style: .continuous).strokeBorder(Theme.controlBorder, lineWidth: 1).allowsHitTesting(false))
             .disabled(isBusy)
         }
     }
+
+    private static let buttonHeight: CGFloat = 50
 
     private func handleApple(_ result: Result<ASAuthorization, Error>) async {
         switch result {

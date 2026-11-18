@@ -25,6 +25,7 @@ final class DevLoginUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         signOutIfNeeded(app)
+        openLogInForm(app)
 
         let emailField = app.textFields.firstMatch
         XCTAssertTrue(emailField.waitForExistence(timeout: 10), "AuthView's email field never appeared.")
@@ -47,13 +48,19 @@ final class DevLoginUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         signOutIfNeeded(app)
+        attach(app, "auth-1-welcome")
+        openLogInForm(app)
 
         XCTAssertTrue(app.textFields["auth.email"].waitForExistence(timeout: 10))
+        attach(app, "auth-2-login")
         XCTAssertTrue(app.secureTextFields["auth.password"].exists)
         XCTAssertFalse(app.buttons["auth.submit"].isEnabled)
         app.buttons["auth.forgotPassword"].tap()
-        XCTAssertTrue(app.staticTexts["Reset your password"].waitForExistence(timeout: 5))
-        app.swipeDown()
+        let resetTitle = app.staticTexts["Reset your password"]
+        XCTAssertTrue(resetTitle.waitForExistence(timeout: 5))
+        // Close the half-height sheet by tapping the dimmed area above it.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        XCTAssertTrue(resetTitle.waitForNonExistence(timeout: 5), "The reset sheet did not close.")
 
         let switchMode = app.buttons["auth.switchMode"]
         if !switchMode.isHittable { app.swipeUp() }
@@ -61,6 +68,20 @@ final class DevLoginUITests: XCTestCase {
         switchMode.tap()
         XCTAssertEqual(app.buttons["auth.submit"].label, "Sign up")
         XCTAssertFalse(app.buttons["auth.forgotPassword"].exists)
+        attach(app, "auth-3-signup")
+    }
+
+    /// The auth screen opens on a welcome cover; Log in there shows the form.
+    private func openLogInForm(_ app: XCUIApplication) {
+        let welcomeLogIn = app.buttons["auth.welcome.login"]
+        if welcomeLogIn.waitForExistence(timeout: 5) { welcomeLogIn.tap() }
+    }
+
+    private func attach(_ app: XCUIApplication, _ name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 
     /// Other UI tests (e.g. WardrobeFlowUITests) auto-login and the session
