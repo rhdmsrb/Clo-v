@@ -40,7 +40,7 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertFalse(app.buttons["profileShortcut_DailyChallenge"].exists)
     }
 
-    func testGroupFeedOpensVotingScreen() {
+    func testGroupFeedOpensPostDetail() {
         let app = launchApp()
         let groups = app.buttons["groupsTab"]
         XCTAssertTrue(groups.waitForExistence(timeout: 10))
@@ -52,8 +52,9 @@ final class DesignReviewUITests: XCTestCase {
         let post = app.buttons["groupFeed.card"].firstMatch
         XCTAssertTrue(post.waitForExistence(timeout: 10))
         post.tap()
-        XCTAssertTrue(app.buttons["reelBackButton"].waitForExistence(timeout: 10))
-        app.buttons["reelBackButton"].tap()
+        XCTAssertTrue(app.buttons["Report or block"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists)
+        goBack(app)
         XCTAssertTrue(app.buttons["groupFeed.card"].firstMatch.waitForExistence(timeout: 10))
     }
 
@@ -108,7 +109,7 @@ final class DesignReviewUITests: XCTestCase {
         attach(app, name: "ax-02-feed-scrolled")
         scrollToTop(app)
         openCommentSheet(app, prefix: "ax")
-        openVoteScreen(app, prefix: "ax")
+        openFeedComparison(app, prefix: "ax")
         dismissSheet(app)
         tapTab(app, "searchTab", shot: "ax-04-search-tab")
         tapTab(app, "accountTab", shot: "ax-05-account-tab")
@@ -133,7 +134,7 @@ final class DesignReviewUITests: XCTestCase {
         scroll(app, up: false, times: 2)
 
         openCommentSheet(app, prefix: prefix)
-        openVoteScreen(app, prefix: prefix)
+        openFeedComparison(app, prefix: prefix)
     }
 
     /// Voting opens the "why did you vote" sheet, which doubles as the
@@ -177,20 +178,13 @@ final class DesignReviewUITests: XCTestCase {
         settle()
     }
 
-    /// Tapping the feed photos opens the vote screen; its action row has a
-    /// comment button that opens the comments sheet.
-    private func openVoteScreen(_ app: XCUIApplication, prefix: String) {
-        guard let photos = scrollToVisible(app, app.buttons.matching(identifier: "feed-photo-carousel")),
-              tap(photos), app.buttons["reelBackButton"].waitForExistence(timeout: Self.shortWait) else {
-            attach(app, name: "\(prefix)-vote-screen-missing"); return
+    private func openFeedComparison(_ app: XCUIApplication, prefix: String) {
+        guard let compare = scrollToVisible(app, app.buttons.matching(identifier: "feed.compare")),
+              tap(compare), app.buttons["Show carousel"].firstMatch.waitForExistence(timeout: Self.shortWait) else {
+            attach(app, name: "\(prefix)-comparison-missing"); return
         }
-        attach(app, name: "\(prefix)-vote-screen")
-        if tap(app.buttons["voteFanCommentButton"]) {
-            settle()
-            attach(app, name: "\(prefix)-vote-comments")
-            _ = tap(app.buttons["comments.close"])
-        }
-        _ = tap(app.buttons["reelBackButton"])
+        attach(app, name: "\(prefix)-comparison")
+        _ = tap(app.buttons["Show carousel"].firstMatch)
         settle()
     }
 

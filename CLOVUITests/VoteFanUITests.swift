@@ -15,6 +15,21 @@ final class VoteFanUITests: XCTestCase {
 
     // MARK: - Tests
 
+    func testTappingFeedPhotoStaysOnFeed() {
+        let app = XCUIApplication()
+        app.launchArguments = [Self.sampleDataArgument]
+        app.launch()
+
+        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(carousel.waitForExistence(timeout: 15))
+        bringIntoOpenArea(carousel, in: app)
+        carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 2))
+        XCTAssertTrue(carousel.exists)
+        XCTAssertTrue(app.buttons["feedTab"].isHittable)
+    }
+
     func testCompareVotesWithoutLeavingFeed() {
         let app = XCUIApplication()
         app.launchArguments = [Self.sampleDataArgument]
@@ -22,6 +37,7 @@ final class VoteFanUITests: XCTestCase {
         let compare = app.buttons["feed.compare"].firstMatch
         XCTAssertTrue(compare.waitForExistence(timeout: 10))
         compare.tap()
+        XCTAssertFalse(app.buttons["Enlarge look 1"].exists)
         let vote = app.buttons["feed.vote.0"].firstMatch
         XCTAssertTrue(vote.waitForExistence(timeout: 5))
         vote.tap()
@@ -194,7 +210,7 @@ final class VoteFanUITests: XCTestCase {
 
     private func openMayasVoteScreen() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += [Self.sampleDataArgument]
+        app.launchArguments += [Self.sampleDataArgument, "--uiTestEnableFitCheckReel"]
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)

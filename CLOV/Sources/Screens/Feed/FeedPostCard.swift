@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// Feed post: author, prompt title, auto-rotating photos, Like / Comment /
-/// Send row, occasion and description. Shows no vote counts; tapping the
-/// photos opens the vote screen.
+/// Send row, occasion and description. Voting controls live in Compare looks.
 struct FeedPostCard: View {
     let item: FeedItemDTO
     let isLiked: Bool
@@ -13,7 +12,7 @@ struct FeedPostCard: View {
     let onToggleFollow: (Bool) -> Void
     let onLike: (Bool) async throws -> Void
     /// Opens the vote screen on the photo currently showing in the carousel.
-    let onOpen: (_ photoIndex: Int) -> Void
+    let onOpen: ((Int) -> Void)?
     /// Opens the comment thread sheet.
     let onComment: () -> Void
     var onPhotoDisplay: (() -> Void)?
@@ -138,16 +137,21 @@ struct FeedPostCard: View {
     }
 
     private func photos(expired: Bool) -> some View {
-        PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex, autoAdvance: !expired,
-                      contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) },
-                      prioritizesSelectedPhoto: true, onPhotoDisplay: onPhotoDisplay)
+        let openPhoto = onOpen.map { open in { open(photoIndex) } }
+        return PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex, autoAdvance: !expired,
+                             contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: openPhoto,
+                             prioritizesSelectedPhoto: true, onPhotoDisplay: onPhotoDisplay)
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
             .background(Color.black)
             .overlay { if expired { endedOverlay } }
             .clipped()
             .contentShape(Rectangle())
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction(named: expired ? "See results" : "Open to vote") { onOpen(photoIndex) }
+            .accessibilityAddTraits(openPhoto == nil ? [] : .isButton)
+            .accessibilityActions {
+                if let openPhoto {
+                    Button(expired ? "See results" : "Open to vote", action: openPhoto)
+                }
+            }
     }
 
     private var endedOverlay: some View {
@@ -232,9 +236,9 @@ struct FeedPostCard: View {
 
 private struct InlineLookComparison: View {
     @StateObject private var model: ReelVoteModel
-    let onOpen: (Int) -> Void
+    let onOpen: ((Int) -> Void)?
 
-    init(item: FeedItemDTO, viewerId: UUID, onOpen: @escaping (Int) -> Void) {
+    init(item: FeedItemDTO, viewerId: UUID, onOpen: ((Int) -> Void)?) {
         _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: viewerId))
         self.onOpen = onOpen
     }
@@ -244,11 +248,12 @@ private struct InlineLookComparison: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) {
                 ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
                     VStack {
-                        Button { onOpen(index) } label: {
-                            Color.black.aspectRatio(3 / 4, contentMode: .fit)
-                                .overlay { RemoteImage(url: photo.imageUrl, contentMode: .fit) }
+                        if let onOpen {
+                            Button { onOpen(index) } label: { lookImage(photo) }
+                                .accessibilityLabel("Enlarge look \(index + 1)")
+                        } else {
+                            lookImage(photo)
                         }
-                        .accessibilityLabel("Enlarge look \(index + 1)")
                         if model.summaryLoaded && model.isResultsRevealed && !model.isVoting {
                             Text("Look \(index + 1) · \(model.percent(for: photo.id))%")
                         } else {
@@ -272,5 +277,10 @@ private struct InlineLookComparison: View {
         .buttonStyle(.plain)
         .font(Theme.bodyEmphasis)
         .task { await model.loadSummary() }
+    }
+
+    private func lookImage(_ photo: FitCheckPhoto) -> some View {
+        Color.black.aspectRatio(3 / 4, contentMode: .fit)
+            .overlay { RemoteImage(url: photo.imageUrl, contentMode: .fit) }
     }
 }

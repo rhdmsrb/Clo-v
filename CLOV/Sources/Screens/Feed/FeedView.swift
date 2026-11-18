@@ -162,7 +162,9 @@ struct FeedView: View {
                         showsFollow: item.creatorId != appState.userId,
                         onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) },
                         onLike: { like in try await setLiked(like, item: item) },
-                        onOpen: { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) },
+                        onOpen: FitCheckReelView.isEnabled
+                            ? { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) }
+                            : nil,
                         onComment: { commentItem = item },
                         onPhotoDisplay: {
                             guard !firstPhotoDisplayed, item.id == visibleItems.first?.id else { return }

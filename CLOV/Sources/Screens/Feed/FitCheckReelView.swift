@@ -2,6 +2,15 @@ import SwiftUI
 
 /// A single Fit-Check shown full screen as a pushed screen with a back button.
 struct FitCheckReelView: View {
+    /// Keep the reel available to offline UI tests while it is hidden in the app.
+    static let isEnabled: Bool = {
+        #if DEBUG
+        SampleData.isActive && ProcessInfo.processInfo.arguments.contains("--uiTestEnableFitCheckReel")
+        #else
+        false
+        #endif
+    }()
+
     let item: FeedItemDTO
     let voterId: UUID
     let isFollowing: Bool
@@ -15,6 +24,14 @@ struct FitCheckReelView: View {
     @Environment(\.setTabBarHidden) private var setTabBarHidden
 
     var body: some View {
+        if Self.isEnabled {
+            reel
+        } else {
+            FitCheckDetailView(fitCheckId: item.id)
+        }
+    }
+
+    private var reel: some View {
         SwipeFitCheckPage(item: item, voterId: voterId, isFollowing: isFollowing,
                           initialPhotoIndex: initialPhotoIndex, onToggleFollow: onToggleFollow,
                           onEvent: onEvent, onImpression: onImpression, onVoteChange: onVoteChange)

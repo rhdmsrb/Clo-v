@@ -6,9 +6,9 @@ final class EngagementUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launch() -> XCUIApplication {
+    private func launch(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["--uiTestSampleData", "-appearance.colorScheme", "light"]
+        app.launchArguments += ["--uiTestSampleData", "-appearance.colorScheme", "light"] + arguments
         app.launch()
         return app
     }
@@ -140,7 +140,7 @@ final class EngagementUITests: XCTestCase {
     /// The redesigned vote screen hides the total until the viewer votes: holding
     /// the centre photo casts the vote, shows Undo, and reveals the count.
     func testVotingRevealsTheResult() throws {
-        let app = launch()
+        let app = launch(arguments: ["--uiTestEnableFitCheckReel"])
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
