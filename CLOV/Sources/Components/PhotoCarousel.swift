@@ -12,6 +12,8 @@ struct PhotoCarousel: View {
     var accessibilityIdentifier: String = "photo-carousel"
     /// Called on a tap, from the carousel's own gesture (a parent's tap gesture is not reliably reached through the paged TabView).
     var onTap: (() -> Void)?
+    var prioritizesSelectedPhoto = false
+    var onPhotoDisplay: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
@@ -21,6 +23,7 @@ struct PhotoCarousel: View {
     /// Inactive tabs stay mounted at opacity 0, so `onDisappear` never fires for them.
     @Environment(\.isTabActive) private var isTabActive
     @State private var isOnScreen = false
+    @State private var hasDisplayedPhoto = false
     @State private var fadingPhoto: URL?
     @State private var fadingOpacity = 0.0
 
@@ -30,7 +33,9 @@ struct PhotoCarousel: View {
         autoAdvance: Bool = false,
         contentMode: ContentMode = .fill,
         accessibilityIdentifier: String = "photo-carousel",
-        onTap: (() -> Void)? = nil
+        onTap: (() -> Void)? = nil,
+        prioritizesSelectedPhoto: Bool = false,
+        onPhotoDisplay: (() -> Void)? = nil
     ) {
         self.urls = urls
         self._currentIndex = currentIndex
@@ -38,6 +43,8 @@ struct PhotoCarousel: View {
         self.contentMode = contentMode
         self.accessibilityIdentifier = accessibilityIdentifier
         self.onTap = onTap
+        self.prioritizesSelectedPhoto = prioritizesSelectedPhoto
+        self.onPhotoDisplay = onPhotoDisplay
         _logic = State(initialValue: CarouselAutoAdvance(pageCount: urls.count, index: currentIndex.wrappedValue))
     }
 
@@ -54,7 +61,14 @@ struct PhotoCarousel: View {
     var body: some View {
         TabView(selection: pageBinding) {
             ForEach(Array(urls.enumerated()), id: \.offset) { offset, url in
-                page(url).tag(offset)
+                Group {
+                    if shouldLoadPhoto(at: offset) {
+                        page(url, index: offset)
+                    } else {
+                        Theme.muted
+                    }
+                }
+                .tag(offset)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -157,7 +171,15 @@ struct PhotoCarousel: View {
         }
     }
 
-    private func page(_ url: URL) -> some View {
+    private func shouldLoadPhoto(at index: Int) -> Bool {
+        guard prioritizesSelectedPhoto else { return true }
+        guard isTabActive, scenePhase == .active else { return false }
+        let distance = abs(index - logic.index)
+        // Wait for the selected photo before preloading its neighbors.
+        return distance == 0 || (hasDisplayedPhoto && (distance == 1 || distance == urls.count - 1))
+    }
+
+    private func page(_ url: URL, index: Int? = nil) -> some View {
         Color.clear
             .overlay {
                 GeometryReader { proxy in
@@ -166,6 +188,12 @@ struct PhotoCarousel: View {
                         case .success(let image):
                             image.resizable().aspectRatio(contentMode: contentMode)
                                 .frame(width: proxy.size.width, height: proxy.size.height)
+                                .onAppear {
+                                    if index == logic.index {
+                                        hasDisplayedPhoto = true
+                                        onPhotoDisplay?()
+                                    }
+                                }
                         case .loading:
                             Theme.muted.overlay(ProgressView())
                         case .failure:

@@ -9,6 +9,7 @@ struct FitCheckReelView: View {
     let onToggleFollow: (Bool) -> Void
     var onEvent: (String) -> Void = { _ in }
     var onImpression: () -> Void = {}
+    var onVoteChange: ((UUID?, Int) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.setTabBarHidden) private var setTabBarHidden
@@ -16,7 +17,7 @@ struct FitCheckReelView: View {
     var body: some View {
         SwipeFitCheckPage(item: item, voterId: voterId, isFollowing: isFollowing,
                           initialPhotoIndex: initialPhotoIndex, onToggleFollow: onToggleFollow,
-                          onEvent: onEvent, onImpression: onImpression)
+                          onEvent: onEvent, onImpression: onImpression, onVoteChange: onVoteChange)
             .background(.black)
             .overlay(alignment: .topLeading) {
                 Button { dismiss() } label: {

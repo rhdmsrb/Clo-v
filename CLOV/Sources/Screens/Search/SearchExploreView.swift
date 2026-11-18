@@ -284,7 +284,7 @@ struct SearchExploreView: View {
         return Color.clear
             .overlay {
                 if let url {
-                    CachedImage(url: url) { phase in
+                    CachedImage(url: url, size: .thumbnail) { phase in
                         switch phase {
                         case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
                         case .loading: Theme.muted.overlay(ProgressView())

@@ -146,7 +146,7 @@ extension API {
             return .continuing(PostProgress(draftId: id, draftFingerprint: draftKey, draftDropped: dropped))
         } catch {
             // The id is generated here so a draft whose response was lost can still be cleaned up.
-            await discardDraft(fitCheckId: draftParams.id, creatorId: creatorId, uploadedPaths: [])
+            await discardDraft(fitCheckId: draftParams.id, creatorId: creatorId)
             throw error
         }
     }
@@ -197,7 +197,7 @@ extension API {
                 Log.app.error("Publish failed; keeping draft \(progress.draftId.uuidString) so a retry can finish it")
                 throw error
             case .discard:
-                await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId, uploadedPaths: progress.uploadedPaths)
+                await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId)
                 if let onProgress { await onProgress(nil) }
                 throw error
             }
@@ -213,7 +213,7 @@ extension API {
         if let knownState { state = knownState } else { state = await serverState(ofFitCheck: progress.draftId) }
         switch state {
         case .draft, .missing:
-            await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId, uploadedPaths: progress.uploadedPaths)
+            await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId)
         case .live, .unknown:
             Log.app.error("Leaving \(progress.draftId.uuidString) untouched (\(String(describing: state)))")
         }

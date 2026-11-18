@@ -9,6 +9,7 @@ enum Log {
     static let app = Logger(subsystem: subsystem, category: "app")
     static let push = Logger(subsystem: subsystem, category: "push")
     static let storage = Logger(subsystem: subsystem, category: "storage")
+    static let performance = OSSignposter(subsystem: subsystem, category: "runtime")
 
     /// For best-effort work whose failure must not block the screen but
     /// shouldn't vanish either: returns nil on failure after logging it.

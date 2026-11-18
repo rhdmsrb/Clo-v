@@ -35,3 +35,15 @@ removed and use that copy in the command above. No table, policy or function is
 changed by that compatibility adjustment. The last line should be `ALL PASS`.
 The test applies the Phase 2 migrations and the later audience migration locally,
 checks legacy and current posting, and exercises the migration rollbacks.
+
+## Runtime reads and draft cleanup
+
+On a fresh disposable database with the snapshot loaded, apply the
+`20261107000100`, `20261107000200`, `20261107000500` and
+`20261108000100` migrations before the two runtime migrations. Then run
+`70_runtime_read_paths.sql` and `80_claim_draft_cleanup.sql` with
+`psql -v ON_ERROR_STOP=1`. Both tests roll back their fixtures.
+
+The assertions cover audience and comment visibility, vote privacy, cursor
+ties and timestamp precision, bounded group previews, and publishing after
+a cleanup claim. The checks use Storage metadata to model uploaded objects.

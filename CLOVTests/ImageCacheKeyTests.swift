@@ -19,4 +19,9 @@ final class ImageCacheKeyTests: XCTestCase {
         let b = try XCTUnwrap(URL(string: "https://b.example.com/p.jpg"))
         XCTAssertNotEqual(ImageCache.key(for: a), ImageCache.key(for: b))
     }
+
+    func testThumbnailDoesNotReplaceFullSizeImage() throws {
+        let url = try XCTUnwrap(URL(string: "https://x.supabase.co/storage/v1/object/sign/fit/a.jpg?token=one"))
+        XCTAssertNotEqual(ImageCache.key(for: url, size: .thumbnail), ImageCache.key(for: url, size: .standard))
+    }
 }

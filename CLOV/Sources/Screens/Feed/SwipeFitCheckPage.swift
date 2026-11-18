@@ -9,6 +9,7 @@ struct SwipeFitCheckPage: View {
     let onToggleFollow: (Bool) -> Void
     let onEvent: (String) -> Void
     let onImpression: () -> Void
+    let onVoteChange: ((UUID?, Int) -> Void)?
 
     @EnvironmentObject private var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,13 +35,15 @@ struct SwipeFitCheckPage: View {
 
     init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, initialPhotoIndex: Int? = nil,
          onToggleFollow: @escaping (Bool) -> Void,
-         onEvent: @escaping (String) -> Void, onImpression: @escaping () -> Void) {
+         onEvent: @escaping (String) -> Void, onImpression: @escaping () -> Void,
+         onVoteChange: ((UUID?, Int) -> Void)? = nil) {
         self.item = item
         self.voterId = voterId
         self.isFollowing = isFollowing
         self.onToggleFollow = onToggleFollow
         self.onEvent = onEvent
         self.onImpression = onImpression
+        self.onVoteChange = onVoteChange
         _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: voterId, initialLook: initialPhotoIndex))
         _likeCount = State(initialValue: item.likeCount)
     }
@@ -196,7 +199,7 @@ struct SwipeFitCheckPage: View {
         guard model.canRetract else { return }
         celebration.cancel()
         Haptics.impact(.light)
-        model.retractVote { appState.contentDidChange() }
+        model.retractVote { refreshFeedVote() }
         AccessibilityNotification.Announcement("Vote undone. Pick again.").post()
     }
 
@@ -329,11 +332,16 @@ struct SwipeFitCheckPage: View {
 
     /// Runs once the server confirmed the vote; the success haptic already played in the model.
     private func voteRecorded() {
-        appState.contentDidChange()
+        refreshFeedVote()
         guard model.error == nil, !reduceMotion,
               VoteReveal.shouldCelebrate(myVote: model.myVote, photoIds: photoIds, counts: model.counts, total: model.total)
         else { return }
         celebration.celebrate()
+    }
+
+    private func refreshFeedVote() {
+        onVoteChange?(model.myVote, model.total)
+        appState.contentDidChange(reloadHomeFeed: onVoteChange == nil)
     }
 
     @ViewBuilder
@@ -396,9 +404,9 @@ struct SwipeFitCheckPage: View {
                 else { try await API.unlikeFitCheck(id: item.id, userId: voterId) }
                 onEvent(wantsLike ? "like" : "unlike")
             }
-            Button { showComments = true; onEvent("open_comments") } label: { railIcon("bubble.right", count: item.fitCheckComments.count) }
+            Button { showComments = true; onEvent("open_comments") } label: { railIcon("bubble.right", count: item.commentCount) }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Comments, \(item.fitCheckComments.count)")
+                .accessibilityLabel("Comments, \(item.commentCount)")
                 .accessibilityIdentifier("voteFanCommentButton")
             BookmarkButton(isBookmarked: isBookmarked) { wantsSave in
                 if wantsSave { try await API.bookmarkFitCheck(id: item.id, userId: voterId) }

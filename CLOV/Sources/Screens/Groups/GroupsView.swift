@@ -8,6 +8,9 @@ struct GroupsView: View {
     var embedded = false
 
     @State private var groups: [FashionGroup] = []
+    @State private var previews: [UUID: API.GroupCardPreview] = [:]
+    @State private var fallback: GroupPreviewFallback?
+    @State private var loadID = UUID()
     @State private var isLoading = true
     @State private var hasLoaded = false
     @State private var error: String?
@@ -75,7 +78,7 @@ struct GroupsView: View {
     }
 
     @ViewBuilder private var circlesSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        LazyVStack(alignment: .leading, spacing: 16) {
             if groups.isEmpty {
                 EmptyStateView(
                     icon: "person.2",
@@ -86,26 +89,59 @@ struct GroupsView: View {
                 .padding(.vertical, 12)
             } else {
                 ForEach(groups) { group in
-                    GroupCard(group: group, revision: appState.contentRevision)
+                    GroupCard(group: group, preview: previews[group.id], fallback: fallback)
                 }
             }
         }
     }
 
     private func load() async {
+        let requestID = UUID()
+        loadID = requestID
         isLoading = true
         error = nil
-        defer { isLoading = false }
+        defer { if loadID == requestID { isLoading = false } }
         do {
-            groups = try await API.fetchMyGroups(profileId: appState.userId)
+            let loaded = try await API.fetchMyGroups(profileId: appState.userId)
+            guard !Task.isCancelled, loadID == requestID else { return }
+            groups = loaded
+            let ids = Set(loaded.map(\.id))
+            previews = previews.filter { ids.contains($0.key) }
             hasLoaded = true
+            isLoading = false
+            await loadPreviews(for: loaded.map(\.id), requestID: requestID)
         } catch is CancellationError {
             return
         } catch {
+            guard !Task.isCancelled, loadID == requestID else { return }
             Log.app.error("Groups load failed: \(String(describing: error))")
             self.error = "Couldn’t load this content. Please try again."
         }
     }
+
+    private func loadPreviews(for ids: [UUID], requestID: UUID) async {
+        do {
+            let result = try await API.fetchGroupCardPreviews(groupIDs: ids)
+            guard !Task.isCancelled, loadID == requestID else { return }
+            if let result {
+                previews = result
+                fallback = nil
+            } else {
+                let blocked = try await API.fetchBlockedUserIDs()
+                guard !Task.isCancelled, loadID == requestID else { return }
+                fallback = GroupPreviewFallback(id: requestID, blockedAuthors: blocked)
+            }
+        } catch {
+            if !Task.isCancelled {
+                Log.app.error("Group previews failed: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+private struct GroupPreviewFallback {
+    let id: UUID
+    let blockedAuthors: Set<UUID>
 }
 
 /// Compact Join / Create button for the Groups header.
@@ -127,31 +163,30 @@ private struct GroupHeaderButtonStyle: ButtonStyle {
 
 /// One group: a strip of its latest looks, the name, a member and live-look
 /// summary, and member avatars. The invite code lives inside the group
-/// (Members and Invite friends), not on every row. The preview loads per card
-/// so the list appears immediately; a failed load leaves the plain card.
+/// (Members and Invite friends), not on every row.
 private struct GroupCard: View {
     let group: FashionGroup
-    /// Changes when content changes elsewhere, so the preview reloads after a post.
-    let revision: Int
-
-    @State private var members: [GroupMemberDisplay]?
-    @State private var liveCount: Int?
-    @State private var thumbnails: [URL] = []
+    let preview: API.GroupCardPreview?
+    let fallback: GroupPreviewFallback?
+    @State private var legacyPreview: API.GroupCardPreview?
 
     private static let thumbnailCount = 3
     private static let thumbnailHeight: CGFloat = 120
     private static let thumbnailSpacing: CGFloat = 6
-    private static let visibleAvatars = 4
     private static let avatarSize: CGFloat = 26
     private static let avatarOverlap: CGFloat = -8
     private static let avatarRingWidth: CGFloat = 2
     private static let cardPadding: CGFloat = 12
 
+    private var displayedPreview: API.GroupCardPreview? {
+        fallback == nil ? preview : legacyPreview ?? preview
+    }
+
     private var summary: String {
-        guard let members else { return "Private circle" }
-        let people = "\(members.count) member\(members.count == 1 ? "" : "s")"
-        guard let liveCount, liveCount > 0 else { return people }
-        return "\(people) · \(liveCount) live"
+        guard let preview = displayedPreview else { return "Private circle" }
+        let people = "\(preview.memberCount) member\(preview.memberCount == 1 ? "" : "s")"
+        guard preview.liveCount > 0 else { return people }
+        return "\(people) · \(preview.liveCount) live"
     }
 
     var body: some View {
@@ -181,7 +216,7 @@ private struct GroupCard: View {
             .accessibilityElement(children: .combine)
         }
         .buttonStyle(.plain)
-        .task(id: revision) { await loadPreview() }
+        .task(id: fallback?.id) { await loadLegacyPreview() }
     }
 
     private var thumbnailStrip: some View {
@@ -192,7 +227,7 @@ private struct GroupCard: View {
         }
         .frame(height: Self.thumbnailHeight)
         .overlay {
-            if liveCount == 0 {
+            if displayedPreview?.liveCount == 0 {
                 Text("No live looks yet")
                     .font(Theme.caption)
                     .foregroundStyle(Theme.mutedForeground)
@@ -205,8 +240,8 @@ private struct GroupCard: View {
     private func thumbnail(at index: Int) -> some View {
         Color.clear
             .overlay {
-                if thumbnails.indices.contains(index) {
-                    CachedImage(url: thumbnails[index]) { phase in
+                if let thumbnails = displayedPreview?.thumbnails, thumbnails.indices.contains(index) {
+                    CachedImage(url: thumbnails[index], size: .thumbnail) { phase in
                         switch phase {
                         case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
                         default: Theme.muted
@@ -221,7 +256,7 @@ private struct GroupCard: View {
 
     private var avatarStack: some View {
         HStack(spacing: Self.avatarOverlap) {
-            ForEach((members ?? []).prefix(Self.visibleAvatars)) { member in
+            ForEach(displayedPreview?.members ?? []) { member in
                 AvatarView(url: member.avatarUrl, nickname: member.nickname, size: Self.avatarSize)
                     .overlay(Circle().stroke(Theme.card, lineWidth: Self.avatarRingWidth))
             }
@@ -229,17 +264,12 @@ private struct GroupCard: View {
         .accessibilityHidden(true)
     }
 
-    private func loadPreview() async {
-        async let membersTask = Log.attempt("Load group members") { try await API.fetchGroupMembers(groupId: group.id) }
-        async let feedTask = Log.attempt("Load group preview") { try await API.fetchGroupFeed(groupId: group.id) }
-        let (loadedMembers, loadedFeed) = await (membersTask, feedTask)
-        guard !Task.isCancelled else { return }
-        if let loadedMembers { members = loadedMembers }
-        if let loadedFeed {
-            liveCount = loadedFeed.count
-            thumbnails = loadedFeed.prefix(Self.thumbnailCount)
-                .compactMap { PostCardContent.photoURLs($0.fitCheckPhotos).first }
+    private func loadLegacyPreview() async {
+        guard let fallback else { return }
+        let loaded = await Log.attempt("Load group preview") {
+            try await API.fetchLegacyGroupCardPreview(groupId: group.id, blockedAuthors: fallback.blockedAuthors)
         }
+        if !Task.isCancelled { legacyPreview = loaded }
     }
 }
 

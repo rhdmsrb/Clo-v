@@ -3,16 +3,6 @@ import Supabase
 
 /// Pure rules for clearing abandoned drafts.
 enum DraftSweep {
-    /// A post being made is seconds or minutes old, so anything older than this is a leftover
-    /// from a crash, a kill mid-upload, or a cleanup that failed.
-    static let minimumAge: TimeInterval = 3600
-    /// Bounds the work (and network) one sweep does.
-    static let maxDraftsPerSweep = 20
-
-    static func cutoff(now: Date) -> Date { now.addingTimeInterval(-minimumAge) }
-
-    static func isStale(createdAt: Date, now: Date) -> Bool { createdAt <= cutoff(now: now) }
-
     /// Full storage paths for the files found in a draft's folder.
     static func storagePaths(creatorId: UUID, draftId: UUID, fileNames: [String]) -> [String] {
         let folder = "\(creatorId.storagePathComponent)/\(draftId.storagePathComponent)"
@@ -25,32 +15,44 @@ enum DraftSweep {
 extension API {
     private static let fitCheckBucket = "fit-check-photos"
 
-    /// Removes this user's stale drafts and their stored photos. Best-effort and silent:
-    /// a failure leaves the draft for the next sweep. Files go first, so a draft row is
-    /// never deleted while its photos remain. Only rows still marked `draft` are touched,
-    /// so a published post can never be removed by this.
-    static func sweepStaleDrafts(creatorId: UUID, now: Date = Date()) async {
+    static func sweepStaleDrafts(creatorId: UUID) async {
 #if DEBUG
         if SampleData.isActive { return }
 #endif
-        struct DraftRow: Decodable { let id: UUID }
+        await cleanUpDrafts(creatorId: creatorId)
+    }
+
+    /// Claim on the server before deleting files so publishing on another
+    /// device cannot leave a live post pointing at deleted photos.
+    static func cleanUpDrafts(creatorId: UUID, id: UUID? = nil) async {
+        struct ClaimedDraft: Decodable { let id: UUID }
+        let availability = RuntimeReadAvailability.shared
+        guard await availability.shouldTry(.draftCleanup) else { return }
         do {
-            let drafts: [DraftRow] = try await client.from("fit_checks").select("id")
-                .eq("creator_id", value: creatorId)
-                .eq("status", value: "draft")
-                .lte("created_at", value: DraftSweep.cutoff(now: now))
-                .limit(DraftSweep.maxDraftsPerSweep)
-                .execute().value
+            guard try await client.auth.session.user.id == creatorId else { return }
+            let drafts: [ClaimedDraft]
+            if let id {
+                drafts = try await client.rpc("claim_fit_check_drafts_for_cleanup_v1", params: ["p_id": id]).execute().value
+            } else {
+                drafts = try await client.rpc("claim_fit_check_drafts_for_cleanup_v1").execute().value
+            }
             for draft in drafts {
+                try Task.checkCancellation()
                 guard await removeDraftFiles(creatorId: creatorId, draftId: draft.id) else { continue }
                 try await client.from("fit_checks").delete()
                     .eq("id", value: draft.id)
                     .eq("creator_id", value: creatorId)
                     .eq("status", value: "draft")
+                    .eq("draft_cleanup_claimed", value: true)
                     .execute()
             }
+        } catch where isMissingColumnError(error) {
+            // Older server: let a safe sweep retry after the migration lands.
+            await availability.markUnavailable(.draftCleanup)
+        } catch is CancellationError {
+            return
         } catch {
-            Log.app.error("Stale draft sweep failed: \(error.localizedDescription)")
+            Log.app.error("Draft cleanup failed: \(error.localizedDescription)")
         }
     }
 

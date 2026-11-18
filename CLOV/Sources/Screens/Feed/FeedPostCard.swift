@@ -16,6 +16,7 @@ struct FeedPostCard: View {
     let onOpen: (_ photoIndex: Int) -> Void
     /// Opens the comment thread sheet.
     let onComment: () -> Void
+    var onPhotoDisplay: (() -> Void)?
 
     @State private var comparing = false
     @State private var photoIndex = 0
@@ -30,7 +31,7 @@ struct FeedPostCard: View {
     private var posterName: String { item.profiles?.nickname ?? "Someone" }
     private var title: String { PostCardContent.title(votePrompt: item.votePrompt, occasion: item.occasion) }
     private var photoURLs: [URL] { PostCardContent.photoURLs(item.fitCheckPhotos) }
-    private var commentCount: Int { item.fitCheckComments.count }
+    private var commentCount: Int { item.commentCount }
 
     var body: some View {
         // Photo first: author, full-bleed photo, actions, then one title line.
@@ -138,7 +139,8 @@ struct FeedPostCard: View {
 
     private func photos(expired: Bool) -> some View {
         PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex, autoAdvance: !expired,
-                      contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) })
+                      contentMode: .fit, accessibilityIdentifier: "feed-photo-carousel", onTap: { onOpen(photoIndex) },
+                      prioritizesSelectedPhoto: true, onPhotoDisplay: onPhotoDisplay)
             .aspectRatio(Self.photoAspectRatio, contentMode: .fit)
             .background(Color.black)
             .overlay { if expired { endedOverlay } }

@@ -57,7 +57,7 @@ struct AvatarView: View {
     var body: some View {
         Group {
             if let url, let imageURL = URL(string: url) {
-                CachedImage(url: imageURL) { phase in
+                CachedImage(url: imageURL, size: .avatar) { phase in
                     if case .success(let image) = phase {
                         image.resizable().scaledToFill()
                     } else {
