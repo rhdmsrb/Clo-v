@@ -1,6 +1,14 @@
 import SwiftUI
 
+/// Which screen the feed is serving: Home (everything, ranked) or the Vote tab
+/// (only live posts the viewer has not voted on yet).
+enum FeedStyle {
+    case home, voteQueue
+}
+
 struct FeedView: View {
+    var style: FeedStyle = .home
+
     @EnvironmentObject private var appState: AppState
 
     @State private var items: [FeedItemDTO] = []
@@ -27,6 +35,9 @@ struct FeedView: View {
     @State private var loadMoreFailed = false
     @State private var pendingFollowIDs: Set<UUID> = []
     @State private var loadID = UUID()
+    @State private var showSearch = false
+    @State private var showNotifications = false
+    @State private var unreadCount = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tabBarClearance) private var tabBarClearance
 
@@ -38,7 +49,29 @@ struct FeedView: View {
     private static let noticeDuration: Duration = .seconds(3)
 
     private var emptyFeedText: String {
-        "Your feed is waiting for its first look. Post a Fit-Check to get started."
+        switch style {
+        case .home: "Your feed is waiting for its first look. Post a Fit-Check to get started."
+        case .voteQueue: "You’re all caught up. New looks to vote on will show up here."
+        }
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        switch style {
+        case .home:
+            HomeHeader(nickname: appState.profile?.nickname, unreadCount: unreadCount,
+                       onSearch: { showSearch = true },
+                       onNotifications: { showNotifications = true })
+        case .voteQueue:
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Looks waiting on you")
+                    .font(Theme.serifGreeting)
+                    .foregroundStyle(Theme.mutedForeground)
+                EditorialTitle("Cast your", emphasis: "vote")
+                    .accessibilityIdentifier("vote.headline")
+            }
+            .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+        }
     }
 
     var body: some View {
@@ -47,6 +80,14 @@ struct FeedView: View {
         .navigationDestination(for: FitCheckRoute.self) { route in routeDestination(route) }
         .navigationDestination(item: $openedRoute) { route in routeDestination(route) }
         .navigationDestination(isPresented: $showFriends) { FriendsView() }
+        .navigationDestination(isPresented: $showNotifications) {
+            NotificationsView(onRead: { Task { await loadUnreadCount() } })
+        }
+        .sheet(isPresented: $showSearch) { searchSheet }
+        .task(id: appState.contentRevision) { await loadUnreadCount() }
+        .onChange(of: showNotifications) { _, showing in
+            if !showing { Task { await loadUnreadCount() } }
+        }
         .revisionTask(appState.contentRevision) {
             if commentRevision != appState.contentRevision {
                 await load(refreshGraph: graphRevision != appState.contentRevision)
@@ -98,15 +139,7 @@ struct FeedView: View {
             // Posts run edge to edge, so the page padding is applied per
             // section instead of on the whole column.
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
-                Text("CLO·V")
-                    .font(Theme.editorialFont(size: 28, relativeTo: .title2))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .accessibilityLabel("CLO V")
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("feed.logo")
-                    .padding(.horizontal, Self.pagePadding)
+                header.padding(.horizontal, Self.pagePadding)
                 feedList
                 olderFitChecksButton.padding(.horizontal, Self.pagePadding)
             }
@@ -119,6 +152,28 @@ struct FeedView: View {
             await load(refreshGraph: true)
         }
         .onDisappear { flushImpressions() }
+    }
+
+    /// Explore, presented over Home. It hides its own navigation bar, so the sheet adds a close button.
+    private var searchSheet: some View {
+        NavigationStack {
+            SearchExploreView()
+                .environment(\.tabBarClearance, 0)
+                .overlay(alignment: .topTrailing) {
+                    FloatingIconButton(systemImage: "xmark", accessibilityLabel: "Close search",
+                                       identifier: "search.close") { showSearch = false }
+                        .padding(.trailing, Self.pagePadding)
+                        .padding(.top, Spacing.s)
+                }
+        }
+    }
+
+    private func loadUnreadCount() async {
+        if let count = await Log.attempt("Load unread count", {
+            try await API.fetchUnreadNotificationCount(recipientId: appState.userId)
+        }) {
+            unreadCount = count
+        }
     }
 
     @ViewBuilder
@@ -234,7 +289,9 @@ struct FeedView: View {
             }
             return result
         }
-        return varied(ranked.filter { !answered.contains($0.id) }) + varied(ranked.filter { answered.contains($0.id) })
+        let unanswered = varied(ranked.filter { !answered.contains($0.id) })
+        if style == .voteQueue { return unanswered.filter { $0.creatorId != appState.userId } }
+        return unanswered + varied(ranked.filter { answered.contains($0.id) })
     }
 
     private func refreshVisibleItems() {
