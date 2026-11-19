@@ -37,3 +37,23 @@ final class ReleaseConfigTests: XCTestCase {
         XCTAssertTrue(schemes.contains(AppConfig.authCallbackURL.scheme ?? ""))
     }
 }
+
+/// The local-stack switch must never redirect a build that isn't opted in.
+final class BackendSelectionTests: XCTestCase {
+    func testDefaultsToProductionWhenLocalStackNotRequested() {
+        XCTAssertNil(ProcessInfo.processInfo.environment["CLOV_LOCAL_SUPABASE"],
+                     "unset CLOV_LOCAL_SUPABASE to run this test")
+        XCTAssertEqual(AppConfig.activeSupabaseURL, AppConfig.supabaseURL)
+        XCTAssertEqual(AppConfig.activeSupabaseAnonKey, AppConfig.supabaseAnonKey)
+    }
+
+    func testProductionConfigIsRemoteHttps() {
+        XCTAssertEqual(AppConfig.supabaseURL.scheme, "https")
+        XCTAssertNotEqual(AppConfig.supabaseURL.host, "127.0.0.1")
+        XCTAssertNotEqual(AppConfig.supabaseURL.host, "localhost")
+    }
+
+    func testProductionKeyIsPublishableNotServiceRole() {
+        XCTAssertTrue(AppConfig.supabaseAnonKey.hasPrefix("sb_publishable_"))
+    }
+}

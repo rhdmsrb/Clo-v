@@ -68,7 +68,7 @@ struct PhotoFan: View {
             .frame(width: width, height: width * Self.cardAspect)
             .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             .holdToVote(isEnabled: canVote && index == selection, onVote: onVote)
-            .overlay(alignment: .bottom) { resultChip(photo, index: index) }
+            .overlay(alignment: .center) { resultChip(photo, index: index) }
             .scrollTransition(axis: .horizontal) { content, phase in
                 content
                     .scaleEffect(phase.isIdentity ? 1 : sideScale)
@@ -100,7 +100,6 @@ struct PhotoFan: View {
         .accessibilityElement(children: .combine)
         .accessibilityValue(isLeading ? "leading" : "")
         .blurReveal(isRevealed: isResultsRevealed)
-        .padding(.bottom, 10)
         .allowsHitTesting(false)
     }
 }

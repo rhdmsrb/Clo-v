@@ -2,11 +2,11 @@ import Foundation
 
 extension FeedItemDTO {
     /// Total votes for ranking and display. Prefers the server-maintained
-    /// `fit_checks.vote_count`; `fitCheckVotes` is only a fallback because
-    /// under the restricted vote policy it holds at most the viewer's own row.
+    /// `fit_checks.vote_count`; the in-memory vote rows are a fallback for
+    /// sample data and callers that construct an item from a summary.
     var totalVotes: Int { voteCount ?? fitCheckVotes.count }
 
-    /// The viewer's own vote, read from their row in the embed.
+    /// The viewer's own vote, when supplied by an in-memory caller.
     func ownVote(voterId: UUID) -> UUID? {
         fitCheckVotes.first(where: { $0.voterId == voterId })?.photoId
     }

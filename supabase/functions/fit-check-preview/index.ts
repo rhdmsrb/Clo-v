@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 // Public, read-only preview of one shared Fit-Check, for people who open a
 // share link without being signed in. Deploy with --no-verify-jwt.
@@ -10,8 +10,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 // (/<creatorId>/<fitCheckId>/<file>), so viewers can link posts by author.
 // Blocks are intentionally not applied to a public link.
 //
-// Abuse: this endpoint is public and shares the project's function quota, so
-// put a rate limit (WAF/CDN) in front of it before relying on it at scale.
+// Abuse: this endpoint is public and shares the project's function quota, so it
+// is rate limited per client IP (reserve_preview_hit, migration 20261116000200).
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type",
@@ -39,6 +39,34 @@ const isFitCheckPhotoPath = (path: unknown, creatorId: string, fitCheckId: strin
   path.toLowerCase().startsWith(`${creatorId.toLowerCase()}/${fitCheckId.toLowerCase()}/`) &&
   !path.includes("..") && !path.includes("://") && !path.includes("\\") && !path.includes("?");
 
+// Per-IP budget for this public endpoint. A shared link opens a handful of requests,
+// so this is generous for people and still caps a script.
+const RATE_LIMIT_MAX = 60;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+
+// cf-connecting-ip is set by the edge and cannot be forged by the caller; the first
+// x-forwarded-for entry is the fallback.
+function clientAddress(request: Request): string {
+  return request.headers.get("cf-connecting-ip")?.trim() ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+}
+
+// Only a hash of the address is stored. Fails open: a limiter outage must not take
+// share links down, so an RPC error is logged and the request is allowed.
+async function withinRateLimit(admin: SupabaseClient, request: Request): Promise<boolean> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(clientAddress(request)));
+  const key = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const { data, error } = await admin.rpc("reserve_preview_hit", {
+    p_key: key, p_max: RATE_LIMIT_MAX, p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+  });
+  if (error) {
+    console.error("fit-check-preview rate limit check failed", error.message);
+    return true;
+  }
+  return data === true;
+}
+
 async function readFitCheckId(request: Request): Promise<string | null> {
   if (request.method === "GET") return new URL(request.url).searchParams.get("id");
   try {
@@ -57,10 +85,16 @@ Deno.serve(async (request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseURL || !serviceKey) return json({ message: "Preview service is not configured." }, 503);
 
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+
+  // Throttle before any lookup or storage signing, so abusive traffic stays cheap.
+  if (!(await withinRateLimit(admin, request))) {
+    return json({ message: "Too many requests. Please try again in a minute." }, 429,
+      { "Retry-After": String(RATE_LIMIT_WINDOW_SECONDS) });
+  }
+
   const fitCheckId = await readFitCheckId(request);
   if (!fitCheckId || !UUID_PATTERN.test(fitCheckId)) return json({ message: "Invalid link." }, 400);
-
-  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
 
   const { data: row, error } = await admin.from("fit_checks")
     .select("id, creator_id, caption, occasion, expires_at, is_public, status, " +

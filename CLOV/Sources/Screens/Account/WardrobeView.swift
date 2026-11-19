@@ -14,12 +14,8 @@ struct WardrobeView: View {
 
     private var visibleItems: [WardrobeItem] { filter.apply(to: items) }
 
-    private var sections: [(WardrobeCategory, [WardrobeItem])] {
-        WardrobeCategory.allCases.compactMap { category in
-            let categoryItems = visibleItems.filter { $0.category == category.rawValue }
-            return categoryItems.isEmpty ? nil : (category, categoryItems)
-        }
-    }
+    private static let gridColumns = 2
+    private static let gridSpacing: CGFloat = 16
 
     private var emptyText: String {
         filter.isActive ? "No pieces match your search or filters." : "Your wardrobe is empty. Add your first piece."
@@ -41,9 +37,8 @@ struct WardrobeView: View {
                     }.accessibilityLabel("Clear search")
                 }
             }
-            .padding(.horizontal, 13).frame(minHeight: 44)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous).stroke(Theme.controlBorder, lineWidth: 1))
+            .padding(.horizontal, 15).frame(minHeight: Theme.minTapSize + 4)
+            .background(Theme.muted, in: Capsule(style: .continuous))
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -86,23 +81,23 @@ struct WardrobeView: View {
     }
 
     private func categoryChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .buttonStyle(ChipButtonStyle(isSelected: isSelected, font: Theme.label, horizontalPadding: 16))
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .motionSafeAnimation(Theme.snap, value: isSelected)
+        FilterChip(title: title, isSelected: isSelected, action: action)
     }
 
+    /// Same pill as the category chips: white with a hairline, accent-filled when set.
     private func menuLabel(icon: String, title: String, highlighted: Bool) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: highlighted ? "checkmark" : icon).accessibilityHidden(true)
-            Text(title)
+            Image(systemName: highlighted ? "checkmark" : icon).imageScale(.small).accessibilityHidden(true)
+            Text(title).lineLimit(1)
         }
-        .font(Theme.label)
-        .foregroundStyle(highlighted ? Theme.accentDeep : Theme.ink)
-        .padding(.horizontal, 14).frame(minHeight: Theme.minTapSize)
-        .background(highlighted ? Theme.accentTint : Theme.muted, in: Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous).stroke(highlighted ? Theme.accentDeep : Theme.controlBorder, lineWidth: highlighted ? 1.5 : 1))
-        .contentShape(Capsule(style: .continuous))
+        .font(Theme.font(.subheadline, weight: highlighted ? .semibold : .medium))
+        .foregroundStyle(highlighted ? Theme.accentForeground : Theme.ink)
+        .padding(.horizontal, Spacing.m)
+        .frame(minHeight: 36)
+        .background(highlighted ? Theme.accent : Theme.card, in: Capsule(style: .continuous))
+        .overlay(Capsule(style: .continuous).strokeBorder(highlighted ? Color.clear : Theme.controlBorder, lineWidth: 1))
+        .frame(minHeight: Theme.minTapSize)
+        .contentShape(Rectangle())
     }
 
     private var header: some View {
@@ -131,7 +126,7 @@ struct WardrobeView: View {
             Button { showAdd = true } label: {
                 Image(systemName: "plus").font(Theme.headline).foregroundStyle(Color.white)
                     .frame(width: Theme.minTapSize, height: Theme.minTapSize)
-                    .background(Theme.heroGradient, in: Circle())
+                    .background(Theme.primaryButtonFill, in: Circle())
                     .contentShape(Circle())
             }.accessibilityLabel("Add wardrobe item")
         }
@@ -167,23 +162,17 @@ struct WardrobeView: View {
         .accessibilityIdentifier("wardrobe.planLook")
     }
 
+    /// Every piece in one even grid (the category chips above filter it). Cards share
+    /// one shape, so rows line up whatever details each piece has.
     private var itemSections: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            ForEach(sections, id: \.0) { category, categoryItems in
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        SectionHeader(title: category.label)
-                        Text("\(categoryItems.count)").font(Theme.caption).foregroundStyle(Theme.mutedForeground)
-                    }
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-                        ForEach(categoryItems) { item in
-                            WardrobeItemCard(item: item,
-                                             onEdit: { editTarget = item },
-                                             onDelete: { deleteTarget = item },
-                                             onWorn: { Task { await logWear(item) } })
-                        }
-                    }
-                }
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Self.gridSpacing, alignment: .top),
+                                 count: Self.gridColumns),
+                  alignment: .leading, spacing: Spacing.l) {
+            ForEach(visibleItems) { item in
+                WardrobeItemCard(item: item,
+                                 onEdit: { editTarget = item },
+                                 onDelete: { deleteTarget = item },
+                                 onWorn: { Task { await logWear(item) } })
             }
         }
     }
@@ -281,60 +270,91 @@ private struct WardrobeItemCard: View {
         Button("Remove", systemImage: "trash", role: .destructive, action: onDelete)
     }
 
+    private var title: String { item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category }
+
+    /// "Outerwear · Blue · Levi's": whichever parts the piece has.
+    private var detailLine: String {
+        let category = WardrobeCategory(rawValue: item.category)?.label ?? item.category.capitalized
+        return [category, item.color, item.brand]
+            .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    private var styleTags: [String] { (item.tags ?? []).filter { !$0.hasPrefix(Self.creditPrefix) } }
+
+    /// "Photo credit: Name|License|https://license|https://source" when the photo needs attribution.
+    private var credit: [String]? {
+        guard let raw = item.tags?.first(where: { $0.hasPrefix(Self.creditPrefix) }) else { return nil }
+        return raw.replacingOccurrences(of: Self.creditPrefix + " ", with: "").components(separatedBy: "|")
+    }
+
+    private static let creditPrefix = "Photo credit:"
+
+    /// Third line: how often it's worn, else its style tags. Kept even when empty so
+    /// every card has the same height.
+    private var thirdLine: String {
+        if let wearSummary = item.wearSummary { return wearSummary }
+        return styleTags.prefix(2).map { "#\($0)" }.joined(separator: "  ")
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ZStack(alignment: .topTrailing) {
-                AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
-                    WardrobePhoto(url: item.imageUrl)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Photo of \(item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category)")
-                        .accessibilityAddTraits(.isImage)
-                }
-                Menu {
-                    actions
-                } label: {
-                    Image(systemName: "ellipsis").font(Theme.label).foregroundStyle(Theme.inverseText)
-                        .frame(width: 30, height: 30).background(Theme.ink.opacity(0.9), in: Circle())
-                        .frame(width: Theme.minTapSize, height: Theme.minTapSize).contentShape(Circle())
-                }.padding(1).accessibilityLabel("More actions for \(item.name ?? "item")")
-            }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-            .elevatedShadow()
-            .contextMenu { actions }
-            Text(item.name?.isEmpty == false ? item.name! : item.subcategory ?? item.category)
-                .font(Theme.bodyEmphasis).foregroundStyle(Theme.ink).lineLimit(1)
-            if let wearSummary = item.wearSummary {
-                Text(wearSummary)
-                    .font(Theme.micro).foregroundStyle(Theme.mutedForeground)
-            }
-            HStack(spacing: 4) {
-                if let color = item.color, !color.isEmpty { Text(color) }
-                if let brand = item.brand, !brand.isEmpty { Text("· \(brand)") }
-            }.font(Theme.microMedium).foregroundStyle(Theme.mutedForeground)
-            if let tags = item.tags, !tags.isEmpty {
-                let credits = tags.filter { $0.hasPrefix("Photo credit:") }
-                let styles = tags.filter { !$0.hasPrefix("Photo credit:") }
-                if !credits.isEmpty {
-                    let details = credits[0].replacingOccurrences(of: "Photo credit: ", with: "").components(separatedBy: "|")
-                    HStack(spacing: 7) {
-                        Text("Photo · \(details.first ?? "Creator")")
-                            .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground).lineLimit(1)
-                        Spacer(minLength: 2)
-                        if details.count > 2, let license = SafeLink.httpsURL(details[2]) {
-                            Link(details.count > 1 ? details[1] : "License", destination: license)
-                                .font(Theme.font(.caption2, weight: .medium))
-                        }
-                        if details.count > 3, let source = SafeLink.httpsURL(details[3]) {
-                            Link("Source", destination: source).font(Theme.font(.caption2, weight: .medium))
-                        }
-                    }
-                }
-                if !styles.isEmpty {
-                    Text(styles.prefix(2).map { "#\($0)" }.joined(separator: "  "))
-                    .font(Theme.micro)
-                    .foregroundStyle(Theme.mutedForeground)
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            photo
+            Text(title)
+                .font(Theme.bodyEmphasis).foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .padding(.top, Spacing.xs)
+            Text(detailLine.isEmpty ? " " : detailLine)
+                .font(Theme.microMedium).foregroundStyle(Theme.mutedForeground)
+                .lineLimit(1)
+            Text(thirdLine.isEmpty ? " " : thirdLine)
+                .font(Theme.micro).foregroundStyle(Theme.mutedForeground)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contextMenu { actions }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("wardrobe.card")
+    }
+
+    private var photo: some View {
+        AspectFitTile(cornerRadius: Radius.small, shadow: false) {
+            WardrobePhoto(url: item.imageUrl)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Photo of \(title)")
+                .accessibilityAddTraits(.isImage)
+        }
+        .overlay(alignment: .bottomLeading) {
+            if let credit {
+                Text("Photo · \(credit.first ?? "Creator")")
+                    .font(Theme.font(.caption2, weight: .medium))
+                    .foregroundStyle(.white)
                     .lineLimit(1)
-                }
+                    .padding(.horizontal, Spacing.s).padding(.vertical, Spacing.xxs + 1)
+                    .background(.black.opacity(0.45), in: Capsule())
+                    .padding(Spacing.s)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            Menu { actions; creditLinks } label: {
+                Image(systemName: "ellipsis").font(Theme.label).foregroundStyle(Color.black)
+                    .frame(width: 28, height: 28).background(Color.white.opacity(0.92), in: Circle())
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize).contentShape(Circle())
+            }
+            .accessibilityLabel("More actions for \(title)")
+        }
+    }
+
+    /// The photo's license and source, when it was credited (moved off the card face).
+    @ViewBuilder
+    private var creditLinks: some View {
+        if let credit {
+            if credit.count > 2, let license = SafeLink.httpsURL(credit[2]) {
+                Link(destination: license) { Label("Photo license: \(credit.count > 1 ? credit[1] : "License")", systemImage: "doc.text") }
+            }
+            if credit.count > 3, let source = SafeLink.httpsURL(credit[3]) {
+                Link(destination: source) { Label("Photo source", systemImage: "link") }
             }
         }
     }
@@ -368,7 +388,7 @@ private struct WardrobePhoto: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.muted)
+        .background(Theme.card)
         .clipped()
     }
 

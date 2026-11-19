@@ -34,6 +34,41 @@ struct FeedItemDTO: Codable, Identifiable {
     var likeCount: Int? = nil
     /// fit_checks.vote_count (publicly readable total); nil on older rows.
     var voteCount: Int? = nil
+    var visibleCommentCount: Int? = nil
+
+    var commentCount: Int { visibleCommentCount ?? fitCheckComments.count }
+}
+
+
+// Feed queries deliberately omit vote rows. Keep the in-memory field for sample
+// data and callers that already have a summary, while decoding an absent embed.
+extension FeedItemDTO {
+    private enum CodingKeys: String, CodingKey {
+        case id, creatorId, caption, occasion, audience, votePrompt, createdAt, expiresAt
+        case fitCheckPhotos, fitCheckVotes, fitCheckComments, profiles, isPublic, tags, likeCount, voteCount
+        case visibleCommentCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        creatorId = try values.decode(UUID.self, forKey: .creatorId)
+        caption = try values.decodeIfPresent(String.self, forKey: .caption)
+        occasion = try values.decodeIfPresent(String.self, forKey: .occasion)
+        audience = try values.decodeIfPresent(String.self, forKey: .audience)
+        votePrompt = try values.decodeIfPresent(String.self, forKey: .votePrompt)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        expiresAt = try values.decodeIfPresent(Date.self, forKey: .expiresAt)
+        fitCheckPhotos = try values.decode([FitCheckPhoto].self, forKey: .fitCheckPhotos)
+        fitCheckVotes = try values.decodeIfPresent([VoteRef].self, forKey: .fitCheckVotes) ?? []
+        fitCheckComments = try values.decodeIfPresent([CommentRef].self, forKey: .fitCheckComments) ?? []
+        profiles = try values.decodeIfPresent(AuthorInfo.self, forKey: .profiles)
+        isPublic = try values.decodeIfPresent(Bool.self, forKey: .isPublic)
+        tags = try values.decodeIfPresent([String].self, forKey: .tags)
+        likeCount = try values.decodeIfPresent(Int.self, forKey: .likeCount)
+        voteCount = try values.decodeIfPresent(Int.self, forKey: .voteCount)
+        visibleCommentCount = try values.decodeIfPresent(Int.self, forKey: .visibleCommentCount)
+    }
 }
 
 struct FitCheckDetailDTO: Codable {

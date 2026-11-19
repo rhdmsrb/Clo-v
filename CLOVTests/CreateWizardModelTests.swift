@@ -28,12 +28,33 @@ struct CreateWizardModelTests {
     @Test("Group audience needs a group; everyone ignores it")
     func audienceValidation() {
         var model = CreateWizardModel()
-        model.audience = .group
+        #expect(!model.hasChosenAudience)
+        model.selectAudience(.group)
+        #expect(model.hasChosenAudience)
         #expect(!model.canAdvance(from: .details))
         model.groupId = UUID()
         #expect(model.canAdvance(from: .details))
-        model.audience = .everyone
+        model.selectAudience(.everyone)
+        #expect(model.groupId == nil)
         #expect(model.effectiveGroupId == nil)
+    }
+
+    @Test("No audience is chosen for the user; Next waits for a tap")
+    func audienceNeedsAChoice() {
+        var model = CreateWizardModel()
+        #expect(!model.hasChosenAudience)
+        #expect(!model.audienceIsValid)
+        #expect(!model.canAdvance(from: .details))
+        model.selectAudience(.everyone)
+        #expect(model.hasChosenAudience)
+        #expect(model.canAdvance(from: .details))
+    }
+
+    @Test("Arriving from a group counts as chosen")
+    func preselectedGroupIsChosen() {
+        let model = CreateWizardModel(preselectedGroupId: UUID())
+        #expect(model.hasChosenAudience)
+        #expect(model.canAdvance(from: .details))
     }
 
     @Test("Friends and Only me are valid and never carry a group")
@@ -41,7 +62,7 @@ struct CreateWizardModelTests {
         var model = CreateWizardModel()
         model.groupId = UUID()
         for audience in [FitCheckAudience.friends, .onlyMe] {
-            model.audience = audience
+            model.selectAudience(audience)
             #expect(model.audienceIsValid)
             #expect(model.canAdvance(from: .details))
             #expect(model.effectiveGroupId == nil)
@@ -66,6 +87,7 @@ struct CreateWizardModelTests {
         let id = UUID()
         let model = CreateWizardModel(preselectedGroupId: id)
         #expect(model.audience == .group)
+        #expect(model.hasChosenAudience)
         #expect(model.effectiveGroupId == id)
     }
 
@@ -80,6 +102,31 @@ struct CreateWizardModelTests {
         for index in 0..<12 { photo = photo.togglingPhotoTag("t\(index)", at: 0) }
         #expect(photo.photoDetails[0].tags.count == CreateWizardModel.maxTags)
         #expect(photo.togglingPhotoTag("x", at: 9) == photo)
+    }
+
+    @Test("Several occasions can be picked and are stored in one text")
+    func multipleOccasions() {
+        var model = CreateWizardModel()
+        model = model.togglingOccasion("Date").togglingOccasion("Work")
+        #expect(model.occasion == "Work, Date")
+        #expect(model.selectedOccasions == ["Work", "Date"])
+        model = model.togglingOccasion("Work")
+        #expect(model.occasion == "Date")
+        #expect(model.togglingOccasion("Date").occasion.isEmpty)
+        #expect(CreateWizardModel(occasion: "Everyday").togglingOccasion("Party").occasion == "Everyday, Party")
+    }
+
+    @Test("Typed tags are cleaned, de-duplicated and capped")
+    func customTags() {
+        var model = CreateWizardModel()
+        model = model.addingTag("  #  Boho   chic ").addingTag("boho CHIC").addingTag("casual").addingTag("   ")
+        #expect(model.tags == ["Boho chic", "Casual"])
+        #expect(CreateWizardModel().addingTag(String(repeating: "a", count: 80)).tags[0].count == FitCheckSubmission.maxTagLength)
+        var full = CreateWizardModel()
+        for index in 0..<12 { full = full.addingTag("tag\(index)") }
+        #expect(full.tags.count == CreateWizardModel.maxTags)
+        #expect(CreateWizardModel().addingPhotoTag("denim", at: 0).photoDetails[0].tags == ["denim"])
+        #expect(CreateWizardModel().addingPhotoTag("x", at: 9) == CreateWizardModel())
     }
 
     @Test("Photo description is clamped to 200 characters")

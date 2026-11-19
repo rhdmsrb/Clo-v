@@ -44,6 +44,86 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["4 photos"].exists)
     }
 
+    func testCreateFooterFitsAccessibilityText() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uiTestSampleData", "--uiTestCreatePhotos",
+                                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.buttons["tabPlusButton"].waitForExistence(timeout: 15))
+        app.buttons["tabPlusButton"].tap()
+        let next = app.buttons["createNextButton"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        XCTAssertTrue(next.isEnabled)
+        next.tap()
+        let back = app.buttons["createBackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        XCTAssertTrue(next.isHittable)
+        XCTAssertFalse(back.frame.intersects(next.frame), "Create controls should not overlap at large text sizes.")
+    }
+
+    func testCreateReviewsEachPhotoAndPostSettingsBeforeUpload() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uiTestSampleData", "--uiTestCreatePhotos"]
+        app.launch()
+        XCTAssertTrue(app.buttons["tabPlusButton"].waitForExistence(timeout: 15))
+        app.buttons["tabPlusButton"].tap()
+        let next = app.buttons["createNextButton"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        next.tap()
+        let title = app.textFields["createTitleField"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Evening look")
+        next.tap()
+        let description = app.textFields["createPhotoDescriptionField"]
+        XCTAssertTrue(description.waitForExistence(timeout: 5))
+        description.tap()
+        description.typeText("First look")
+        app.swipeUp()
+        let tag = app.buttons["createPhotoTag-Minimal"]
+        XCTAssertTrue(tag.waitForExistence(timeout: 5))
+        tag.tap()
+        next.tap()
+        XCTAssertTrue(app.staticTexts["Step 3 of 4 · Photo 2 of 2"].waitForExistence(timeout: 5))
+        next.tap()
+        XCTAssertTrue(app.otherElements["createPreview"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["createUploadButton"].exists)
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["createPreviewDuration"].exists)
+        XCTAssertTrue(app.staticTexts["createPreviewAudience"].exists)
+        app.swipeUp()
+        XCTAssertTrue(app.staticTexts["First look"].exists)
+        XCTAssertTrue(app.staticTexts["createPreviewPhotoTags-0"].exists)
+    }
+
+    func testCreateCanSkipOptionalPhotoDetails() {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uiTestSampleData", "--uiTestCreatePhotos"]
+        app.launch()
+        XCTAssertTrue(app.buttons["tabPlusButton"].waitForExistence(timeout: 15))
+        app.buttons["tabPlusButton"].tap()
+        let next = app.buttons["createNextButton"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        next.tap()
+        let skip = app.buttons["createSkipPhotoDetails"]
+        XCTAssertTrue(skip.waitForExistence(timeout: 5))
+        skip.tap()
+        XCTAssertTrue(app.otherElements["createPreview"].waitForExistence(timeout: 5))
+        app.buttons["createBackButton"].tap()
+        XCTAssertTrue(app.textFields["createTitleField"].waitForExistence(timeout: 5))
+        next.tap()
+        XCTAssertTrue(app.textFields["createPhotoDescriptionField"].waitForExistence(timeout: 5))
+        app.buttons["createBackButton"].tap()
+        XCTAssertTrue(skip.waitForExistence(timeout: 5))
+        skip.tap()
+        let upload = app.buttons["createUploadButton"]
+        XCTAssertTrue(upload.waitForExistence(timeout: 5))
+        upload.tap()
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: upload)
+        XCTAssertEqual(XCTWaiter().wait(for: [dismissed], timeout: 10), .completed)
+        XCTAssertTrue(app.buttons["tabPlusButton"].waitForExistence(timeout: 5))
+    }
+
     func testAccountShowsWeeklyStyleReport() throws {
         let app = launchTestApp()
 
@@ -62,17 +142,16 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Style momentum"].exists)
     }
 
-    func testFeedExposesWatchAndFollowingModes() throws {
+    func testFeedDoesNotExposeHeaderModes() throws {
         let app = launchTestApp()
 
         let feedTab = app.buttons["feedTab"]
         XCTAssertTrue(feedTab.waitForExistence(timeout: 15))
         feedTab.tap()
 
-        XCTAssertTrue(app.buttons["watchFeedButton"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["feedMode_Following"].exists)
-        app.buttons["feedMode_Following"].tap()
-        XCTAssertTrue(app.buttons["feedMode_ForYou"].exists)
+        XCTAssertFalse(app.buttons["watchFeedButton"].exists)
+        XCTAssertFalse(app.buttons["feedMode_Following"].exists)
+        XCTAssertFalse(app.buttons["feedMode_ForYou"].exists)
     }
 
     private func launchTestApp() -> XCUIApplication {

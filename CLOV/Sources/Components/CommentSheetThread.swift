@@ -7,8 +7,10 @@ struct CommentThreadSheet: View {
     let photoURLs: [String]
     let voterId: UUID
     let canComment: Bool
+    var onPosted: (([CommentDTO]?) -> Void)? = nil
 
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     @State private var comments: [CommentDTO] = []
     @State private var isLoading = true
     @State private var loadError: String?
@@ -16,7 +18,7 @@ struct CommentThreadSheet: View {
     @State private var isPosting = false
     @State private var postError: String?
     @FocusState private var isInputFocused: Bool
-    @State private var detent: PresentationDetent = .medium
+    @State private var detent: PresentationDetent = .fraction(0.58)
 
     static let maxLength = 280
     private static let fanPhotoWidth: CGFloat = 72
@@ -38,9 +40,22 @@ struct CommentThreadSheet: View {
             thread
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { inputRow }
+        .overlay(alignment: .topTrailing) {
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: Theme.minTapSize, height: Theme.minTapSize)
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel("Close comments")
+            .accessibilityIdentifier("comments.close")
+            .padding(.top, 8)
+            .padding(.trailing, 12)
+        }
         // Opens half height so the feed stays visible while skimming; typing
         // needs the room, so focusing the input expands it.
-        .presentationDetents([.medium, .large], selection: $detent)
+        .presentationDetents([.fraction(0.58), .large], selection: $detent)
         .onChange(of: isInputFocused) { _, focused in
             if focused { detent = .large }
         }
@@ -72,6 +87,7 @@ struct CommentThreadSheet: View {
             .padding(.bottom, 16)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(photoURLs.count) \(photoURLs.count == 1 ? "photo" : "photos") in this Fit-Check")
+            .accessibilityIdentifier("voteFanComments")
         }
     }
 
@@ -126,6 +142,8 @@ struct CommentThreadSheet: View {
             }
             if canComment {
                 HStack(spacing: 10) {
+                    AvatarView(url: appState.profile?.avatarUrl, nickname: appState.profile?.nickname, size: 30)
+                        .accessibilityHidden(true)
                     TextField("Add a comment", text: $draft, axis: .vertical)
                         .lineLimit(1...3)
                         .focused($isInputFocused)
@@ -136,6 +154,7 @@ struct CommentThreadSheet: View {
                             if new.count > Self.maxLength { draft = String(new.prefix(Self.maxLength)) }
                         }
                         .accessibilityLabel("Comment")
+                        .accessibilityIdentifier("voteFanCommentInput")
                     Button { Task { await post() } } label: {
                         Image(systemName: "arrow.up.circle.fill").font(.title)
                             .foregroundStyle(Self.canSend(draft) ? Theme.accent : Theme.mutedForeground)
@@ -143,6 +162,7 @@ struct CommentThreadSheet: View {
                     }
                     .disabled(!Self.canSend(draft) || isPosting)
                     .accessibilityLabel("Post comment")
+                    .accessibilityIdentifier("voteFanCommentSend")
                 }
             } else {
                 Text("Comments are closed for this Fit-Check.")
@@ -177,8 +197,10 @@ struct CommentThreadSheet: View {
             try await API.addComment(fitCheckId: fitCheckId, commenterId: voterId, body: draft)
             draft = ""
             isInputFocused = false
+            let updated = try? await API.fetchComments(fitCheckId: fitCheckId)
+            if let updated { comments = updated }
             appState.contentDidChange()
-            comments = (try? await API.fetchComments(fitCheckId: fitCheckId)) ?? comments
+            onPosted?(updated)
         } catch {
             postError = friendlyMessage(for: error, fallback: "Couldn’t post your comment. Please try again.")
         }

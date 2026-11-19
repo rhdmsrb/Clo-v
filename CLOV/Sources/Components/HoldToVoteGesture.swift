@@ -4,6 +4,8 @@ import SwiftUI
 /// Early lift or sliding away cancels. VoiceOver gets a plain action instead.
 struct HoldToVoteGesture: ViewModifier {
     var isEnabled: Bool = true
+    /// Mirrors whether a hold is in progress, so a parent can pause auto-advancing photos while it lasts.
+    var isPressing: Binding<Bool>?
     let onVote: () -> Void
 
     private static let slopDistance: CGFloat = 24
@@ -72,6 +74,7 @@ struct HoldToVoteGesture: ViewModifier {
     private func start() {
         guard hold.phase == .idle else { return }
         hold = hold.begin()
+        isPressing?.wrappedValue = true
         Haptics.impact(.light)
         let startedAt = Date()
         ticker?.cancel()
@@ -89,6 +92,7 @@ struct HoldToVoteGesture: ViewModifier {
     private func cancel() {
         ticker?.cancel()
         ticker = nil
+        isPressing?.wrappedValue = false
         if hold.phase != .completed { hold = hold.cancel() }
     }
 
@@ -96,6 +100,7 @@ struct HoldToVoteGesture: ViewModifier {
         ticker?.cancel()
         ticker = nil
         guard hold.phase == .holding else { return }
+        isPressing?.wrappedValue = false
         hold = hold.complete()
         // Success haptic is fired by the vote model (covers the accessibility path too).
         Haptics.impact(.heavy)
@@ -122,8 +127,9 @@ struct HoldToVoteGesture: ViewModifier {
 
 extension View {
     /// Hold ~0.6s to vote. Adds the "Vote for this look" accessibility action.
-    func holdToVote(isEnabled: Bool = true, onVote: @escaping () -> Void) -> some View {
-        modifier(HoldToVoteGesture(isEnabled: isEnabled, onVote: onVote))
+    func holdToVote(isEnabled: Bool = true, isPressing: Binding<Bool>? = nil,
+                    onVote: @escaping () -> Void) -> some View {
+        modifier(HoldToVoteGesture(isEnabled: isEnabled, isPressing: isPressing, onVote: onVote))
     }
 }
 

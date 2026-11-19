@@ -12,6 +12,7 @@ final class DesignReviewUITests: XCTestCase {
     private static let colorSchemeArgument = "-appearance.colorScheme"
     private static let extraLargeAccessibilitySize = "UICTContentSizeCategoryAccessibilityXL"
     private static let shortWait: TimeInterval = 5
+    private static let bellWait: TimeInterval = 15
     private static let settleDelay: TimeInterval = 1
 
     override func setUpWithError() throws {
@@ -20,11 +21,72 @@ final class DesignReviewUITests: XCTestCase {
 
     // MARK: - Walks
 
-    func testGroupFeedOpensVotingScreen() {
+    func testFeedShowsBrandAbovePosts() {
         let app = launchApp()
-        let groups = app.buttons["groupsTab"]
-        XCTAssertTrue(groups.waitForExistence(timeout: 10))
-        groups.tap()
+        let logo = app.staticTexts["feed.logo"]
+        XCTAssertTrue(logo.waitForExistence(timeout: 15))
+        let post = app.descendants(matching: .any)["feed-post-card"].firstMatch
+        XCTAssertTrue(post.waitForExistence(timeout: 10))
+        XCTAssertLessThan(logo.frame.maxY, post.frame.minY)
+        // The prompt is set over the bottom of the photo, editorial style.
+        let prompt = post.staticTexts["fitcard-title"]
+        let photos = post.descendants(matching: .any)["feed-photo-carousel"].firstMatch
+        XCTAssertTrue(prompt.exists)
+        XCTAssertTrue(photos.exists)
+        XCTAssertTrue(photos.frame.insetBy(dx: -1, dy: -1).contains(prompt.frame), "the prompt should sit on the photo")
+        attach(app, name: "feed-prompt-on-photo")
+    }
+
+    func testProfileOpensNotificationsAndClearsUnreadBadge() {
+        let app = launchApp()
+        app.buttons["accountTab"].tap()
+
+        let inbox = app.buttons["profile.notifications"]
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        let hasUnread = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '2 unread'"), object: inbox)
+        XCTAssertEqual(XCTWaiter.wait(for: [hasUnread], timeout: 5), .completed)
+        attach(app, name: "profile-unread-badge")
+
+        inbox.tap()
+        XCTAssertTrue(app.staticTexts["notifications.title"].waitForExistence(timeout: 5))
+        let markRead = app.buttons["Mark all read"]
+        XCTAssertTrue(markRead.waitForExistence(timeout: 5))
+        attach(app, name: "profile-notifications-inbox")
+        markRead.tap()
+        let markReadGone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: markRead)
+        XCTAssertEqual(XCTWaiter.wait(for: [markReadGone], timeout: 5), .completed)
+
+        goBack(app)
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        XCTAssertEqual(inbox.value as? String ?? "", "")
+    }
+
+    func testProfileStatsStackAtLargeTextSize() {
+        let app = launchApp(arguments: ["-UIPreferredContentSizeCategoryName", Self.extraLargeAccessibilitySize])
+        app.buttons["accountTab"].tap()
+
+        let followers = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Followers'")).firstMatch
+        let following = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Following'")).firstMatch
+        XCTAssertTrue(followers.waitForExistence(timeout: 5))
+        XCTAssertTrue(following.exists)
+        XCTAssertLessThanOrEqual(followers.frame.maxY, following.frame.minY)
+        attach(app, name: "profile-large-text-stats")
+    }
+
+    func testDailyChallengeIsAbsentFromFeedAndProfile() {
+        let app = launchApp()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.descendants(matching: .any)["dailyChallengeCard"].exists)
+        app.buttons["accountTab"].tap()
+        let menu = app.buttons["profile.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        menu.tap()
+        XCTAssertFalse(app.buttons["profileShortcut_DailyChallenge"].exists)
+    }
+
+    func testGroupFeedOpensPostDetail() {
+        let app = launchApp()
+        app.openGroups()
         let group = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sunday Stylists'")).firstMatch
         XCTAssertTrue(group.waitForExistence(timeout: 10))
         group.tap()
@@ -32,14 +94,15 @@ final class DesignReviewUITests: XCTestCase {
         let post = app.buttons["groupFeed.card"].firstMatch
         XCTAssertTrue(post.waitForExistence(timeout: 10))
         post.tap()
-        XCTAssertTrue(app.buttons["reelBackButton"].waitForExistence(timeout: 10))
-        app.buttons["reelBackButton"].tap()
+        XCTAssertTrue(app.buttons["Report or block"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists)
+        goBack(app)
         XCTAssertTrue(app.buttons["groupFeed.card"].firstMatch.waitForExistence(timeout: 10))
     }
 
     func testExploreSearchAcceptsText() {
         let app = launchApp()
-        app.buttons["searchTab"].tap()
+        app.openExplore()
         let field = app.textFields["search.query"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
@@ -47,11 +110,65 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "fit")
     }
 
+    /// The feed header: wordmark and filter chips. Search stays a tab; the older header
+    /// controls (search field, bell, mode segments, sort menu, watch-reel button) stay gone.
+    func testFeedHeaderShowsFiltersAndSearchStaysATab() {
+        let app = launchApp()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["searchTab"].exists)
+        XCTAssertTrue(app.buttons["groupsTab"].exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch.exists)
+        XCTAssertTrue(app.buttons["filter.popular"].exists)
+        XCTAssertTrue(app.buttons["filter.popular"].isSelected)
+        XCTAssertFalse(app.buttons["watchFeedButton"].exists)
+        XCTAssertFalse(app.buttons["feedMode_ForYou"].exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sort:'")).firstMatch.exists)
+        app.buttons["filter.new"].tap()
+        XCTAssertTrue(app.buttons["filter.new"].isSelected)
+        attach(app, name: "home-filter-new")
+    }
+
+    func testAnalyticsExpandsOnProfile() {
+        let app = launchApp()
+        XCTAssertTrue(app.buttons["accountTab"].waitForExistence(timeout: 15))
+        app.buttons["accountTab"].tap()
+        let analytics = app.buttons["profile.analytics"]
+        XCTAssertTrue(analytics.waitForExistence(timeout: 10))
+        analytics.tap()
+        XCTAssertTrue(app.staticTexts["Style momentum"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["profile.menu"].exists)
+        XCTAssertTrue(app.staticTexts["Last 7 days"].exists)
+        let votes = app.descendants(matching: .any)["profile.analytics.votes"].firstMatch
+        XCTAssertTrue(votes.waitForExistence(timeout: 5))
+        XCTAssertEqual(votes.value as? String, "12")
+        attach(app, name: "profile-style-analytics")
+        analytics.tap()
+        XCTAssertFalse(app.staticTexts["Style momentum"].exists)
+    }
+
+    func testAnalyticsReflowsAtLargeTextSize() {
+        let app = launchApp(arguments: [
+            "-UIPreferredContentSizeCategoryName", Self.extraLargeAccessibilitySize,
+            Self.colorSchemeArgument, "dark"
+        ])
+        app.buttons["accountTab"].tap()
+        let analytics = app.buttons["profile.analytics"]
+        XCTAssertTrue(analytics.waitForExistence(timeout: 10))
+        analytics.tap()
+
+        let votes = app.descendants(matching: .any)["profile.analytics.votes"].firstMatch
+        let posts = app.descendants(matching: .any)["profile.analytics.posts"].firstMatch
+        XCTAssertTrue(votes.waitForExistence(timeout: 5))
+        XCTAssertTrue(posts.exists)
+        XCTAssertLessThanOrEqual(votes.frame.maxY, posts.frame.minY)
+        scroll(app)
+        XCTAssertLessThan(posts.frame.maxY, app.windows.firstMatch.frame.height * 0.85)
+        attach(app, name: "profile-style-analytics-dark-large-text")
+    }
+
     func testWalkMainScreens() {
         let app = launchApp()
         walkFeed(app, prefix: "feed")
-        walkSwipeFeed(app)
-        walkNotifications(app)
         walkAccount(app)
         walkCreate(app)
         walkSearch(app)
@@ -64,7 +181,7 @@ final class DesignReviewUITests: XCTestCase {
         attach(app, name: "ax-02-feed-scrolled")
         scrollToTop(app)
         openCommentSheet(app, prefix: "ax")
-        openVoteScreen(app, prefix: "ax")
+        openFeedComparison(app, prefix: "ax")
         dismissSheet(app)
         tapTab(app, "searchTab", shot: "ax-04-search-tab")
         tapTab(app, "accountTab", shot: "ax-05-account-tab")
@@ -76,7 +193,6 @@ final class DesignReviewUITests: XCTestCase {
         // app's own appearance setting (read from the launch arguments) is what works.
         let app = launchApp(arguments: [Self.colorSchemeArgument, "dark"])
         walkFeed(app, prefix: "dark-feed")
-        walkNotifications(app, prefix: "dark")
         walkAccount(app, prefix: "dark")
         walkSearch(app, prefix: "dark")
     }
@@ -90,7 +206,7 @@ final class DesignReviewUITests: XCTestCase {
         scroll(app, up: false, times: 2)
 
         openCommentSheet(app, prefix: prefix)
-        openVoteScreen(app, prefix: prefix)
+        openFeedComparison(app, prefix: prefix)
     }
 
     /// Voting opens the "why did you vote" sheet, which doubles as the
@@ -134,19 +250,13 @@ final class DesignReviewUITests: XCTestCase {
         settle()
     }
 
-    /// Tapping the feed photos opens the vote screen; its action row has a
-    /// comment button that scrolls to the comments.
-    private func openVoteScreen(_ app: XCUIApplication, prefix: String) {
-        guard let photos = scrollToVisible(app, app.buttons.matching(identifier: "feed-photo-carousel")),
-              tap(photos), app.buttons["reelBackButton"].waitForExistence(timeout: Self.shortWait) else {
-            attach(app, name: "\(prefix)-vote-screen-missing"); return
+    private func openFeedComparison(_ app: XCUIApplication, prefix: String) {
+        guard let compare = scrollToVisible(app, app.buttons.matching(identifier: "feed.compare")),
+              tap(compare), app.buttons["Show carousel"].firstMatch.waitForExistence(timeout: Self.shortWait) else {
+            attach(app, name: "\(prefix)-comparison-missing"); return
         }
-        attach(app, name: "\(prefix)-vote-screen")
-        if tap(app.buttons["voteFanCommentButton"]) {
-            settle()
-            attach(app, name: "\(prefix)-vote-comments")
-        }
-        _ = tap(app.buttons["reelBackButton"])
+        attach(app, name: "\(prefix)-comparison")
+        _ = tap(app.buttons["Show carousel"].firstMatch)
         settle()
     }
 
@@ -167,41 +277,6 @@ final class DesignReviewUITests: XCTestCase {
         attach(app, name: "\(prefix)-05-detail")
         scroll(app)
         attach(app, name: "\(prefix)-06-detail-scrolled")
-        goBack(app)
-    }
-
-    private func walkSwipeFeed(_ app: XCUIApplication) {
-        tapTab(app, "feedTab", shot: nil)
-        let watch = app.buttons["watchFeedButton"]
-        guard tap(watch) else { attach(app, name: "swipe-00-missing"); return }
-        settle()
-        attach(app, name: "swipe-01-for-you")
-        let following = app.buttons["Following"].firstMatch
-        if tap(following) { settle(); attach(app, name: "swipe-02-following") }
-        let forYou = app.buttons["For You"].firstMatch
-        _ = tap(forYou)
-        app.swipeUp()
-        settle()
-        attach(app, name: "swipe-03-next")
-        // The swipe feed has no close control while it shows items; the
-        // selected tab is the only way back (reported as a UX finding).
-        tapTab(app, "feedTab", shot: "swipe-04-after-feed-tab")
-        if !app.buttons["watchFeedButton"].firstMatch.exists {
-            attach(app, name: "swipe-05-still-in-swipe-feed")
-            let explore = app.buttons["Explore Fit-Checks"]
-            _ = tap(explore)
-        }
-    }
-
-    private func walkNotifications(_ app: XCUIApplication, prefix: String = "notif") {
-        tapTab(app, "feedTab", shot: nil)
-        scrollToTop(app)
-        let bell = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch
-        guard tap(bell) else { attach(app, name: "\(prefix)-00-bell-missing"); return }
-        settle()
-        attach(app, name: "\(prefix)-01-notifications")
-        let unread = app.buttons["Unread"].firstMatch
-        if tap(unread) { settle(); attach(app, name: "\(prefix)-02-unread") }
         goBack(app)
     }
 
@@ -244,7 +319,7 @@ final class DesignReviewUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += [Self.sampleDataArgument] + arguments
         app.launch()
-        XCTAssertTrue(app.buttons["watchFeedButton"].firstMatch.waitForExistence(timeout: 10),
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10),
                       "Sample-data feed never appeared")
         settle()
         return app

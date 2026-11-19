@@ -7,8 +7,11 @@ import UIKit
 final class ImageCache {
     static let shared = ImageCache()
 
-    /// Longest edge, in pixels, that decoded images are reduced to.
-    private static let maxPixelSize: CGFloat = 1400
+    enum Size: Int {
+        case avatar = 256
+        case thumbnail = 480
+        case standard = 1400
+    }
     private static let memoryLimitBytes = 150 * 1024 * 1024
 
     private let cache = NSCache<NSString, UIImage>()
@@ -26,7 +29,7 @@ final class ImageCache {
             configuration.protocolClasses = [SampleImageURLProtocol.self] + (configuration.protocolClasses ?? [])
         }
         #endif
-        session = URLSession(configuration: configuration)
+        session = URLSession(configuration: configuration, delegate: ImageNetworkMetrics(), delegateQueue: nil)
     }
 
     /// Signed storage URLs carry a rotating token in the query, so the key is
@@ -35,28 +38,32 @@ final class ImageCache {
         "\(url.host ?? "")\(url.path)"
     }
 
-    func cachedImage(for url: URL) -> UIImage? {
-        cache.object(forKey: Self.key(for: url) as NSString)
+    static func key(for url: URL, size: Size) -> String {
+        "\(size.rawValue):\(key(for: url))"
     }
 
-    func image(for url: URL) async -> UIImage? {
-        let key = Self.key(for: url)
-        if let hit = cache.object(forKey: key as NSString) { return hit }
+    func cachedImage(for url: URL, size: Size = .standard) -> UIImage? {
+        cache.object(forKey: Self.key(for: url, size: size) as NSString)
+    }
 
-        let task = loadTask(for: url, key: key)
-        let result = await task.value
-        lock.withLock { inFlight[key] = nil }
-        return result
+    func image(for url: URL, size: Size = .standard) async -> UIImage? {
+        let key = Self.key(for: url, size: size)
+        if let hit = cache.object(forKey: key as NSString) { return hit }
+        return await loadTask(for: url, key: key, size: size).value
     }
 
     /// Returns the running download for `key`, starting one if none exists.
-    private func loadTask(for url: URL, key: String) -> Task<UIImage?, Never> {
+    private func loadTask(for url: URL, key: String, size: Size) -> Task<UIImage?, Never> {
         lock.withLock {
             if let running = inFlight[key] { return running }
-            let task = Task<UIImage?, Never> { [session, cache] in
+            if let hit = cache.object(forKey: key as NSString) { return Task { hit } }
+            let task = Task<UIImage?, Never> {
+                defer { self.lock.withLock { self.inFlight[key] = nil } }
+                let interval = Log.performance.beginInterval("Remote image load", id: Log.performance.makeSignpostID())
+                defer { Log.performance.endInterval("Remote image load", interval) }
                 guard let (data, response) = try? await session.data(from: url),
-                      (response as? HTTPURLResponse)?.statusCode == 200,
-                      let image = Self.downsampled(data) else { return nil }
+                      (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+                guard let image = Self.downsampled(data, maxPixelSize: size.rawValue) else { return nil }
                 cache.setObject(image, forKey: key as NSString, cost: Self.cost(of: image))
                 return image
             }
@@ -72,7 +79,7 @@ final class ImageCache {
         }
     }
 
-    private static func downsampled(_ data: Data) -> UIImage? {
+    private static func downsampled(_ data: Data, maxPixelSize: Int) -> UIImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
         let options = [
@@ -90,33 +97,55 @@ final class ImageCache {
     }
 }
 
+private final class ImageNetworkMetrics: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+        let bytes = metrics.transactionMetrics
+            .filter { $0.resourceFetchType == .networkLoad }
+            .reduce(Int64(0)) { $0 + $1.countOfResponseBodyBytesReceived }
+        if bytes > 0 {
+            Log.performance.emitEvent("Image network bytes", "bytes=\(bytes, privacy: .public)")
+        }
+    }
+}
+
 enum CachedImagePhase { case loading, success(Image), failure }
 
 /// Drop-in replacement for `AsyncImage` that goes through `ImageCache`.
 struct CachedImage<Content: View>: View {
     let url: URL
+    var size: ImageCache.Size = .standard
     let content: (CachedImagePhase) -> Content
-    @State private var phase: CachedImagePhase
+    @State private var phase: CachedImagePhase = .loading
+    @State private var phaseKey: String?
 
-    init(url: URL, @ViewBuilder content: @escaping (CachedImagePhase) -> Content) {
+    init(url: URL, size: ImageCache.Size = .standard, @ViewBuilder content: @escaping (CachedImagePhase) -> Content) {
         self.url = url
+        self.size = size
         self.content = content
-        if let hit = ImageCache.shared.cachedImage(for: url) {
-            _phase = State(initialValue: .success(Image(uiImage: hit)))
-        } else {
-            _phase = State(initialValue: .loading)
-        }
     }
 
     var body: some View {
-        content(phase)
-            .task(id: ImageCache.key(for: url)) {
-                if case .success = phase { return }
-                if let image = await ImageCache.shared.image(for: url) {
+        let key = ImageCache.key(for: url, size: size)
+        let cached = ImageCache.shared.cachedImage(for: url, size: size)
+        let currentPhase = cached.map { CachedImagePhase.success(Image(uiImage: $0)) }
+            ?? (phaseKey == key ? phase : .loading)
+        content(currentPhase)
+            .task(id: LoadedImageRequest(url: url, size: size)) {
+                if phaseKey == key, case .success = phase { return }
+                phaseKey = key
+                phase = .loading
+                let image = await ImageCache.shared.image(for: url, size: size)
+                guard !Task.isCancelled else { return }
+                if let image {
                     phase = .success(Image(uiImage: image))
-                } else if !Task.isCancelled {
+                } else {
                     phase = .failure
                 }
             }
+    }
+
+    private struct LoadedImageRequest: Equatable {
+        let url: URL
+        let size: ImageCache.Size
     }
 }

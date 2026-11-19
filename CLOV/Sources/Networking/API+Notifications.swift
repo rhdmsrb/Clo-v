@@ -7,20 +7,24 @@ extension API {
 
     static func fetchNotifications(recipientId: UUID) async throws -> [NotificationDTO] {
 #if DEBUG
-        if SampleData.isActive { return SampleData.notifications }
+        if SampleData.isActive { return await SampleData.notifications }
 #endif
         return try await client
             .from("notifications")
             .select("id, type, is_read, created_at, fit_check_id, actor:profiles!notifications_actor_id_fkey(nickname, avatar_url)")
             .eq("recipient_id", value: recipientId)
             .order("created_at", ascending: false)
+            .limit(maxNotificationsLoaded)
             .execute()
             .value
     }
 
+    /// Every vote creates a notification, so the list is capped to the newest ones.
+    static let maxNotificationsLoaded = 100
+
     static func fetchUnreadNotificationCount(recipientId: UUID) async throws -> Int {
 #if DEBUG
-        if SampleData.isActive { return SampleData.unreadNotificationCount }
+        if SampleData.isActive { return await SampleData.unreadNotificationCount }
 #endif
         let response = try await client
             .from("notifications")
@@ -33,7 +37,10 @@ extension API {
 
     static func markAllNotificationsRead(recipientId: UUID) async throws {
 #if DEBUG
-        if SampleData.isActive { return }
+        if SampleData.isActive {
+            await SampleData.markAllNotificationsRead()
+            return
+        }
 #endif
         try await client
             .from("notifications")
@@ -45,7 +52,10 @@ extension API {
 
     static func markNotificationRead(id: UUID, recipientId: UUID) async throws {
 #if DEBUG
-        if SampleData.isActive { return }
+        if SampleData.isActive {
+            await SampleData.markNotificationRead(id)
+            return
+        }
 #endif
         try await client
             .from("notifications")

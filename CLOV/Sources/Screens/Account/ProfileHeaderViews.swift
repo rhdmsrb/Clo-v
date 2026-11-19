@@ -7,20 +7,46 @@ struct ProfileStatsRow: View {
     let following: Int
     let onFollowers: () -> Void
     let onFollowing: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 0) {
-            stat(fitChecks, "Fit-Checks", action: nil)
-            stat(followers, "Followers", action: onFollowers)
-            stat(following, "Following", action: onFollowing)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 4) { stats }
+        } else {
+            HStack(spacing: 0) { stats }
         }
     }
 
     @ViewBuilder
+    private var stats: some View {
+        stat(fitChecks, "Fit-Checks", action: nil)
+        stat(followers, "Followers", action: onFollowers)
+        stat(following, "Following", action: onFollowing)
+    }
+
+    @ViewBuilder
     private func stat(_ value: Int, _ label: String, action: (() -> Void)?) -> some View {
-        let content = VStack(spacing: 2) {
-            Text("\(value)").font(Theme.headline).foregroundStyle(Theme.ink)
-            Text(label).font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+        let count = Text("\(value)").font(Theme.headline).foregroundStyle(Theme.ink)
+        let name = Text(label).font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+        let content = Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    name
+                    Spacer(minLength: 0)
+                    count.monospacedDigit()
+                    if action != nil {
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.mutedForeground)
+                            .accessibilityHidden(true)
+                    }
+                }
+            } else {
+                VStack(spacing: 2) {
+                    count
+                    name
+                }
+            }
         }
         .frame(maxWidth: .infinity, minHeight: Theme.minTapSize)
         .contentShape(Rectangle())

@@ -148,6 +148,6 @@ enum WardrobeFrequency: String, CaseIterable, Identifiable {
 struct AuthorInfo: Codable {
     var nickname: String?
     var avatarUrl: String?
-    /// profiles.account_code, shown as the @handle on the vote screen.
+    /// profiles.account_code; the vote screen's @handle falls back to it when there is no nickname.
     var accountCode: String? = nil
 }

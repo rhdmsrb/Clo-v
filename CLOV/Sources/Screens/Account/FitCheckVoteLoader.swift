@@ -19,6 +19,15 @@ struct FitCheckVoteLoader: View {
     @State private var isFollowingCreator = false
 
     var body: some View {
+        if FitCheckReelView.isEnabled {
+            reelOrDetail
+        } else {
+            FitCheckDetailView(fitCheckId: fitCheckId)
+        }
+    }
+
+    @ViewBuilder
+    private var reelOrDetail: some View {
         switch phase {
         case .loading:
             ProgressView()

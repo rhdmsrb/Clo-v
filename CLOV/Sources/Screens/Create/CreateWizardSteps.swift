@@ -11,13 +11,19 @@ struct CreateDetailsStep: View {
     }
     private var audienceBinding: Binding<FitCheckAudience> {
         Binding(get: { model.audience }, set: { newValue in
-            model.audience = newValue
-            if newValue == .group { model.groupId = model.groupId ?? myGroups.first?.id } else { model.groupId = nil }
+            model.selectAudience(newValue)
+            if newValue == .group && model.groupId == nil { model.groupId = myGroups.first?.id }
         })
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            AudienceSection(
+                selectedAudience: audienceBinding,
+                selectedGroupId: $model.groupId,
+                myGroups: myGroups,
+                hasChosenAudience: model.hasChosenAudience
+            )
             VStack(alignment: .leading, spacing: 6) {
                 SectionHeader(title: "Title")
                 LabeledField(padding: 12) {
@@ -31,39 +37,75 @@ struct CreateDetailsStep: View {
             }
             NoteSection(caption: $model.caption)
             OccasionSection(occasion: $model.occasion, options: CreateWizardModel.occasionOptions)
-            TagChipGrid(title: "Tags", selected: model.tags, limit: CreateWizardModel.maxTags, identifierPrefix: "createTag") {
-                model = model.togglingTag($0)
-            }
+            TagChipGrid(title: "Tags", selected: model.tags, limit: CreateWizardModel.maxTags, identifierPrefix: "createTag",
+                         onToggle: { model = model.togglingTag($0) },
+                         onAdd: { model = model.addingTag($0) })
             VotingWindowSection(votingDuration: $votingDuration)
-            AudienceSection(
-                selectedAudience: audienceBinding,
-                selectedGroupId: $model.groupId,
-                myGroups: myGroups
-            )
         }
     }
 }
 
-/// Chip grid over the shared style vocabulary with a selection cap.
+/// Suggested style chips plus a field for the viewer's own tags, with a selection cap.
+/// Typed tags appear as selected chips; tapping one removes it.
 struct TagChipGrid: View {
     let title: String
     let selected: [String]
     let limit: Int
     let identifierPrefix: String
     let onToggle: (String) -> Void
+    let onAdd: (String) -> Void
+
+    @State private var draft = ""
+
+    private var customTags: [String] {
+        selected.filter { tag in !CreateWizardModel.tagVocabulary.contains(tag) }
+    }
+    private var isFull: Bool { selected.count >= limit }
+    private var canAdd: Bool { !isFull && CreateWizardModel.cleanedTag(draft) != nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: title)
             FlowLayout(spacing: 8) {
-                ForEach(CreateWizardModel.tagVocabulary, id: \.self) { tag in
+                ForEach(CreateWizardModel.tagVocabulary + customTags, id: \.self) { tag in
                     ChipToggle(label: tag, selected: selected.contains(tag)) { onToggle(tag) }
                         .accessibilityIdentifier("\(identifierPrefix)-\(tag)")
                 }
             }
+            addField
             Text("\(selected.count) of \(limit) selected")
                 .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         }
+    }
+
+    private var addField: some View {
+        HStack(spacing: 8) {
+            LabeledField(padding: 12) {
+                TextField("Add your own tag", text: $draft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .disabled(isFull)
+                    .onChange(of: draft) { _, value in
+                        if value.count > FitCheckSubmission.maxTagLength {
+                            draft = String(value.prefix(FitCheckSubmission.maxTagLength))
+                        }
+                    }
+                    .onSubmit(commit)
+                    .accessibilityIdentifier("\(identifierPrefix)-input")
+            }
+            Button("Add", action: commit)
+                .font(Theme.label)
+                .frame(minWidth: Theme.minTapSize, minHeight: Theme.minTapSize)
+                .disabled(!canAdd)
+                .accessibilityIdentifier("\(identifierPrefix)-add")
+        }
+    }
+
+    private func commit() {
+        guard canAdd else { return }
+        onAdd(draft)
+        draft = ""
     }
 }
 
@@ -82,13 +124,10 @@ struct CreatePhotoDetailStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-                    .accessibilityLabel("Photo \(index + 1) of \(model.photoCount)")
+                AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
+                    Image(uiImage: image).resizable().scaledToFit().background(Theme.muted)
+                }
+                .accessibilityLabel("Photo \(index + 1) of \(model.photoCount)")
             }
             VStack(alignment: .leading, spacing: 6) {
                 SectionHeader(title: "Unique description")
@@ -104,8 +143,10 @@ struct CreatePhotoDetailStep: View {
                 title: "Unique tags",
                 selected: detail.tags,
                 limit: CreateWizardModel.maxTags,
-                identifierPrefix: "createPhotoTag"
-            ) { model = model.togglingPhotoTag($0, at: index) }
+                identifierPrefix: "createPhotoTag",
+                onToggle: { model = model.togglingPhotoTag($0, at: index) },
+                onAdd: { model = model.addingPhotoTag($0, at: index) }
+            )
         }
     }
 }
@@ -115,6 +156,7 @@ struct CreatePreviewStep: View {
     let model: CreateWizardModel
     let images: [UIImage]
     let groupName: String?
+    let votingDuration: VotingDuration
 
     @State private var page = 0
 
@@ -135,7 +177,10 @@ struct CreatePreviewStep: View {
         VStack(alignment: .leading, spacing: 10) {
             TabView(selection: $page) {
                 ForEach(Array(images.enumerated()), id: \.offset) { offset, image in
-                    Image(uiImage: image).resizable().scaledToFill().clipped()
+                    Color.clear
+                        .overlay { Image(uiImage: image).resizable().scaledToFit() }
+                        .background(Theme.muted)
+                        .clipped()
                         .tag(offset)
                         .accessibilityLabel("Photo \(offset + 1) of \(images.count)")
                 }
@@ -154,7 +199,7 @@ struct CreatePreviewStep: View {
     }
 
     private var metadata: some View {
-        let shown = (model.occasion.isEmpty ? [] : [model.occasion]) + model.tags
+        let shown = model.selectedOccasions + model.tags
         return VStack(alignment: .leading, spacing: 6) {
             if !shown.isEmpty {
                 FlowLayout(spacing: 6) {
@@ -163,6 +208,10 @@ struct CreatePreviewStep: View {
             }
             Label(model.audience == .group ? (groupName ?? "A group") : model.audience.title, systemImage: model.audience.symbol)
                 .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+                .accessibilityIdentifier("createPreviewAudience")
+            Label("Voting: \(votingDuration.label)", systemImage: "clock")
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+                .accessibilityIdentifier("createPreviewDuration")
         }
     }
 
@@ -172,12 +221,17 @@ struct CreatePreviewStep: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ForEach(Array(images.enumerated()), id: \.offset) { offset, image in
                     VStack(alignment: .leading, spacing: 4) {
-                        Image(uiImage: image).resizable().scaledToFill()
-                            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-                            .accessibilityLabel("Photo \(offset + 1)")
+                        AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
+                            Image(uiImage: image).resizable().scaledToFit().background(Theme.muted)
+                        }
+                        .accessibilityLabel("Photo \(offset + 1)")
                         let text = model.photoDetails.indices.contains(offset) ? model.photoDetails[offset].description : ""
                         if !text.isEmpty { Text(text).font(Theme.caption).foregroundStyle(Theme.ink) }
+                        if model.photoDetails.indices.contains(offset), !model.photoDetails[offset].tags.isEmpty {
+                            Text(model.photoDetails[offset].tags.map { "#\($0)" }.joined(separator: ", "))
+                                .font(Theme.caption).foregroundStyle(Theme.accentDeep)
+                                .accessibilityIdentifier("createPreviewPhotoTags-\(offset)")
+                        }
                     }
                 }
             }

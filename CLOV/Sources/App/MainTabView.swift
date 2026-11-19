@@ -10,7 +10,6 @@ struct MainTabView: View {
     /// Measured height of the floating bar (including its outer padding), so
     /// content is inset by the real size rather than a fixed guess.
     @State private var barHeight: CGFloat = 76
-    private static let barBottomPadding: CGFloat = 4
     /// Extra scroll room so the last row clears the bar's shadow.
     private static let contentClearance: CGFloat = 12
     @State private var showCreate = false
@@ -27,7 +26,7 @@ struct MainTabView: View {
         let args = ProcessInfo.processInfo.arguments
         guard let index = args.firstIndex(of: "-CLOVInitialTab"), index + 1 < args.count else { return nil }
         switch args[index + 1] {
-        case "feed": return .feed
+        case "feed", "home": return .feed
         case "groups": return .groups
         case "search": return .search
         case "profile", "account": return .account
@@ -64,8 +63,6 @@ struct MainTabView: View {
             .opacity(isBarHidden ? 0 : 1)
             .allowsHitTesting(!isBarHidden)
             .accessibilityHidden(isBarHidden)
-            .padding(.horizontal, 20)
-            .padding(.bottom, Self.barBottomPadding)
             .background(GeometryReader { proxy in
                 Color.clear.preference(key: BarHeightKey.self, value: proxy.size.height)
             })
@@ -132,7 +129,6 @@ struct MainTabView: View {
             tab = initial
         }
         #endif
-        .task { await premountRemainingTabs() }
         .sensoryFeedback(.selection, trigger: tab)
         .sensoryFeedback(.impact(weight: .medium), trigger: showCreate) { _, new in new }
     }
@@ -142,17 +138,6 @@ struct MainTabView: View {
             resetNavigation(for: target)
         } else {
             tab = target
-        }
-    }
-
-    /// Builds the other tabs shortly after launch so the first tap on one
-    /// doesn't pay for constructing its view tree. Inactive tabs skip data
-    /// loading (see `revisionTask`), so this adds no network work.
-    private func premountRemainingTabs() async {
-        for target in [MainTab.groups, .search, .account] {
-            try? await Task.sleep(for: .milliseconds(400))
-            if Task.isCancelled { return }
-            mountedTabs.insert(target)
         }
     }
 

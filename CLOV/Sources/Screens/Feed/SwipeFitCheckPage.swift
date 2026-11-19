@@ -9,9 +9,11 @@ struct SwipeFitCheckPage: View {
     let onToggleFollow: (Bool) -> Void
     let onEvent: (String) -> Void
     let onImpression: () -> Void
+    let onVoteChange: ((UUID?, Int) -> Void)?
 
     @EnvironmentObject private var appState: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var model: ReelVoteModel
     @StateObject private var celebration = CelebrationState()
     /// Brief "Voted · Undo" toast shown after a vote; nil when hidden.
@@ -34,13 +36,15 @@ struct SwipeFitCheckPage: View {
 
     init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, initialPhotoIndex: Int? = nil,
          onToggleFollow: @escaping (Bool) -> Void,
-         onEvent: @escaping (String) -> Void, onImpression: @escaping () -> Void) {
+         onEvent: @escaping (String) -> Void, onImpression: @escaping () -> Void,
+         onVoteChange: ((UUID?, Int) -> Void)? = nil) {
         self.item = item
         self.voterId = voterId
         self.isFollowing = isFollowing
         self.onToggleFollow = onToggleFollow
         self.onEvent = onEvent
         self.onImpression = onImpression
+        self.onVoteChange = onVoteChange
         _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: voterId, initialLook: initialPhotoIndex))
         _likeCount = State(initialValue: item.likeCount)
     }
@@ -58,34 +62,28 @@ struct SwipeFitCheckPage: View {
     }
 
     var body: some View {
-        GeometryReader { _ in
-            ZStack(alignment: .bottomLeading) {
-                photoLayer
-                Theme.photoScrim.allowsHitTesting(false)
-                HStack(alignment: .bottom, spacing: 18) {
-                    infoColumn
-                    actionRail
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.bottom, Self.bottomInset)
+        GeometryReader { proxy in
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibleLayout(size: proxy.size)
+            } else {
+                photoLayout(size: proxy.size)
             }
-            .overlay {
-                if celebration.burstId != nil, !reduceMotion {
-                    ConfettiBurst().id(celebration.burstId)
-                }
-            }
-            .overlay(alignment: .top) { lookIndicator }
-            .overlay(alignment: .bottom) { undoToast.padding(.bottom, Self.bottomInset + 8) }
-            .onAppear(perform: onImpression)
         }
-        .accessibilityAction(named: "Undo vote") { undoVote() }
+        .overlay {
+            if celebration.burstId != nil, !reduceMotion {
+                ConfettiBurst().id(celebration.burstId)
+            }
+        }
+        .onAppear(perform: onImpression)
+        .accessibilityActions {
+            if model.canRetract { Button("Undo vote", action: undoVote) }
+        }
         .accessibilityAction(named: "Show next look") { model.showLook(step: 1) }
         .sensoryFeedback(.selection, trigger: model.lookIndex)
         .onChange(of: model.error) { _, newError in
             // Async vote failures surface here; announce so non-visual users hear them.
-            guard newError != nil else { return }
-            AccessibilityNotification.Announcement("Couldn’t record your vote. Try again.").post()
+            guard let newError else { return }
+            AccessibilityNotification.Announcement(newError).post()
         }
         .sheet(isPresented: $showComments) {
             CommentThreadSheet(fitCheckId: item.id, photoURLs: model.photos.map(\.imageUrl),
@@ -108,6 +106,84 @@ struct SwipeFitCheckPage: View {
             Button("OK", role: .cancel) {}
         } message: { Text(safetyMessage ?? "") }
         .task { await loadEngagement() }
+        .task { await model.loadSummary() }
+    }
+
+    private func photoLayout(size: CGSize) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            accessiblePhoto(size: size)
+            Theme.photoScrim.allowsHitTesting(false)
+            HStack(alignment: .bottom, spacing: 18) {
+                infoColumn
+                VStack(spacing: 14) { actions }
+                    .frame(minWidth: Self.railWidth)
+                    .environment(\.colorScheme, .dark)
+                    .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.bottom, Self.bottomInset)
+        }
+        .overlay(alignment: .top) { lookIndicator }
+        .overlay(alignment: .topTrailing) {
+            resultsChip.padding(.top, 12).padding(.trailing, 16).padding(.leading, 72)
+        }
+        .overlay(alignment: .bottom) { undoToast.padding(.bottom, Self.bottomInset + 8) }
+    }
+
+    private func accessibleLayout(size: CGSize) -> some View {
+        VStack(spacing: 0) {
+            accessiblePhoto(size: CGSize(width: size.width, height: size.height * 0.46))
+                .accessibilitySortPriority(1)
+
+            FlowLayout(spacing: 8) { actions }
+                .environment(\.colorScheme, .dark)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+
+            Divider().overlay(.white.opacity(0.24))
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    postTitle
+                    voteStatus
+                    descriptionText
+                    authorIdentity
+                    if canFollow { followPill }
+                    resultsChip
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+            }
+            if undoLookPosition != nil {
+                undoToast.padding(.horizontal, 16).padding(.vertical, 4)
+            }
+        }
+        .foregroundStyle(.white)
+    }
+
+    private func accessiblePhoto(size: CGSize) -> some View {
+        photoLayer
+            .frame(width: size.width, height: size.height)
+            .clipped()
+            .accessibilityRepresentation {
+                Color.clear
+                    .frame(width: size.width, height: size.height)
+                    .accessibilityElement()
+                    .accessibilityIdentifier("voteFan")
+                    .accessibilityLabel("Photos")
+                    .accessibilityValue("Photo \(model.lookIndex + 1) of \(model.photos.count)")
+                    .accessibilityActions {
+                        if model.canVote { Button("Vote for this look", action: castVote) }
+                    }
+                    .accessibilityAdjustableAction { direction in
+                        switch direction {
+                        case .increment: model.showLook(step: 1)
+                        case .decrement: model.showLook(step: -1)
+                        @unknown default: break
+                        }
+                    }
+            }
     }
 
     // MARK: Photo and hold-to-vote
@@ -122,29 +198,55 @@ struct SwipeFitCheckPage: View {
             Theme.muted
         } else {
             PhotoCarousel(urls: model.photos.compactMap { URL(string: $0.imageUrl) },
-                          currentIndex: lookBinding, contentMode: .fill,
+                          currentIndex: lookBinding, contentMode: .fit,
                           accessibilityIdentifier: "reel-photo-carousel")
+                .overlay { neighboringLooks }
                 .holdToVote(isEnabled: model.canVote) { castVote() }
         }
     }
 
-    private func castVote() {
-        let started = model.voteForCurrentLook { voteRecorded() }
-        guard started, let position = model.currentPhoto?.position else {
-            AccessibilityNotification.Announcement("Vote not recorded").post()
-            return
+    /// Narrow previews make horizontal browsing discoverable without intercepting
+    /// the carousel's swipes or the hold-to-vote gesture.
+    @ViewBuilder
+    private var neighboringLooks: some View {
+        if model.photos.count > 1 {
+            GeometryReader { proxy in
+                HStack(spacing: 0) {
+                    if model.lookIndex > 0 { neighbor(at: model.lookIndex - 1, height: proxy.size.height) }
+                    Spacer(minLength: 0)
+                    if model.lookIndex + 1 < model.photos.count { neighbor(at: model.lookIndex + 1, height: proxy.size.height) }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
-        AccessibilityNotification.Announcement("Vote recorded, results shown").post()
-        showUndoToast(for: position)
+    }
+
+    private func neighbor(at index: Int, height: CGFloat) -> some View {
+        RemoteImage(url: model.photos[index].imageUrl)
+            .scaledToFill()
+            .frame(width: 18, height: height)
+            .clipped()
+            .overlay(Color.black.opacity(0.28))
+    }
+
+    private func castVote() {
+        let position = model.currentPhoto?.position
+        if model.voteForCurrentLook(onRecorded: { voteRecorded(position: position) }) {
+            AccessibilityNotification.Announcement("Saving your vote").post()
+        }
     }
 
     private func undoVote() {
-        hideUndoToast()
         guard model.canRetract else { return }
+        hideUndoToast()
         celebration.cancel()
         Haptics.impact(.light)
-        model.retractVote { appState.contentDidChange() }
-        AccessibilityNotification.Announcement("Vote undone. Pick again.").post()
+        model.retractVote {
+            refreshFeedVote()
+            AccessibilityNotification.Announcement("Vote undone. Pick again.").post()
+        }
     }
 
     private func showUndoToast(for position: Int) {
@@ -169,8 +271,9 @@ struct SwipeFitCheckPage: View {
                 Label("Voted Look \(position)", systemImage: "checkmark.circle.fill")
                     .font(Theme.font(.subheadline, weight: .bold))
                 Button("Undo", action: undoVote)
+                    .disabled(!model.canRetract)
                     .font(Theme.font(.subheadline, weight: .black))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundStyle(.white)
                     .frame(minHeight: FeedLayout.minHitSize)
                     .contentShape(Rectangle())
             }
@@ -203,20 +306,41 @@ struct SwipeFitCheckPage: View {
 
     private var infoColumn: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 9) {
-                AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 30, ringed: true)
-                Text(handle).font(Theme.font(.subheadline, weight: .bold))
-                if canFollow { followPill }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 9) {
+                    authorIdentity.fixedSize(horizontal: true, vertical: false)
+                    if canFollow { followPill.fixedSize(horizontal: true, vertical: false) }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    authorIdentity
+                    if canFollow { followPill }
+                }
             }
-            if let title {
-                Text(title).font(Theme.font(.headline, weight: .bold)).lineLimit(2)
-            }
+            postTitle
             descriptionText
-            resultsChip
             voteStatus
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .allowsHitTesting(true)
+    }
+
+    private var authorIdentity: some View {
+        HStack(spacing: 9) {
+            AvatarView(url: item.profiles?.avatarUrl, nickname: item.profiles?.nickname, size: 30, ringed: true)
+            Text(handle)
+                .font(Theme.font(.subheadline, weight: .bold))
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+        }
+    }
+
+    @ViewBuilder
+    private var postTitle: some View {
+        if let title {
+            Text(title)
+                .font(Theme.font(.headline, weight: .bold))
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 
     @ViewBuilder
@@ -231,23 +355,46 @@ struct SwipeFitCheckPage: View {
         }
     }
 
-    /// VOTE # and the per-photo split, blurred until the viewer has voted,
-    /// created the post, or voting ended.
+    private var showsResults: Bool {
+        model.summaryLoaded && model.isResultsRevealed && !model.isVoting && !model.isRetracting
+    }
+
     private var resultsChip: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 4) {
-                Text("VOTES")
-                RevealCounter(target: model.total, isRevealed: model.isResultsRevealed)
-            }
-            .font(Theme.font(.caption, weight: .black))
-            ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
-                lookResult(photo, index: index, leading: leadingIds.contains(photo.id))
+        Group {
+            if !showsResults {
+                if model.isVoting || model.isRetracting || !model.summaryLoaded {
+                    Label("Vote results", systemImage: "chart.bar")
+                } else {
+                    Label("Results after voting", systemImage: "lock")
+                }
+            } else if dynamicTypeSize.isAccessibilitySize {
+                FlowLayout(spacing: 10) { results }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) { results }
+                        .fixedSize(horizontal: true, vertical: false)
+                    FlowLayout(spacing: 10) { results }
+                        .frame(maxWidth: 230)
+                }
             }
         }
+        .font(Theme.font(.caption, weight: .bold))
         .padding(.horizontal, 10).padding(.vertical, 6)
-        .background(.black.opacity(0.45), in: Capsule())
-        .blurReveal(isRevealed: model.isResultsRevealed)
+        .foregroundStyle(.white)
+        .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: Theme.smallRadius))
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("voteFanTotalChip")
+    }
+
+    @ViewBuilder
+    private var results: some View {
+        HStack(spacing: 4) {
+            Text("Votes")
+            RevealCounter(target: model.total, isRevealed: showsResults)
+        }
+        ForEach(Array(model.photos.enumerated()), id: \.element.id) { index, photo in
+            lookResult(photo, index: index, leading: leadingIds.contains(photo.id))
+        }
     }
 
     private func lookResult(_ photo: FitCheckPhoto, index: Int, leading: Bool) -> some View {
@@ -258,7 +405,7 @@ struct SwipeFitCheckPage: View {
                     .accessibilityHidden(true)
             }
             Text("Look \(photo.position)")
-            RevealCounter(target: model.percent(for: photo.id), isRevealed: model.isResultsRevealed, style: .percent,
+            RevealCounter(target: model.percent(for: photo.id), isRevealed: showsResults, style: .percent,
                           delay: reduceMotion ? 0 : Double(index) * 0.12)
         }
         .font(Theme.font(.caption, weight: photo.id == model.myVote ? .black : .medium))
@@ -273,34 +420,66 @@ struct SwipeFitCheckPage: View {
     }
 
     /// Runs once the server confirmed the vote; the success haptic already played in the model.
-    private func voteRecorded() {
-        appState.contentDidChange()
-        guard model.error == nil, !reduceMotion,
+    private func voteRecorded(position: Int?) {
+        refreshFeedVote()
+        guard model.error == nil, let position, model.myVote != nil else { return }
+        showUndoToast(for: position)
+        AccessibilityNotification.Announcement("Vote recorded, results shown").post()
+        guard !reduceMotion,
               VoteReveal.shouldCelebrate(myVote: model.myVote, photoIds: photoIds, counts: model.counts, total: model.total)
         else { return }
         celebration.celebrate()
     }
 
+    private func refreshFeedVote() {
+        onVoteChange?(model.myVote, model.total)
+        appState.contentDidChange(reloadHomeFeed: onVoteChange == nil)
+    }
+
     @ViewBuilder
     private var voteStatus: some View {
-        if let myVote = model.myVote, let insight = model.insight {
+        if model.isVoting || model.isRetracting {
+            ProgressView(model.isVoting ? "Saving your vote…" : "Undoing your vote…")
+                .tint(.white)
+                .accessibilityIdentifier("vote.writePending")
+        } else if model.summaryLoadFailed && !model.summaryLoaded {
+            Button("Couldn’t load voting. Tap to retry") { Task { await model.loadSummary() } }
+                .accessibilityIdentifier("vote.summaryRetry")
+        } else if !model.summaryLoaded {
+            ProgressView("Loading voting…").tint(.white)
+        } else if let error = model.error {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(error).font(Theme.font(.caption, weight: .semibold))
+                if model.canRetract { undoVoteButton }
+                if model.canVote { holdHint }
+            }
+            .padding(10)
+            .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: Theme.smallRadius))
+        } else if let myVote = model.myVote, let insight = model.insight {
             VStack(alignment: .leading, spacing: 4) {
                 Text("You picked look \(model.photos.first { $0.id == myVote }?.position ?? 1) · \(model.percent(for: myVote))%")
                     .font(Theme.font(.footnote, weight: .black))
                 Text(insight).font(Theme.font(.caption, weight: .medium))
                 if let summary = model.streak.summary() {
-                    Label(summary, systemImage: "flame.fill").font(Theme.font(.caption, weight: .bold)).foregroundStyle(Theme.accent)
+                    Label(summary, systemImage: "flame.fill").font(Theme.font(.caption, weight: .bold)).foregroundStyle(.white)
                 }
             }
             .padding(10)
             .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
             .transition(.opacity.combined(with: .move(edge: .bottom)))
             .accessibilityElement(children: .combine)
-        } else if let error = model.error {
-            Text(error).font(Theme.font(.caption, weight: .semibold)).foregroundStyle(Theme.danger)
+            if model.canRetract && undoLookPosition == nil { undoVoteButton }
         } else if model.canVote {
             holdHint
         }
+    }
+
+    private var undoVoteButton: some View {
+        Button("Undo vote", action: undoVote)
+            .font(Theme.label)
+            .frame(minHeight: Theme.minTapSize)
+            .contentShape(Rectangle())
+            .accessibilityIdentifier("vote.undo")
     }
 
     private var holdHint: some View {
@@ -329,26 +508,25 @@ struct SwipeFitCheckPage: View {
 
     // MARK: Action rail
 
-    private var actionRail: some View {
-        VStack(spacing: 14) {
-            LikeButton(isLiked: isLiked, count: likeCount) { wantsLike in
-                if wantsLike { try await API.likeFitCheck(id: item.id, userId: voterId) }
-                else { try await API.unlikeFitCheck(id: item.id, userId: voterId) }
-                onEvent(wantsLike ? "like" : "unlike")
-            }
-            Button { showComments = true; onEvent("open_comments") } label: { railIcon("bubble.right", count: item.fitCheckComments.count) }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Comments, \(item.fitCheckComments.count)")
-            BookmarkButton(isBookmarked: isBookmarked) { wantsSave in
-                if wantsSave { try await API.bookmarkFitCheck(id: item.id, userId: voterId) }
-                else { try await API.unbookmarkFitCheck(id: item.id, userId: voterId) }
-            }
-            sendButton
-            if !model.isCreator { overflowMenu }
+    @ViewBuilder
+    private var actions: some View {
+        LikeButton(isLiked: isLiked, count: likeCount) { wantsLike in
+            if wantsLike { try await API.likeFitCheck(id: item.id, userId: voterId) }
+            else { try await API.unlikeFitCheck(id: item.id, userId: voterId) }
+            onEvent(wantsLike ? "like" : "unlike")
         }
-        .environment(\.colorScheme, .dark)
-        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
-        .frame(width: Self.railWidth)
+        Button { showComments = true; onEvent("open_comments") } label: {
+            railIcon("bubble.right", count: item.commentCount)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Comments, \(item.commentCount)")
+        .accessibilityIdentifier("voteFanCommentButton")
+        BookmarkButton(isBookmarked: isBookmarked) { wantsSave in
+            if wantsSave { try await API.bookmarkFitCheck(id: item.id, userId: voterId) }
+            else { try await API.unbookmarkFitCheck(id: item.id, userId: voterId) }
+        }
+        sendButton
+        if !model.isCreator { overflowMenu }
     }
 
     @ViewBuilder
@@ -373,7 +551,10 @@ struct SwipeFitCheckPage: View {
     private func railIcon(_ symbol: String, count: Int?) -> some View {
         HStack(spacing: 4) {
             Image(systemName: symbol)
-            if let count { Text("\(count)").font(Theme.font(.footnote, weight: .semibold)).monospacedDigit() }
+            if let count {
+                Text("\(count)").font(Theme.font(.footnote, weight: .semibold)).monospacedDigit()
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
         .foregroundStyle(.white)
         .frame(minWidth: 44, minHeight: 44)

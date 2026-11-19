@@ -464,6 +464,7 @@ struct TileButtonStyle: ButtonStyle {
 struct RemoteImage: View {
     let url: String
     var label: String? = nil
+    var contentMode: ContentMode = .fill
 
     var body: some View {
         content
@@ -476,7 +477,7 @@ struct RemoteImage: View {
             CachedImage(url: imageURL) { phase in
                 switch phase {
                 case .success(let image):
-                    image.resizable().scaledToFill()
+                    image.resizable().aspectRatio(contentMode: contentMode)
                 case .loading:
                     ZStack {
                         Theme.muted

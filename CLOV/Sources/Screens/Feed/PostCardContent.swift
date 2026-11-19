@@ -21,9 +21,19 @@ enum PostCardContent {
             .filter { $0.scheme?.hasPrefix("http") == true && $0.host != nil }
     }
 
-    /// "@CODE" when the account code is known, else "@nickname", else "@someone".
+    /// The photo the carousel shows at `index`: same order and same filtering as
+    /// `photoURLs`, so a press on the visible photo votes for that photo.
+    static func photo(at index: Int, in photos: [FitCheckPhoto]) -> FitCheckPhoto? {
+        let shown = photos.sorted { $0.position < $1.position }.filter { photo in
+            guard let url = URL(string: photo.imageUrl) else { return false }
+            return url.scheme?.hasPrefix("http") == true && url.host != nil
+        }
+        return shown.indices.contains(index) ? shown[index] : nil
+    }
+
+    /// "@nickname" when set, else "@CODE" (the generated CLO·V ID), else "@someone".
     static func handle(accountCode: String?, nickname: String?) -> String {
-        for candidate in [accountCode, nickname] {
+        for candidate in [nickname, accountCode] {
             let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !trimmed.isEmpty { return "@\(trimmed)" }
         }
@@ -57,4 +67,24 @@ enum PostCardContent {
         guard let count, count > 0 else { return nil }
         return count
     }
+
+    /// A copy of `item` that records the viewer's vote (`nil` clears it), so a card
+    /// that scrolls away and is rebuilt still knows how the viewer voted. Other
+    /// voters' rows are kept, and the total moves only when the vote is added or removed.
+    static func applyingVote(_ photoId: UUID?, voterId: UUID, to item: FeedItemDTO) -> FeedItemDTO {
+        let previous = item.ownVote(voterId: voterId)
+        guard previous != photoId else { return item }
+        var updated = item
+        updated.fitCheckVotes = item.fitCheckVotes.filter { $0.voterId != voterId }
+            + (photoId.map { [VoteRef(photoId: $0, voterId: voterId)] } ?? [])
+        let change = (photoId == nil ? 0 : 1) - (previous == nil ? 0 : 1)
+        updated.voteCount = item.voteCount.map { max(0, $0 + change) }
+        return updated
+    }
+
+    /// Label on a card's vote button: "Look 2".
+    static func voteButtonTitle(position: Int) -> String { "Look \(position)" }
+
+    /// What VoiceOver says for that button: "Vote for Look 2".
+    static func voteButtonAccessibilityLabel(position: Int) -> String { "Vote for \(voteButtonTitle(position: position))" }
 }

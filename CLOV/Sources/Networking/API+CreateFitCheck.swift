@@ -86,7 +86,7 @@ extension API {
             votePrompt: FitCheckSubmission.normalizedVotePrompt(votePrompt))
         try await validateAudience(creatorId: creatorId, groupId: groupId, audience: audience)
 
-        let prepared = try photos.map { try preparedJPEG($0, aspectRatio: 3.0 / 4.0) }
+        let prepared = try photos.map { try preparedFitCheckJPEG($0) }
         let photoKeys = prepared.indices.map { PostResume.fingerprint(of: prepared[$0]) + "|" + detailKey(clean.details, at: $0) }
         let draftKey = PostResume.draftFingerprint(caption: caption, occasion: occasion, groupId: groupId,
                                                    tags: clean.tags, votePrompt: clean.votePrompt, audience: audience)
@@ -109,6 +109,11 @@ extension API {
                                                   onProgress: onProgress, onPhotoUploaded: onPhotoUploaded)
         return try await publishPost(creatorId: creatorId, progress: stored, details: clean.details,
                                      durationSeconds: Int(votingDuration), onProgress: onProgress)
+    }
+
+    /// Preserves the selected image (including an optional user crop) during upload.
+    static func preparedFitCheckJPEG(_ image: UIImage) throws -> Data {
+        try preparedJPEG(image, aspectRatio: 3.0 / 4.0, preserveAspectRatio: true)
     }
 
     private enum AttemptStart {
@@ -141,7 +146,7 @@ extension API {
             return .continuing(PostProgress(draftId: id, draftFingerprint: draftKey, draftDropped: dropped))
         } catch {
             // The id is generated here so a draft whose response was lost can still be cleaned up.
-            await discardDraft(fitCheckId: draftParams.id, creatorId: creatorId, uploadedPaths: [])
+            await discardDraft(fitCheckId: draftParams.id, creatorId: creatorId)
             throw error
         }
     }
@@ -192,7 +197,7 @@ extension API {
                 Log.app.error("Publish failed; keeping draft \(progress.draftId.uuidString) so a retry can finish it")
                 throw error
             case .discard:
-                await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId, uploadedPaths: progress.uploadedPaths)
+                await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId)
                 if let onProgress { await onProgress(nil) }
                 throw error
             }
@@ -208,7 +213,7 @@ extension API {
         if let knownState { state = knownState } else { state = await serverState(ofFitCheck: progress.draftId) }
         switch state {
         case .draft, .missing:
-            await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId, uploadedPaths: progress.uploadedPaths)
+            await discardDraft(fitCheckId: progress.draftId, creatorId: creatorId)
         case .live, .unknown:
             Log.app.error("Leaving \(progress.draftId.uuidString) untouched (\(String(describing: state)))")
         }

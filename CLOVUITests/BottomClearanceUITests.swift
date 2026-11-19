@@ -39,13 +39,13 @@ final class BottomClearanceUITests: XCTestCase {
 
     func testExploreClearsTabBar() {
         let app = launchApp()
-        app.buttons["searchTab"].tap()
+        app.openExplore()
         assertClearance(app, screen: "explore", lastRow: nil)
     }
 
     func testGroupsClearsTabBar() {
         let app = launchApp()
-        app.buttons["groupsTab"].tap()
+        app.openGroups()
         assertClearance(app, screen: "groups", lastRow: nil)
     }
 

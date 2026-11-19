@@ -8,13 +8,6 @@ struct LivePhotoTally: Codable, Equatable {
     let isMine: Bool
 }
 
-/// Post ids the current user has liked / saved, with the server-side count.
-struct EngagementState: Equatable {
-    var isLiked: Bool
-    var isBookmarked: Bool
-    var likeCount: Int
-}
-
 /// What the viewer is allowed to see about a post's votes.
 struct VoteSummary: Equatable {
     let counts: [UUID: Int]

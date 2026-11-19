@@ -6,6 +6,7 @@ struct CreateFitCheckView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var appState: AppState
 
     @State private var model: CreateWizardModel
@@ -26,6 +27,7 @@ struct CreateFitCheckView: View {
     @State private var isLoadingWardrobe = false
     @State private var showDropPhotosConfirmation = false
     @State private var showDiscardConfirmation = false
+    @State private var skippedPhotoDetails = false
 
     private var photoCount: Int { model.photoCount }
 
@@ -37,6 +39,17 @@ struct CreateFitCheckView: View {
         self.preselectedGroup = preselectedGroup
         self.initialOccasion = initialOccasion
         _model = State(initialValue: CreateWizardModel(preselectedGroupId: preselectedGroup?.id, occasion: initialOccasion))
+#if DEBUG
+        if SampleData.isActive && ProcessInfo.processInfo.arguments.contains("--uiTestCreatePhotos") {
+            let image = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 800)).image { context in
+                UIColor.systemTeal.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 600, height: 800))
+                UIColor.systemOrange.setFill()
+                context.fill(CGRect(x: 150, y: 150, width: 300, height: 500))
+            }
+            _slots = State(initialValue: [PhotoSlotState(image: image), PhotoSlotState(image: image)])
+        }
+#endif
     }
 
     var body: some View {
@@ -53,6 +66,7 @@ struct CreateFitCheckView: View {
                 }
                 .id(progressLabel)
                 .scrollDismissesKeyboard(.interactively)
+                .disabled(isPosting)
                 footer
             }
             .background(Theme.background)
@@ -169,55 +183,119 @@ struct CreateFitCheckView: View {
             CreatePreviewStep(
                 model: model,
                 images: slots.compactMap(\.image),
-                groupName: myGroups.first { $0.id == model.groupId }?.name
+                groupName: myGroups.first { $0.id == model.groupId }?.name,
+                votingDuration: votingDuration
             )
         }
     }
 
     private var footer: some View {
         VStack(spacing: 6) {
+            if let submitError {
+                Label(submitError, systemImage: "exclamationmark.circle.fill")
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.danger)
+                    .accessibilityIdentifier("createSubmitError")
+            }
             if isPosting {
                 ProgressView(value: Double(uploadedCount), total: Double(max(photoCount, 1)))
-                    .progressViewStyle(.linear).tint(Theme.accentDeep)
-                    .accessibilityLabel("Uploading photo \(min(uploadedCount + 1, photoCount)) of \(photoCount)")
+                    .progressViewStyle(.linear)
+                    .tint(Theme.accentDeep)
+                    .accessibilityLabel(uploadLabel)
             }
-            HStack(spacing: 12) {
-                if model.previousStep(before: model.step) != nil {
-                    Button("Back") { go(to: model.previousStep(before: model.step)) }
-                        .buttonStyle(OutlineButtonStyle())
-                        .disabled(isPosting)
-                        .accessibilityIdentifier("createBackButton")
-                }
-                if case .photoDetail = model.step {
-                    Button("Skip") { skipPhotoDetail() }
-                        .buttonStyle(OutlineButtonStyle())
-                        .accessibilityIdentifier("createSkipButton")
-                }
-                primaryButton
+            if model.step == .details || model.step == .preview {
+                audienceSummary
             }
-            // Three buttons share one row; past this size the labels clip.
-            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            if model.step == .details {
+                Button("Skip to preview") {
+                    skippedPhotoDetails = true
+                    go(to: .preview)
+                }
+                .font(Theme.label)
+                .foregroundStyle(Theme.accentDeep)
+                .frame(minHeight: Theme.minTapSize)
+                .disabled(!canNext)
+                .accessibilityIdentifier("createSkipPhotoDetails")
+            }
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) { footerButtons }
+            } else {
+                HStack(spacing: 12) { footerButtons }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .background(Theme.background.opacity(0.96))
+        .background(Theme.background)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private var audienceSummary: some View {
+        let needsChoice = model.step == .details && !model.hasChosenAudience
+        return HStack(spacing: 6) {
+            Image(systemName: needsChoice ? "person.crop.circle.badge.questionmark" : model.audience.symbol)
+                .accessibilityHidden(true)
+            Text(needsChoice ? "Choose an audience to enable Post now." : "Audience · \(audienceName)")
+                .accessibilityIdentifier("createAudienceSummary")
+        }
+        .font(Theme.label)
+        .foregroundStyle(Theme.mutedForeground)
+        .multilineTextAlignment(.center)
+    }
+
+    private var audienceName: String {
+        if model.audience == .group {
+            return myGroups.first { $0.id == model.groupId }?.name ?? model.audience.title
+        }
+        return model.audience.title
+    }
+
+    @ViewBuilder
+    private var footerButtons: some View {
+        if model.previousStep(before: model.step) != nil {
+            Button("Back") {
+                if model.step == .preview && skippedPhotoDetails {
+                    go(to: .details)
+                } else {
+                    go(to: model.previousStep(before: model.step))
+                }
+            }
+                .buttonStyle(OutlineButtonStyle())
+                .disabled(isPosting)
+                .accessibilityIdentifier("createBackButton")
+        }
+        if case .photoDetail = model.step {
+            Button("Skip") { skipPhotoDetail() }
+                .buttonStyle(OutlineButtonStyle())
+                .accessibilityIdentifier("createSkipButton")
+        }
+        primaryButton
     }
 
     @ViewBuilder
     private var primaryButton: some View {
+        if model.step == .details {
+            Button(isPosting ? uploadLabel : "Post now") { Task { await submit(quickPost: true) } }
+                .buttonStyle(OutlineButtonStyle())
+                .opacity(canQuickPost ? 1 : 0.55)
+                .disabled(!canQuickPost)
+                .accessibilityIdentifier("createQuickPost")
+        }
         if model.step == .preview {
             Button { Task { await submit() } } label: {
                 if isPosting {
                     HStack(spacing: 8) { ProgressView(); Text(uploadLabel) }
                 } else {
-                    Text(submitError == nil ? "Upload" : "Retry upload")
+                    Text(submitError == nil ? "Post Fit-Check" : "Retry post")
                 }
             }
             .buttonStyle(PrimaryButtonStyle(isDisabled: !canUpload))
             .disabled(!canUpload)
             .accessibilityIdentifier("createUploadButton")
         } else {
-            Button("Next") { go(to: model.nextStep(after: model.step)) }
+            Button("Next") {
+                if model.step == .details { skippedPhotoDetails = false }
+                go(to: model.nextStep(after: model.step))
+            }
                 .buttonStyle(PrimaryButtonStyle(isDisabled: !canNext))
                 .disabled(!canNext)
                 .accessibilityHint(canNext ? "" : nextHint)
@@ -230,8 +308,9 @@ struct CreateFitCheckView: View {
         uploadedCount > 0 ? "Uploading \(min(uploadedCount + 1, photoCount)) of \(photoCount)" : "Uploading…"
     }
 
-    private var canNext: Bool { model.canAdvance(from: model.step) }
+    private var canNext: Bool { !isPosting && model.canAdvance(from: model.step) }
     private var canUpload: Bool { !isPosting && model.canAdvance(from: .preview) }
+    private var canQuickPost: Bool { canUpload && model.hasChosenAudience }
     private var nextHint: String {
         switch model.step {
         case .photos: "Add all photos to continue"
@@ -285,11 +364,6 @@ struct CreateFitCheckView: View {
                     .frame(minHeight: Theme.minTapSize)
                     .disabled(isLoadingOptions)
             }
-        }
-        if let submitError {
-            Label(submitError, systemImage: "exclamationmark.circle.fill")
-                .font(Theme.caption).foregroundStyle(Theme.danger)
-                .accessibilityIdentifier("createSubmitError")
         }
     }
 
@@ -356,7 +430,8 @@ struct CreateFitCheckView: View {
 
     private static let droppedExtrasNotice = "Your Fit-Check is live, but its title, tags and photo details weren’t saved because they aren’t supported yet."
 
-    private func submit() async {
+    private func submit(quickPost: Bool = false) async {
+        guard !isPosting, !quickPost || model.hasChosenAudience else { return }
         submitError = nil
         let images = slots.compactMap(\.image)
         guard images.count == photoCount, model.canAdvance(from: .preview) else {
@@ -408,6 +483,8 @@ struct CreateFitCheckView: View {
                 return
             }
             slots[index].image = image
+            slots[index].original = image
+            slots[index].cropRect = nil
             slots[index].item = nil
             wardrobeSlotId = nil
         } catch is CancellationError {

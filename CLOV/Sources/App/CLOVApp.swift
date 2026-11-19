@@ -6,7 +6,7 @@ struct CLOVApp: App {
     @UIApplicationDelegateAdaptor(CLOVAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasAskedForPush = false
-    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.rose.id
+    @AppStorage(AppearanceKey.paletteID) private var paletteID = ThemePalette.clay.id
     @AppStorage(AppearanceKey.colorScheme) private var colorSchemeRaw = AppearanceMode.system.rawValue
 
     var body: some Scene {
@@ -89,15 +89,55 @@ struct CLOVApp: App {
 
 struct RootView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if DEBUG
     @State private var didRunDebugHooks = false
+    @State private var holdLaunchForUITest = ProcessInfo.processInfo.arguments.contains("--uiTestLaunchTransition")
     #endif
 
+    private var isLoading: Bool {
+        #if DEBUG
+        if holdLaunchForUITest { return true }
+        #endif
+        return appState.isBootstrapping || (appState.isSignedIn && appState.isLoadingProfile)
+    }
+
     var body: some View {
+        ZStack {
+            if isLoading {
+                Color(uiColor: .systemBackground).ignoresSafeArea()
+                    .overlay { ProgressView().accessibilityLabel("Loading") }
+                    .accessibilityIdentifier("launch.loading")
+                    .transition(.opacity)
+            } else {
+                destination
+                    .transition(.opacity)
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: isLoading)
+        #if DEBUG
+        .task {
+            if holdLaunchForUITest {
+                try? await Task.sleep(for: .milliseconds(800))
+                holdLaunchForUITest = false
+            }
+            // AppState's auth listener (started in its own init) is
+            // already running by the time this fires — safe to layer
+            // debug-only setup on top without racing it.
+            await appState.autoLoginForUITestsIfRequested()
+        }
+        .onChange(of: appState.isBootstrapping) { _, bootstrapping in
+            guard !bootstrapping, !didRunDebugHooks else { return }
+            didRunDebugHooks = true
+            DebugVerify.runIfRequested()
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var destination: some View {
         Group {
-            if appState.isBootstrapping || (appState.isSignedIn && appState.isLoadingProfile) {
-                ProgressView()
-            } else if appState.isRecoveringPassword && appState.isSignedIn {
+            if appState.isRecoveringPassword && appState.isSignedIn {
                 NewPasswordView()
             } else if !appState.isSignedIn {
                 AuthView()
@@ -127,18 +167,5 @@ struct RootView: View {
                 OnboardingView()
             }
         }
-        #if DEBUG
-        .task {
-            // AppState's auth listener (started in its own init) is
-            // already running by the time this fires — safe to layer
-            // debug-only setup on top without racing it.
-            await appState.autoLoginForUITestsIfRequested()
-        }
-        .onChange(of: appState.isBootstrapping) { _, bootstrapping in
-            guard !bootstrapping, !didRunDebugHooks else { return }
-            didRunDebugHooks = true
-            DebugVerify.runIfRequested()
-        }
-        #endif
     }
 }

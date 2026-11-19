@@ -48,7 +48,10 @@ struct VoteTile: View {
     private var voteButton: some View {
         Button(action: onVote) {
             AspectFitTile(cornerRadius: Theme.tileRadius, shadow: false) {
-                RemoteImage(url: photo.imageUrl)
+                ZStack {
+                    Color.black
+                    RemoteImage(url: photo.imageUrl, contentMode: .fit)
+                }
                     .clipped()
                     .overlay(alignment: .bottom) { Theme.photoScrim }
                     .overlay(alignment: .topLeading) { positionBadge }

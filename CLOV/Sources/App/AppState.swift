@@ -5,8 +5,13 @@ import Supabase
 final class AppState: ObservableObject {
     /// Invalidates visible lists after successful content mutations.
     @Published private(set) var contentRevision = 0
+    @Published private(set) var homeFeedRevision = 0
 
-    func contentDidChange() { contentRevision += 1 }
+    /// Local vote updates still invalidate other screens that show engagement.
+    func contentDidChange(reloadHomeFeed: Bool = true) {
+        if reloadHomeFeed { homeFeedRevision += 1 }
+        contentRevision += 1
+    }
 
     @Published var session: Session?
     @Published var profile: Profile?
@@ -46,6 +51,7 @@ final class AppState: ObservableObject {
     }
 
     init() {
+        Log.performance.emitEvent("App state initialized")
         #if DEBUG
         if enterSampleModeIfRequested() { return }
         #endif
@@ -83,6 +89,8 @@ final class AppState: ObservableObject {
 
     func refreshProfile() async {
         guard let id = session?.user.id else { return }
+        let interval = Log.performance.beginInterval("Profile load", id: Log.performance.makeSignpostID())
+        defer { Log.performance.endInterval("Profile load", interval) }
         // Only block the UI with a spinner when there is no profile to show;
         // background refreshes must not tear down the signed-in screens.
         isLoadingProfile = profile?.id != id
@@ -99,12 +107,9 @@ final class AppState: ObservableObject {
             profile = fetched
         } catch {
             guard session?.user.id == id else { return }
-            if let authError = error as? AuthError, authError == .sessionMissing {
-                // Preserve the auth event's session so the underlying SDK
-                // failure remains visible and retryable. Signing out here
-                // hides whether this is a session persistence race or an
-                // invalid session returned by the auth service.
-            }
+            // A missing session is deliberately not turned into a sign-out:
+            // that would hide whether it is a persistence race or an invalid
+            // session. The error stays visible and retryable below.
             profileLoadError = "We couldn’t load your profile. Please try again."
             #if DEBUG
             profileLoadDebugError = String(describing: error)
@@ -145,7 +150,7 @@ final class AppState: ObservableObject {
             guard session?.refreshToken == current.refreshToken else { return }
             // Offline or cancelled checks say nothing about session validity;
             // keep the stored session so the user isn't logged out on reconnect.
-            if error is URLError || error is CancellationError {
+            guard SessionCheckPolicy.shouldSignOut(after: error) else {
                 Log.app.error("Session check skipped: \(error.localizedDescription)")
                 return
             }
@@ -158,7 +163,7 @@ final class AppState: ObservableObject {
         // particular, an expired refresh token must not strand the user on
         // the profile error screen with no way back to the login form.
         // Needs the still-valid session, so it runs before the state is cleared.
-        await API.unregisterDeviceToken()
+        await Self.unregisterDeviceTokenWithTimeout()
         isRecoveringPassword = false
         session = nil
         profile = nil
@@ -169,6 +174,15 @@ final class AppState: ObservableObject {
         #endif
         lastSessionCheck = nil
         try? await SupabaseManager.client.auth.signOut(scope: .local)
+    }
+
+    private static let deviceTokenUnregisterTimeout: Duration = .seconds(3)
+
+    /// Best-effort push-token removal that cannot hold up logout.
+    private static func unregisterDeviceTokenWithTimeout() async {
+        await runBounded(timeout: deviceTokenUnregisterTimeout) {
+            await API.unregisterDeviceToken()
+        }
     }
 
     /// Immediately returns the UI to the signed-out state after the server

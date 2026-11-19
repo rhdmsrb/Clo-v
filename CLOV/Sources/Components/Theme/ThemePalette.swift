@@ -3,20 +3,24 @@ import UIKit
 
 // User-selectable color palettes.
 //
-// A palette is encoded as a short string ("rose", "ocean", "custom:0.620") so it
+// A palette is encoded as a short string ("clay", "ocean", "custom:0.620") so it
 // can be stored in AppStorage and carried through the UIKit trait system. That
 // lets `Theme`'s dynamic colors re-resolve live when it changes, without
 // rebuilding any view (and so without losing navigation state).
 //
 // Non-default palettes are generated from one hue so contrast stays safe
 // whatever the user picks: text roles are always dark/light enough on their
-// surfaces. "rose" keeps the hand-tuned original values.
+// surfaces.
+//
+// "clay" is the hand-tuned default (light gray, ink, clay orange). "classic"
+// is the original hand-tuned burgundy, kept so the old look is one tap away.
+// The legacy id "rose" was the old default and now resolves to Clay.
 
 /// Semantic color roles that vary by palette.
 enum PaletteRole {
     case accent, accentDeep, accentTint
     case background, card, cardElevated, muted, mutedForeground, ink
-    case primaryButtonFill, accentForeground
+    case primaryButtonFill, primaryButtonText, accentForeground
     case heroStart, heroMid, heroEnd
 }
 
@@ -30,9 +34,13 @@ struct ThemePalette: Equatable, Identifiable {
     /// Scales every saturation; 0 gives a neutral grayscale palette.
     let saturation: Double
 
-    static let rose = ThemePalette(id: "rose", name: "Rose", hue: nil, saturation: 1)
+    static let clay = ThemePalette(id: "clay", name: "Clay", hue: nil, saturation: 1)
+    static let classic = ThemePalette(id: "classic", name: "Classic", hue: nil, saturation: 1)
+    /// The old default id. Saved values of it resolve to `clay`.
+    static let legacyDefaultID = "rose"
     static let presets: [ThemePalette] = [
-        rose,
+        clay,
+        classic,
         ThemePalette(id: "ocean", name: "Ocean", hue: 0.57, saturation: 1),
         ThemePalette(id: "forest", name: "Forest", hue: 0.38, saturation: 1),
         ThemePalette(id: "lavender", name: "Lavender", hue: 0.74, saturation: 1),
@@ -48,18 +56,20 @@ struct ThemePalette: Equatable, Identifiable {
     /// Unknown or malformed ids fall back to the default so a bad stored value never breaks the UI.
     static func resolve(_ id: String) -> ThemePalette {
         if let preset = presets.first(where: { $0.id == id }) { return preset }
+        if id == legacyDefaultID { return clay }
         if id.hasPrefix(customPrefix), let hue = Double(id.dropFirst(customPrefix.count)) {
             return custom(hue: hue)
         }
-        return rose
+        return clay
     }
 
     var isCustom: Bool { id.hasPrefix(Self.customPrefix) }
 
     /// Swatch used in the picker, always the palette's accent.
     var swatch: Color {
-        // The default keeps its hand-tuned rose rather than the generated hue-0 red.
-        hue == nil ? Color(red: 0xE4 / 255, green: 0x91 / 255, blue: 0xA6 / 255) : Color(uiColor: color(.accent, dark: false))
+        if self == .clay { return Color(red: 0xE2 / 255, green: 0x55 / 255, blue: 0x2B / 255) }
+        if self == .classic { return Color(red: 0x78 / 255, green: 0x28 / 255, blue: 0x40 / 255) }
+        return Color(uiColor: color(.accent, dark: false))
     }
 
     // MARK: Color generation
@@ -82,6 +92,7 @@ struct ThemePalette: Equatable, Identifiable {
         case .mutedForeground: return dark ? tone(0.12, 0.83) : tone(0.15, 0.40)
         case .ink: return dark ? tone(0.05, 0.97) : tone(0.45, 0.20)
         case .primaryButtonFill: return dark ? tone(0.48, 0.93) : tone(0.40, 0.42)
+        case .primaryButtonText: return dark ? tone(0.60, 0.20) : UIColor.white
         case .accentForeground: return tone(0.60, 0.20)
         case .heroStart: return dark ? tone(0.60, 0.16) : tone(0.60, 0.26)
         case .heroMid: return dark ? tone(0.50, 0.28) : tone(0.40, 0.42)
@@ -94,7 +105,7 @@ struct ThemePalette: Equatable, Identifiable {
 
 /// Carries the selected palette id through UIKit's trait collection.
 struct PaletteTrait: UITraitDefinition {
-    static let defaultValue = ThemePalette.rose.id
+    static let defaultValue = ThemePalette.clay.id
     static let affectsColorAppearance = true
     static let identifier = "app.clov.palette"
 }
@@ -102,7 +113,7 @@ struct PaletteTrait: UITraitDefinition {
 /// SwiftUI environment value mirrored into the trait collection, so dynamic
 /// colors resolved by SwiftUI see the current palette.
 private struct PaletteIDKey: EnvironmentKey, UITraitBridgedEnvironmentKey {
-    static let defaultValue = ThemePalette.rose.id
+    static let defaultValue = ThemePalette.clay.id
 
     static func read(from traitCollection: UITraitCollection) -> String {
         traitCollection[PaletteTrait.self]

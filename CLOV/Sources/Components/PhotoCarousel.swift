@@ -8,10 +8,15 @@ struct PhotoCarousel: View {
     let urls: [URL]
     @Binding var currentIndex: Int
     var autoAdvance: Bool = false
+    /// When true a touch, swipe or hold does not end auto-advance for good; the parent pauses it
+    /// (by flipping `autoAdvance`) while a press lasts, and the 3 s timer restarts after each page change.
+    var keepsRotatingAfterTouch: Bool = false
     var contentMode: ContentMode = .fill
     var accessibilityIdentifier: String = "photo-carousel"
     /// Called on a tap, from the carousel's own gesture (a parent's tap gesture is not reliably reached through the paged TabView).
     var onTap: (() -> Void)?
+    var prioritizesSelectedPhoto = false
+    var onPhotoDisplay: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
@@ -21,25 +26,36 @@ struct PhotoCarousel: View {
     /// Inactive tabs stay mounted at opacity 0, so `onDisappear` never fires for them.
     @Environment(\.isTabActive) private var isTabActive
     @State private var isOnScreen = false
+    @State private var hasDisplayedPhoto = false
+    @State private var fadingPhoto: UIImage?
+    @State private var fadingOpacity = 0.0
 
     init(
         urls: [URL],
         currentIndex: Binding<Int>,
         autoAdvance: Bool = false,
+        keepsRotatingAfterTouch: Bool = false,
         contentMode: ContentMode = .fill,
         accessibilityIdentifier: String = "photo-carousel",
-        onTap: (() -> Void)? = nil
+        onTap: (() -> Void)? = nil,
+        prioritizesSelectedPhoto: Bool = false,
+        onPhotoDisplay: (() -> Void)? = nil
     ) {
         self.urls = urls
         self._currentIndex = currentIndex
         self.autoAdvance = autoAdvance
+        self.keepsRotatingAfterTouch = keepsRotatingAfterTouch
         self.contentMode = contentMode
         self.accessibilityIdentifier = accessibilityIdentifier
         self.onTap = onTap
+        self.prioritizesSelectedPhoto = prioritizesSelectedPhoto
+        self.onPhotoDisplay = onPhotoDisplay
         _logic = State(initialValue: CarouselAutoAdvance(pageCount: urls.count, index: currentIndex.wrappedValue))
     }
 
     private static let holdDuration: TimeInterval = 0.4
+    private static let transitionDuration: TimeInterval = 0.32
+    private static let transitionSetupDelay: TimeInterval = 0.05
 
     private var shouldRun: Bool {
         logic.shouldRun(enabled: autoAdvance, reduceMotion: reduceMotion,
@@ -50,10 +66,31 @@ struct PhotoCarousel: View {
     var body: some View {
         TabView(selection: pageBinding) {
             ForEach(Array(urls.enumerated()), id: \.offset) { offset, url in
-                page(url).tag(offset)
+                Group {
+                    if shouldLoadPhoto(at: offset) {
+                        page(url, index: offset)
+                    } else {
+                        Theme.muted
+                    }
+                }
+                .tag(offset)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
+        .overlay {
+            if let fadingPhoto {
+                GeometryReader { proxy in
+                    photo(Image(uiImage: fadingPhoto), in: proxy.size)
+                        .background(Color.black)
+                        .clipped()
+                }
+                // Fade the photo and its letterbox as a single layer.
+                .compositingGroup()
+                .opacity(fadingOpacity)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
         .overlay(alignment: .bottom) { PageDots(count: urls.count, index: logic.index).padding(.bottom, 10) }
         // Only a tap, a horizontal swipe or a hold counts as interaction. A zero-distance
         // drag would fire on the touch-down of a vertical feed scroll and stop rotation.
@@ -68,10 +105,13 @@ struct PhotoCarousel: View {
         )
         .onAppear { isOnScreen = true }
         .onDisappear { isOnScreen = false }
-        // Re-keyed on `shouldRun`, so leaving the screen or stopping cancels the sleep.
-        .task(id: shouldRun) { await runTimer() }
+        // Leaving the screen, stopping, or replacing the photos cancels a pending transition.
+        .task(id: shouldRun ? urls : []) { await runTimer() }
         .onChange(of: currentIndex) { _, newValue in
-            if newValue != logic.index { logic = logic.moved(to: newValue) }
+            if newValue != logic.index {
+                fadingPhoto = nil
+                logic = logic.moved(to: newValue)
+            }
         }
         .onChange(of: urls.count) { _, newCount in
             logic = logic.resized(pageCount: newCount)
@@ -104,43 +144,92 @@ struct PhotoCarousel: View {
 
     private func setPage(_ newIndex: Int) {
         guard urls.indices.contains(newIndex) else { return }
+        fadingPhoto = nil
         logic = logic.moved(to: newIndex)
         currentIndex = newIndex
     }
 
     private func stopForGood() {
-        guard !logic.isStopped else { return }
+        guard !keepsRotatingAfterTouch, !logic.isStopped else { return }
+        fadingPhoto = nil
         logic = logic.userInteracted()
     }
 
     private func runTimer() async {
+        var delay = CarouselAutoAdvance.interval
         while shouldRun, !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(CarouselAutoAdvance.interval))
+            try? await Task.sleep(for: .seconds(delay))
             guard shouldRun, !Task.isCancelled else { return }
+            let index = logic.index
             let next = logic.advanced()
-            withAnimation(Theme.settle) { logic = next }
-            currentIndex = next.index
+            delay = CarouselAutoAdvance.interval
+            // Keep the current outfit visible until both images are decoded.
+            // Holding the outgoing bitmap also prevents a loading flash during the fade.
+            guard urls.indices.contains(index), urls.indices.contains(next.index), next.index != index,
+                  let outgoing = ImageCache.shared.cachedImage(for: urls[index]),
+                  await ImageCache.shared.image(for: urls[next.index]) != nil else { continue }
+            guard shouldRun, !Task.isCancelled else { return }
+            guard index == logic.index else { continue }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                fadingPhoto = outgoing
+                fadingOpacity = 1
+                logic = next
+                currentIndex = next.index
+            }
+            // Give SwiftUI a frame to place the old image before fading it out.
+            try? await Task.sleep(for: .seconds(Self.transitionSetupDelay))
+            guard shouldRun, !Task.isCancelled else { fadingPhoto = nil; return }
+            withAnimation(.easeInOut(duration: Self.transitionDuration)) { fadingOpacity = 0 }
+            try? await Task.sleep(for: .seconds(Self.transitionDuration))
+            fadingPhoto = nil
+            delay = max(0, CarouselAutoAdvance.interval - Self.transitionDuration - Self.transitionSetupDelay)
         }
     }
 
-    private func page(_ url: URL) -> some View {
+    private func shouldLoadPhoto(at index: Int) -> Bool {
+        guard prioritizesSelectedPhoto else { return true }
+        guard isTabActive, scenePhase == .active else { return false }
+        let distance = abs(index - logic.index)
+        // Wait for the selected photo before preloading its neighbors.
+        return distance == 0 || (hasDisplayedPhoto && (distance == 1 || distance == urls.count - 1))
+    }
+
+    private func page(_ url: URL, index: Int) -> some View {
         Color.clear
             .overlay {
-                CachedImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: contentMode)
-                    case .loading:
-                        Theme.muted.overlay(ProgressView())
-                    case .failure:
-                        Theme.muted.overlay(
-                            Image(systemName: "photo").foregroundStyle(Theme.mutedForeground)
-                        )
+                GeometryReader { proxy in
+                    CachedImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            photo(image, in: proxy.size)
+                                .onAppear {
+                                    if index == logic.index {
+                                        hasDisplayedPhoto = true
+                                        onPhotoDisplay?()
+                                    }
+                                }
+                        case .loading:
+                            Theme.muted.overlay(ProgressView())
+                        case .failure:
+                            Theme.muted.overlay(
+                                Image(systemName: "photo").foregroundStyle(Theme.mutedForeground)
+                            )
+                        }
                     }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
                 }
             }
             .clipped()
             .accessibilityHidden(true)
+    }
+
+    private func photo(_ image: Image, in size: CGSize) -> some View {
+        image.resizable()
+            .aspectRatio(contentMode: contentMode)
+            .frame(width: size.width, height: size.height)
     }
 }
 

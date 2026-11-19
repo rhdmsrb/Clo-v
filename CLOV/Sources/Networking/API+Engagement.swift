@@ -110,13 +110,11 @@ extension API {
         guard !saved.isEmpty else { return FeedPageResult(items: [], fetchedCount: 0) }
 
         async let blockedTask = fetchBlockedUserIDs()
-        let rows: [FeedItemDTO] = try await selectingFeedColumns { columns in
-            try await client.from("fit_checks")
-                .select(columns)
-                .in("id", values: saved.map(\.fitCheckId))
-                .neq("status", value: "draft")
-                .execute().value
-        }
+        let rows: [FeedItemDTO] = try await client.from("fit_checks")
+            .select(feedColumns)
+            .in("id", values: saved.map(\.fitCheckId))
+            .neq("status", value: "draft")
+            .execute().value
         // The IN query has no order; restore bookmark recency order.
         let byID = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let ordered = saved.compactMap { byID[$0.fitCheckId] }
@@ -125,6 +123,25 @@ extension API {
         let withPrompts = await attachVotePrompts(ordered)
         let visible = try await signFeedPhotos(withPrompts.filter { !blocked.contains($0.creatorId) })
         return FeedPageResult(items: visible, fetchedCount: saved.count)
+    }
+
+    /// One post, shaped like a feed row, for screens that show a single post as a feed card
+    /// (profile tiles). `nil` when it is gone, a draft, or by someone the viewer blocked.
+    static func fetchFeedItem(id: UUID) async throws -> FeedItemDTO? {
+#if DEBUG
+        if SampleData.isActive { return SampleData.fixture(id: id)?.feedItem }
+#endif
+        async let blockedTask = fetchBlockedUserIDs()
+        let rows: [FeedItemDTO] = try await client.from("fit_checks")
+            .select(feedColumns)
+            .eq("id", value: id)
+            .neq("status", value: "draft")
+            .limit(1)
+            .execute().value
+        let blocked = try await blockedTask
+        guard let row = rows.first, !blocked.contains(row.creatorId) else { return nil }
+        let withPrompt = await attachVotePrompts([row])
+        return try await signFeedPhotos(withPrompt).first
     }
 
     // MARK: - Live tally

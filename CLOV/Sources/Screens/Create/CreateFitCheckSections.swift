@@ -52,28 +52,36 @@ struct NoteSection: View {
     @ScaledMetric(relativeTo: .body) private var noteMinHeight: CGFloat = 80
 
     private static let placeholder = "Add context about where you’re going or what matters to you."
+    private var limitedCaption: Binding<String> {
+        Binding(get: { caption }, set: { caption = String($0.prefix(CreateWizardModel.maxCaptionLength)) })
+    }
 
     var body: some View {
-        LabeledField(label: "Add a note (optional)", padding: 8) {
-            TextEditor(text: $caption)
-                // TextEditor paints its own opaque white; hide it so the
-                // field's tinted surface shows through instead of a white box.
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .frame(minHeight: noteMinHeight)
-                .accessibilityLabel("Note, optional")
-                .accessibilityHint(Self.placeholder)
-                .overlay(alignment: .topLeading) {
-                    if caption.isEmpty {
-                        Text(Self.placeholder)
-                            .font(Theme.body)
-                            .foregroundStyle(Theme.mutedForeground)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledField(label: "Description (optional)", padding: 8) {
+                TextEditor(text: limitedCaption)
+                    // Hide TextEditor's opaque background so the field surface shows through.
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .frame(minHeight: noteMinHeight)
+                    .accessibilityLabel("Description, optional")
+                    .accessibilityIdentifier("createDescriptionField")
+                    .accessibilityHint(Self.placeholder)
+                    .overlay(alignment: .topLeading) {
+                        if caption.isEmpty {
+                            Text(Self.placeholder)
+                                .font(Theme.body)
+                                .foregroundStyle(Theme.mutedForeground)
+                                .padding(.top, 8)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
+            }
+            Text("\(caption.count)/\(CreateWizardModel.maxCaptionLength)")
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
+                .accessibilityLabel("\(caption.count) of \(CreateWizardModel.maxCaptionLength) characters")
         }
     }
 }
@@ -82,13 +90,19 @@ struct OccasionSection: View {
     @Binding var occasion: String
     let options: [String]
 
+    private var picked: [String] { CreateWizardModel(occasion: occasion).selectedOccasions }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: "What’s the occasion?")
+            Text("Pick all that apply")
+                .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(options, id: \.self) { option in
-                        ChipToggle(label: option, selected: occasion == option) { occasion = occasion == option ? "" : option }
+                        ChipToggle(label: option, selected: picked.contains(option)) {
+                            occasion = CreateWizardModel.toggledOccasion(option, in: occasion)
+                        }
                     }
                 }
             }
@@ -120,22 +134,25 @@ struct AudienceSection: View {
     @Binding var selectedAudience: FitCheckAudience
     @Binding var selectedGroupId: UUID?
     let myGroups: [FashionGroup]
+    let hasChosenAudience: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             SectionHeader(title: "Who can see this?")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 8) {
                 ForEach(FitCheckAudience.allCases) { option in audienceButton(option) }
             }
             if selectedAudience == .group { groupChooser }
-            Text(selectedAudience.description)
+            Text(hasChosenAudience ? selectedAudience.description : "Choose who can see your Fit-Check.")
                 .font(Theme.caption).foregroundStyle(Theme.mutedForeground)
         }
     }
 
     private func audienceButton(_ option: FitCheckAudience) -> some View {
-        let isSelected = selectedAudience == option
+        let isSelected = hasChosenAudience && selectedAudience == option
         let shape = RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous)
         return Button {
             withAnimation(Theme.animation(Theme.press, reduceMotion: reduceMotion)) { selectedAudience = option }
@@ -155,6 +172,7 @@ struct AudienceSection: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("createAudience.\(option.rawValue)")
     }
 
     @ViewBuilder
