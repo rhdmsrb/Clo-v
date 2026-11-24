@@ -19,21 +19,26 @@ struct HoldToVoteGesture: ViewModifier {
     @State private var ticker: Task<Void, Never>?
     @State private var showBurst = false
     @State private var burstTask: Task<Void, Never>?
+    /// True while a finger is down on the view, from touch-down until lift or slide-away.
+    @GestureState private var isTouching = false
 
     func body(content: Content) -> some View {
         // Always the same view structure so @State (burst, hold) survives
         // isEnabled flipping false right after an optimistic vote.
         content
             .overlay { ring }
-            .onLongPressGesture(
-                minimumDuration: HoldProgress.duration,
-                maximumDistance: Self.slopDistance,
-                perform: { if isEnabled { finish() } },
-                onPressingChanged: { pressing in
-                    guard isEnabled else { return cancel() }
-                    pressing ? start() : cancel()
-                }
+            // Simultaneous, not `onLongPressGesture`: the photo carousel underneath has its
+            // own tap and long-press gestures, and a child's gesture wins over a parent's
+            // exclusive one, so a plain long press here never fired on a carousel.
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: HoldProgress.duration, maximumDistance: Self.slopDistance)
+                    .updating($isTouching) { pressing, state, _ in state = pressing }
+                    .onEnded { _ in if isEnabled { finish() } }
             )
+            .onChange(of: isTouching) { _, touching in
+                guard isEnabled else { return cancel() }
+                touching ? start() : cancel()
+            }
             .accessibilityActions {
                 if isEnabled { Button("Vote for this look", action: onVote) }
             }
@@ -99,8 +104,11 @@ struct HoldToVoteGesture: ViewModifier {
     private func finish() {
         ticker?.cancel()
         ticker = nil
-        guard hold.phase == .holding else { return }
+        // `.idle` too: the system confirmed the hold even if the touch-down update
+        // has not reached `start()` yet. Only a hold that already voted is skipped.
+        guard hold.phase != .completed else { return }
         isPressing?.wrappedValue = false
+        if hold.phase == .idle { hold = hold.begin() }
         hold = hold.complete()
         // Success haptic is fired by the vote model (covers the accessibility path too).
         Haptics.impact(.heavy)

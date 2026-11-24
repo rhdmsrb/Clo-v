@@ -109,6 +109,8 @@ struct HomeFitCard: View {
                 // The carousel draws page dots at its foot; run it past the clipped edge so the
                 // dots stay hidden behind the hanging row. The thumbnails show the position.
                 .padding(.bottom, -Self.hiddenDotsInset)
+                // On the carousel itself, beside its own gestures, so a hold always reaches it.
+                .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote) { castVoteForShownPhoto() }
         }
         .overlay { if expired { endedOverlay } }
         // Results pop into the middle of the photo once revealed, for the look on screen.
@@ -123,7 +125,6 @@ struct HomeFitCard: View {
             }
         }
         .animation(Theme.animation(Self.resultSpring, reduceMotion: reduceMotion), value: model.isResultsRevealed)
-        .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote) { castVoteForShownPhoto() }
         // The action row hangs half off the photo's bottom edge.
         .overlay(alignment: .bottom) {
             heroRow(canVote: canVote)
@@ -160,8 +161,9 @@ struct HomeFitCard: View {
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
+    /// Votes for the look on screen; once voted, a second tap takes the vote back.
     private func votePill(canVote: Bool) -> some View {
-        Button(action: castVoteForShownPhoto) {
+        Button(action: model.canRetract ? undo : castVoteForShownPhoto) {
             Text(votePillTitle)
                 .font(Theme.font(.headline, weight: .bold))
                 .tracking(0.6)
@@ -176,8 +178,9 @@ struct HomeFitCard: View {
                 .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(InstantPressStyle())
-        .disabled(!canVote)
-        .accessibilityLabel(canVote ? "Vote for \(shownLookTitle)" : votePillTitle)
+        .disabled(!canVote && !model.canRetract)
+        .accessibilityLabel(votePillAccessibilityLabel(canVote: canVote))
+        .accessibilityHint(model.canRetract ? "Takes your vote back so you can pick again" : "")
         .accessibilityIdentifier("feed-vote-hero")
     }
 
@@ -185,7 +188,13 @@ struct HomeFitCard: View {
         shownPhoto.map { PostCardContent.voteButtonTitle(position: $0.position) } ?? "this look"
     }
 
+    private func votePillAccessibilityLabel(canVote: Bool) -> String {
+        if model.canRetract { return "Voted. Undo vote" }
+        return canVote ? "Vote for \(shownLookTitle)" : votePillTitle
+    }
+
     private var votePillTitle: String {
+        if model.canRetract { return "VOTED · UNDO" }
         if model.myVote != nil { return "VOTED" }
         if model.isEnded { return "ENDED" }
         if model.isCreator { return "YOUR POST" }

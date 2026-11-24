@@ -52,6 +52,26 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(vote.isEnabled)
     }
 
+    /// After voting, the same black pill takes the vote back, so the viewer can re-pick.
+    func testVotedPillUndoesTheVote() {
+        let app = XCUIApplication()
+        app.launchArguments = [Self.sampleDataArgument]
+        app.launch()
+        let vote = app.buttons["feed-vote-hero"].firstMatch
+        XCTAssertTrue(vote.waitForExistence(timeout: 15))
+        bringIntoOpenArea(vote, in: app)
+        vote.tap()
+        let results = app.descendants(matching: .any)["feed-vote-results"].firstMatch
+        XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after voting")
+        let votedPill = app.buttons["feed-vote-hero"].firstMatch
+        XCTAssertTrue(votedPill.label.contains("Undo vote"), "the voted pill should offer Undo")
+        XCTAssertTrue(votedPill.isEnabled, "the voted pill must stay tappable to undo")
+
+        votedPill.tap()
+        XCTAssertTrue(results.waitForNonExistence(timeout: 5), "the results stayed after undoing from the pill")
+        XCTAssertTrue(app.buttons["feed-vote-hero"].firstMatch.label.hasPrefix("Vote for"))
+    }
+
     func testQuickPostRequiresAnAudienceChoice() {
         let app = XCUIApplication()
         app.launchArguments = [Self.sampleDataArgument, "--uiTestCreatePhotos"]
