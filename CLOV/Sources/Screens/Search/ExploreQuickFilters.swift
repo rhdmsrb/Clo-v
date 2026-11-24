@@ -32,7 +32,7 @@ struct ExploreQuickFilters: View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Spacing.s) {
-                    FilterChip(title: "Popular", systemImage: "flame", isSelected: filter.occasion == nil) {
+                    FilterChip(title: "Popular", isSelected: filter.occasion == nil) {
                         select(occasion: nil)
                     }
                     .accessibilityIdentifier("explore.chip.popular")

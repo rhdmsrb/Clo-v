@@ -18,7 +18,7 @@ enum HomeFeedFilters {
             return FilterOption(id: tagPrefix + key, title: title)
         }
         return [
-            FilterOption(id: popular, title: "Popular", systemImage: "flame"),
+            FilterOption(id: popular, title: "Popular"),
             FilterOption(id: new, title: "New"),
             FilterOption(id: following, title: "Following")
         ] + styles
