@@ -142,7 +142,7 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Style momentum"].exists)
     }
 
-    func testProfileAnalyticsOpensWardrobeInsights() throws {
+    func testProfileAnalyticsShowsWardrobeInsights() throws {
         let app = launchTestApp()
 
         let accountTab = app.buttons["accountTab"]
@@ -152,14 +152,11 @@ final class WardrobeFlowUITests: XCTestCase {
         let analytics = app.buttons["profile.analytics"]
         XCTAssertTrue(analytics.waitForExistence(timeout: 10), "Analytics should be on the Profile screen")
         analytics.tap()
-        let insights = app.buttons["profile.analytics.wardrobeInsights"]
-        XCTAssertTrue(insights.waitForExistence(timeout: 5), "Wardrobe insights should be in the Analytics panel")
-        insights.tap()
-
-        XCTAssertTrue(app.navigationBars["Wardrobe insights"].waitForExistence(timeout: 5))
+        // Wardrobe insights sit right in the Analytics panel, with no extra tap.
+        XCTAssertTrue(app.staticTexts["Wardrobe insights"].waitForExistence(timeout: 5))
         // An empty test wardrobe shows the empty state; otherwise the dimension chips.
         let colorChip = app.buttons["wardrobeInsights.dimension.color"]
-        let emptyState = app.staticTexts["No pieces yet"]
+        let emptyState = app.staticTexts["wardrobeInsights.empty"]
         XCTAssertTrue(colorChip.waitForExistence(timeout: 10) || emptyState.exists)
         if colorChip.exists {
             colorChip.tap()

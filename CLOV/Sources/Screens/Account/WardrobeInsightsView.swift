@@ -3,6 +3,7 @@ import Charts
 
 /// Wardrobe insights: what the wardrobe is made of (donut by category, color,
 /// brand, season or tag), what it is worth and how often pieces get worn.
+/// Shown inline in the profile's Analytics panel, under Style momentum.
 @MainActor
 struct WardrobeInsightsView: View {
     @EnvironmentObject private var appState: AppState
@@ -21,25 +22,31 @@ struct WardrobeInsightsView: View {
     private var insights: WardrobeInsights { WardrobeInsights(items: items).filtered(by: category) }
 
     var body: some View {
-        ScrollView {
-            AsyncStateView(isLoading: isLoading, error: error, topPadding: Spacing.l,
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Wardrobe insights")
+                    .font(Theme.displayFont)
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("What you own, what it's worth, what you wear")
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.mutedForeground)
+            }
+            AsyncStateView(isLoading: isLoading, error: error, topPadding: 0,
                            hasLoaded: hasLoaded, retry: { await load() }) {
                 if items.isEmpty {
-                    EmptyStateView(icon: "chart.pie", title: "No pieces yet",
-                                   message: "Add clothes to your wardrobe to see what you own, what it's worth and what you wear.")
-                        .padding(.top, Spacing.xl)
+                    Text("Add clothes to your wardrobe to see what you own, what it's worth and what you wear.")
+                        .font(Theme.body)
+                        .foregroundStyle(Theme.mutedForeground)
+                        .accessibilityIdentifier("wardrobeInsights.empty")
                 } else {
                     content
                 }
             }
-            .padding(20)
         }
-        .clearsTabBar()
-        .background(Theme.background)
-        .navigationTitle("Wardrobe insights")
-        .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await load() }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .revisionTask(appState.contentRevision) { await load() }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("wardrobeInsights.screen")
     }
 

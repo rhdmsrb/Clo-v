@@ -3,7 +3,7 @@ import PhotosUI
 
 /// Where the profile menu navigates.
 private enum ProfileDestination: Hashable {
-    case wardrobe, wardrobeInsights, groups, friends, yourWeek, privacy, appearance, settings, notifications
+    case wardrobe, groups, friends, yourWeek, privacy, appearance, settings, notifications
 }
 
 @MainActor
@@ -49,7 +49,8 @@ struct AccountView: View {
                 actionButtons
                     .padding(.bottom, -12)
                 if showingAnalytics {
-                    StyleInsightsView(inline: true) { destination = .wardrobeInsights }
+                    StyleInsightsView(inline: true)
+                    WardrobeInsightsView()
                 }
                 segmentPicker
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 20, hasLoaded: hasLoaded, retry: { await load() }) {
@@ -238,7 +239,6 @@ struct AccountView: View {
     private func destinationView(_ destination: ProfileDestination) -> some View {
         switch destination {
         case .wardrobe: WardrobeView()
-        case .wardrobeInsights: WardrobeInsightsView()
         case .groups: GroupsView(embedded: true)
         case .friends: FriendsView()
         case .yourWeek: StyleInsightsView()
