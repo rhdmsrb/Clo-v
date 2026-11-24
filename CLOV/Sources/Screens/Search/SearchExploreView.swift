@@ -307,20 +307,20 @@ struct SearchExploreView: View {
             .accessibilityIdentifier("explore-tile")
     }
 
-    /// Author under the tile in small gray text, like a label under a product shot,
-    /// with the like count when there is one.
+    /// Author under the tile, like a label under a product shot, with the like count
+    /// when there is one. Sized and inked to stay readable under the photo.
     private func tileFooter(_ item: FeedItemDTO) -> some View {
         HStack(spacing: Spacing.xs) {
             Text(item.profiles?.nickname ?? "someone")
-                .font(Theme.font(.caption))
-                .foregroundStyle(Theme.mutedForeground)
+                .font(Theme.font(.subheadline, weight: .semibold))
+                .foregroundStyle(Theme.ink)
                 .lineLimit(1)
             Spacer(minLength: 0)
             if let likes = PostCardContent.displayLikeCount(item.likeCount) {
                 Label("\(likes)", systemImage: "heart")
                     .labelStyle(CompactLabelStyle())
-                    .font(Theme.font(.caption2))
-                    .foregroundStyle(Theme.mutedForeground)
+                    .font(Theme.font(.footnote, weight: .medium))
+                    .foregroundStyle(Theme.ink.opacity(0.75))
                     .lineLimit(1)
             }
         }

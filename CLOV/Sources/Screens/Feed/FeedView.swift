@@ -29,8 +29,6 @@ struct FeedView: View {
     @State private var pendingFollowIDs: Set<UUID> = []
     @State private var pendingLikeIDs: Set<UUID> = []
     @State private var loadID = UUID()
-    /// Selected filter chip (see `HomeFeedFilters`).
-    @State private var homeFilter = HomeFeedFilters.popular
     @State private var firstPhotoDisplayed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.tabBarClearance) private var tabBarClearance
@@ -112,8 +110,6 @@ struct FeedView: View {
             VStack(alignment: .leading, spacing: Self.cardSpacing) {
                 HomeHeader(nickname: appState.profile?.nickname)
                     .padding(.horizontal, Self.pagePadding)
-                FilterChipRow(options: HomeFeedFilters.options(stylePreferences: appState.profile?.stylePreferences ?? []),
-                              selection: $homeFilter, accessibilityLabel: "Feed filters")
                 feedList
                 olderFitChecksButton.padding(.horizontal, Self.pagePadding)
             }
@@ -146,24 +142,16 @@ struct FeedView: View {
         }
     }
 
-    /// The ranked feed narrowed or reordered by the selected filter chip.
-    private var shownItems: [FeedItemDTO] {
-        HomeFeedFilters.apply(homeFilter, to: visibleItems, followingIDs: followingIDs)
-    }
-
     private var feedList: some View {
-        let shown = shownItems
-        return AsyncStateView(isLoading: isLoading, error: error, isEmpty: shown.isEmpty,
-                       emptyText: shown.isEmpty && !visibleItems.isEmpty
-                           ? "No looks match this filter yet. Try another one."
-                           : emptyFeedText,
+        AsyncStateView(isLoading: isLoading, error: error, isEmpty: visibleItems.isEmpty,
+                       emptyText: emptyFeedText,
                        topPadding: 40, hasLoaded: hasLoaded,
                        retry: { await load(refreshGraph: true) }, emptyIcon: "hanger",
                        emptyTitle: "No Fit-Checks yet",
                        emptyActionTitle: "Find friends", emptyAction: { showFriends = true },
                        skeleton: .cards) {
             LazyVStack(spacing: Self.postSpacing) {
-                ForEach(shown) { item in
+                ForEach(visibleItems) { item in
                     HomeFitCard(
                         item: item,
                         viewerId: appState.userId,

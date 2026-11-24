@@ -110,22 +110,21 @@ final class DesignReviewUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "fit")
     }
 
-    /// The feed header: wordmark and filter chips. Search stays a tab; the older header
-    /// controls (search field, bell, mode segments, sort menu, watch-reel button) stay gone.
-    func testFeedHeaderShowsFiltersAndSearchStaysATab() {
+    /// The feed header is just the wordmark and greeting: no filter chips. Search stays a
+    /// tab; the older header controls (search field, bell, mode segments, sort menu,
+    /// watch-reel button) stay gone.
+    func testFeedHeaderHasNoControlsAndSearchStaysATab() {
         let app = launchApp()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["searchTab"].exists)
         XCTAssertTrue(app.buttons["groupsTab"].exists)
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch.exists)
-        XCTAssertTrue(app.buttons["filter.popular"].exists)
-        XCTAssertTrue(app.buttons["filter.popular"].isSelected)
+        XCTAssertFalse(app.buttons["filter.popular"].exists)
+        XCTAssertFalse(app.buttons["filter.new"].exists)
         XCTAssertFalse(app.buttons["watchFeedButton"].exists)
         XCTAssertFalse(app.buttons["feedMode_ForYou"].exists)
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sort:'")).firstMatch.exists)
-        app.buttons["filter.new"].tap()
-        XCTAssertTrue(app.buttons["filter.new"].isSelected)
-        attach(app, name: "home-filter-new")
+        attach(app, name: "home-header")
     }
 
     func testAnalyticsExpandsOnProfile() {
