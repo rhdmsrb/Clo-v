@@ -1,22 +1,6 @@
 import SwiftUI
 
-/// Pure greeting wording for the Home header, unit tested.
-enum HomeGreeting {
-    /// "Good morning, maya" / "Good afternoon" / "Good evening" / "Up late" by hour (0...23).
-    static func text(hour: Int, nickname: String?) -> String {
-        let salutation: String
-        switch hour {
-        case 5..<12: salutation = "Good morning"
-        case 12..<17: salutation = "Good afternoon"
-        case 17..<23: salutation = "Good evening"
-        default: salutation = "Up late"
-        }
-        let name = nickname?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return name.isEmpty ? salutation : "\(salutation), \(name)"
-    }
-}
-
-/// Top of the feed: a large, heavy serif wordmark with an italic serif greeting under it.
+/// Top of the feed: a large, heavy serif wordmark with an italic serif outfit prompt under it.
 /// (Search is its own tab; notifications live on Profile.)
 struct HomeHeader: View {
     let nickname: String?
@@ -35,10 +19,11 @@ struct HomeHeader: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("feed.logo")
             TimelineView(.everyMinute) { context in
-                Text(HomeGreeting.text(hour: Calendar.current.component(.hour, from: context.date), nickname: nickname))
+                Text(HomeGreeting.text(date: context.date, nickname: nickname))
                     .font(Theme.serifGreeting)
                     .foregroundStyle(Theme.ink.opacity(0.85))
-                    .lineLimit(1)
+                    // Prompts are a full question, so let a long nickname wrap instead of truncating.
+                    .lineLimit(2)
                     .accessibilityIdentifier("home.greeting")
             }
         }
