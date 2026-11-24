@@ -6,6 +6,8 @@ struct HoldToVoteGesture: ViewModifier {
     var isEnabled: Bool = true
     /// Mirrors whether a hold is in progress, so a parent can pause auto-advancing photos while it lasts.
     var isPressing: Binding<Bool>?
+    /// Mirrors the hold's 0...1 progress, so a parent can draw its own gauge; back to 0 when it ends.
+    var progress: Binding<Double>?
     /// Seconds the finger must stay down before the vote is cast.
     var duration: TimeInterval = HoldProgress.duration
     let onVote: () -> Void
@@ -91,6 +93,7 @@ struct HoldToVoteGesture: ViewModifier {
                 guard !Task.isCancelled else { return }
                 let previous = hold
                 hold = hold.tick(elapsed: Date().timeIntervalSince(startedAt), duration: duration)
+                progress?.wrappedValue = hold.progress
                 if hold.crossedMilestones(since: previous) > 0 { Haptics.impact(.light) }
             }
         }
@@ -100,6 +103,7 @@ struct HoldToVoteGesture: ViewModifier {
         ticker?.cancel()
         ticker = nil
         isPressing?.wrappedValue = false
+        progress?.wrappedValue = 0
         if hold.phase != .completed { hold = hold.cancel() }
     }
 
@@ -110,6 +114,7 @@ struct HoldToVoteGesture: ViewModifier {
         // has not reached `start()` yet. Only a hold that already voted is skipped.
         guard hold.phase != .completed else { return }
         isPressing?.wrappedValue = false
+        progress?.wrappedValue = 0
         if hold.phase == .idle { hold = hold.begin() }
         hold = hold.complete()
         // Success haptic is fired by the vote model (covers the accessibility path too).
@@ -138,9 +143,11 @@ struct HoldToVoteGesture: ViewModifier {
 extension View {
     /// Hold for `duration` seconds (0.6 by default) to vote. Adds the "Vote for this look" accessibility action.
     func holdToVote(isEnabled: Bool = true, isPressing: Binding<Bool>? = nil,
+                    progress: Binding<Double>? = nil,
                     duration: TimeInterval = HoldProgress.duration,
                     onVote: @escaping () -> Void) -> some View {
-        modifier(HoldToVoteGesture(isEnabled: isEnabled, isPressing: isPressing, duration: duration, onVote: onVote))
+        modifier(HoldToVoteGesture(isEnabled: isEnabled, isPressing: isPressing, progress: progress,
+                                   duration: duration, onVote: onVote))
     }
 }
 

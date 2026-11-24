@@ -92,6 +92,7 @@
 		5543857BFEA255507C5AA318 /* PhotoFan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2055C301159EC649CD3BF75A /* PhotoFan.swift */; };
 		555CF553DCFE47556FE8B736 /* OutfitSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1919F848A170B39C603A6955 /* OutfitSelectionTests.swift */; };
 		559E6D0685C5AEB1E51854D2 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E122BB9565C9C461EFFEA5EA /* Haptics.swift */; };
+		567B6243A66D7843CD352E5F /* HudVoteControlsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F75824D986AF1F9E88A1300 /* HudVoteControlsTests.swift */; };
 		57D4CA639D84629D737D52BA /* GroupAddSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C43F3DBB171F45F3732146 /* GroupAddSheet.swift */; };
 		585E549B93751A3707318896 /* DraftSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074312CB9734C112C9470488 /* DraftSweepTests.swift */; };
 		5AB6C29E62057AC7DCCED133 /* ShareURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA76D53F64B3A4EFF8BF6945 /* ShareURL.swift */; };
@@ -123,6 +124,7 @@
 		7FF5CC98818F9EDDAC150C21 /* PushNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C99F3AB21D1DAF4F3D6F779 /* PushNotifications.swift */; };
 		83A741362F783DACDE09BF68 /* VoteTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE3B73DE16BAEC943388DDF4 /* VoteTile.swift */; };
 		86F816638D487CF8CBAD0E61 /* SearchTermTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D2B143DA18FD8906D99F477 /* SearchTermTests.swift */; };
+		877AD9F516EC51FC466C9EE7 /* HudVoteControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 236FEA7235C739988C07117F /* HudVoteControls.swift */; };
 		899C22C54D0475054F9784DE /* AspectFitTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA4CE9F954577415FCFE861 /* AspectFitTile.swift */; };
 		89D3DC6A0338BA47A58390F9 /* ExploreFiltersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D72E170EC73CA6B10698CE2 /* ExploreFiltersSheet.swift */; };
 		8A23A527A4E2E453F51E1317 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 974EB925BCD125CA2E2B8E40 /* SettingsView.swift */; };
@@ -292,6 +294,7 @@
 		2296DE7F976882B775C7E682 /* SkeletonViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonViews.swift; sourceTree = "<group>"; };
 		22DBF0EE6CAA178EFCE60306 /* API+Groups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "API+Groups.swift"; sourceTree = "<group>"; };
 		2310F8BA84DA74A2991472BE /* CreateWizardModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateWizardModelTests.swift; sourceTree = "<group>"; };
+		236FEA7235C739988C07117F /* HudVoteControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HudVoteControls.swift; sourceTree = "<group>"; };
 		24111D39B51894DFBA21AFBC /* PrimaryPillButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryPillButton.swift; sourceTree = "<group>"; };
 		269D9BE2C75A9D3F4498D1D2 /* WardrobeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeView.swift; sourceTree = "<group>"; };
 		283C9F8DFE070C44024AA118 /* FitCheckReelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitCheckReelView.swift; sourceTree = "<group>"; };
@@ -312,6 +315,7 @@
 		3BDC94BACD100FC356B89AF7 /* PostCardContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCardContent.swift; sourceTree = "<group>"; };
 		3D72E170EC73CA6B10698CE2 /* ExploreFiltersSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreFiltersSheet.swift; sourceTree = "<group>"; };
 		3DB047727AE7EAF69A72CB48 /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
+		3F75824D986AF1F9E88A1300 /* HudVoteControlsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HudVoteControlsTests.swift; sourceTree = "<group>"; };
 		414B1C3068A16BA023185C54 /* API+Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "API+Notifications.swift"; sourceTree = "<group>"; };
 		45D51B931915B6D9003EC075 /* API+DraftSweep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "API+DraftSweep.swift"; sourceTree = "<group>"; };
 		48443527CF766350027BF487 /* BoundedWaitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundedWaitTests.swift; sourceTree = "<group>"; };
@@ -534,6 +538,7 @@
 				FB3E8525FB0BE1390E9CB974 /* FlowLayoutTests.swift */,
 				171B46C81F7AC7B9674D3E05 /* GroupsLogicTests.swift */,
 				BA9E9ECB09968108D266EFCC /* HomeGreetingTests.swift */,
+				3F75824D986AF1F9E88A1300 /* HudVoteControlsTests.swift */,
 				5B427C3356B3CD90432379A1 /* ImageCacheKeyTests.swift */,
 				01CB773663B21203B6DCFE5D /* InviteCodeTests.swift */,
 				1919F848A170B39C603A6955 /* OutfitSelectionTests.swift */,
@@ -579,6 +584,7 @@
 				A161AAA4D89ECD30EB1AC848 /* FilterChip.swift */,
 				5BE97C2D698CC732F98485BB /* FitCard.swift */,
 				56644B936F8A4EE73A465AD8 /* FloatingIconButton.swift */,
+				236FEA7235C739988C07117F /* HudVoteControls.swift */,
 				E016BA63CA7FE89C650FFB97 /* MarbleBackground.swift */,
 				DE4A12D2A6CCF86CAAD01801 /* PaperBackground.swift */,
 				24111D39B51894DFBA21AFBC /* PrimaryPillButton.swift */,
@@ -1077,6 +1083,7 @@
 				31D37E101C8B8F58E94DA736 /* FlowLayoutTests.swift in Sources */,
 				695D42E01D6B1400EE165697 /* GroupsLogicTests.swift in Sources */,
 				7889B52445DB8409079C1CC1 /* HomeGreetingTests.swift in Sources */,
+				567B6243A66D7843CD352E5F /* HudVoteControlsTests.swift in Sources */,
 				A5F570E4A6D878CA373F5A53 /* ImageCacheKeyTests.swift in Sources */,
 				024C33323DDEB358A6121E5A /* InviteCodeTests.swift in Sources */,
 				555CF553DCFE47556FE8B736 /* OutfitSelectionTests.swift in Sources */,
@@ -1189,6 +1196,7 @@
 				9D4C3AE6DF93FBC4F9DBEE2F /* HomeFitCardActions.swift in Sources */,
 				17144D94909BEA038D7F0127 /* HomeGreeting.swift in Sources */,
 				B6BE33AB35D3E88FFB551C40 /* HomeHeader.swift in Sources */,
+				877AD9F516EC51FC466C9EE7 /* HudVoteControls.swift in Sources */,
 				D1377655ADA1BD29503AF485 /* ImageCache.swift in Sources */,
 				21AF2833233DE6F6386F6FA3 /* InviteCode.swift in Sources */,
 				C4F2BBBF470651B12FEE641F /* LabeledField.swift in Sources */,

@@ -3,7 +3,8 @@ import SwiftUI
 /// Feed post in the editorial hero style: a full-bleed photo with nearly square corners
 /// (auto-rotating; hold for two seconds to vote for the look on screen, double-tap to open
 /// the voting screen), a row hanging off its
-/// bottom edge (Like and Comment in small white pills, a large black Vote pill), then the
+/// bottom edge (Like and Comment in small outlined boxes, a black HUD-style Vote block with a
+/// gauge, and Undo beside it once voted), then the
 /// author, look thumbnails, the results once revealed, and the caption. Voting goes
 /// through `ReelVoteModel`, so the optimistic update, rollback and resync match the rest
 /// of the app.
@@ -27,9 +28,10 @@ struct HomeFitCard: View {
     @StateObject private var model: ReelVoteModel
     @State private var photoIndex = 0
     @State private var isHoldingToVote = false
+    /// 0...1 while a finger holds the photo; drives the Vote block's gauge.
+    @State private var holdProgress: Double = 0
     @ScaledMetric(relativeTo: .body) private var heroRowHeight: CGFloat = 52
     @ScaledMetric(relativeTo: .body) private var smallPillHeight: CGFloat = 40
-    private static let votePillMinWidth: CGFloat = 150
     /// Dots sit 10pt above the carousel's foot and are about 19pt tall.
     private static let hiddenDotsInset: CGFloat = 32
     /// Seconds a finger must stay on the photo to vote, long enough that a scroll or a tap never votes.
@@ -113,7 +115,8 @@ struct HomeFitCard: View {
                 // dots stay hidden behind the hanging row. The thumbnails show the position.
                 .padding(.bottom, -Self.hiddenDotsInset)
                 // On the carousel itself, beside its own gestures, so a hold always reaches it.
-                .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote, duration: Self.holdToVoteSeconds) {
+                .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote, progress: $holdProgress,
+                            duration: Self.holdToVoteSeconds) {
                     castVoteForShownPhoto()
                 }
         }
@@ -140,11 +143,11 @@ struct HomeFitCard: View {
     }
 
     private func heroRow(canVote: Bool) -> some View {
-        HStack(spacing: Spacing.s) {
+        HStack(spacing: Spacing.xs) {
             Spacer(minLength: 0)
             LikeButton(isLiked: isLiked, count: PostCardContent.displayLikeCount(item.likeCount),
                        accessibilityIdentifier: "feed-like-button", perform: onLike)
-                .modifier(WhitePill(height: smallPillHeight))
+                .modifier(HudIconBox(height: smallPillHeight))
             Button(action: onComment) {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "bubble.left")
@@ -157,53 +160,69 @@ struct HomeFitCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(InstantPressStyle())
-            .modifier(WhitePill(height: smallPillHeight))
+            .modifier(HudIconBox(height: smallPillHeight))
             .accessibilityLabel("Comments")
             .accessibilityValue(item.fitCheckComments.isEmpty ? "" : "\(item.fitCheckComments.count)")
             .accessibilityIdentifier("feed-comment-button")
-            votePill(canVote: canVote)
+            voteBlock(canVote: canVote)
+            if model.canRetract {
+                HudUndoButton(height: heroRowHeight, action: undo)
+            }
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    /// Votes for the look on screen; once voted, a second tap takes the vote back.
-    private func votePill(canVote: Bool) -> some View {
-        Button(action: model.canRetract ? undo : castVoteForShownPhoto) {
-            Text(votePillTitle)
-                .font(Theme.font(.headline, weight: .bold))
-                .tracking(0.6)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .foregroundStyle(Theme.primaryButtonText)
-                .padding(.horizontal, Spacing.l)
-                .frame(minWidth: Self.votePillMinWidth, minHeight: heroRowHeight)
-                .background(Theme.primaryButtonFill, in: Capsule(style: .continuous))
-                .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.85), lineWidth: 1.5))
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
-                .contentShape(Capsule(style: .continuous))
+    /// Before a vote: a button that votes for the look on screen, its gauge following a hold.
+    /// After: a read-out of the picked look and its share of the votes; Undo sits beside it.
+    @ViewBuilder
+    private func voteBlock(canVote: Bool) -> some View {
+        if let gaugePhoto = resultPhoto {
+            HudVoteBlock(title: voteBlockTitle, detail: HudStyle.lookCode(position: gaugePhoto.position),
+                         fraction: Double(model.percent(for: gaugePhoto.id)) / 100,
+                         isVoted: model.myVote != nil, minHeight: heroRowHeight)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(resultAccessibilityLabel(for: gaugePhoto))
+                .accessibilityIdentifier("feed-vote-hero")
+        } else {
+            Button(action: castVoteForShownPhoto) {
+                HudVoteBlock(title: voteBlockTitle,
+                             detail: shownPhoto.map { "→ " + HudStyle.lookCode(position: $0.position) },
+                             fraction: holdProgress, isVoted: false, minHeight: heroRowHeight,
+                             isTracking: isHoldingToVote)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(InstantPressStyle())
+            .disabled(!canVote)
+            .accessibilityLabel(canVote ? "Vote for \(shownLookTitle)" : voteBlockTitle)
+            .accessibilityIdentifier("feed-vote-hero")
         }
-        .buttonStyle(InstantPressStyle())
-        .disabled(!canVote && !model.canRetract)
-        .accessibilityLabel(votePillAccessibilityLabel(canVote: canVote))
-        .accessibilityHint(model.canRetract ? "Takes your vote back so you can pick again" : "")
-        .accessibilityIdentifier("feed-vote-hero")
+    }
+
+    /// The look the gauge reports once results are revealed: the viewer's pick, else
+    /// (creator, ended) the look on screen. `nil` before results, while the gauge tracks a hold.
+    private var resultPhoto: FitCheckPhoto? {
+        guard model.isResultsRevealed else { return nil }
+        if let myVote = model.myVote, let picked = model.photos.first(where: { $0.id == myVote }) {
+            return picked
+        }
+        return shownPhoto
     }
 
     private var shownLookTitle: String {
         shownPhoto.map { PostCardContent.voteButtonTitle(position: $0.position) } ?? "this look"
     }
 
-    private func votePillAccessibilityLabel(canVote: Bool) -> String {
-        if model.canRetract { return "Voted. Undo vote" }
-        return canVote ? "Vote for \(shownLookTitle)" : votePillTitle
+    private func resultAccessibilityLabel(for photo: FitCheckPhoto) -> String {
+        let look = PostCardContent.voteButtonTitle(position: photo.position)
+        let share = "\(model.percent(for: photo.id)) percent"
+        return model.myVote != nil ? "Voted for \(look), \(share)" : "\(voteBlockTitle), \(look), \(share)"
     }
 
-    private var votePillTitle: String {
-        if model.canRetract { return "VOTED · UNDO" }
-        if model.myVote != nil { return "VOTED" }
+    private var voteBlockTitle: String {
+        if model.myVote != nil { return "✓ VOTED" }
         if model.isEnded { return "ENDED" }
         if model.isCreator { return "YOUR POST" }
-        return "VOTE \(shownLookTitle.uppercased())"
+        return "VOTE"
     }
 
     private var endedOverlay: some View {
@@ -296,7 +315,6 @@ struct HomeFitCard: View {
                         .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
                     Spacer(minLength: 0)
-                    if model.canRetract { undoButton }
                 }
             } else if model.canVote {
                 Text("Pick a look, then tap Vote. Or hold the photo for 2 seconds.")
@@ -312,20 +330,6 @@ struct HomeFitCard: View {
             }
         }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
-    }
-
-    private var undoButton: some View {
-        Button(action: undo) {
-            Text("Undo")
-                .font(Theme.font(.footnote, weight: .semibold))
-                .foregroundStyle(Theme.accentDeep)
-                .padding(.horizontal, Spacing.sm)
-                .frame(minHeight: Theme.minTapSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Undo vote")
-        .accessibilityIdentifier("feed-vote-undo")
     }
 
     private var footerText: String {
@@ -354,20 +358,5 @@ struct HomeFitCard: View {
     private func recorded() {
         onVoteChange(model.myVote, model.total)
         appState.contentDidChange(reloadHomeFeed: false)
-    }
-}
-
-/// Small white pill for the icons hanging off the hero photo. Always light, so the
-/// icons stay dark on white in dark mode too.
-private struct WhitePill: ViewModifier {
-    let height: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .padding(.horizontal, Spacing.sm)
-            .frame(minWidth: height * 1.4, minHeight: height)
-            .background(Color.white, in: Capsule(style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
-            .environment(\.colorScheme, .light)
     }
 }

@@ -50,8 +50,9 @@ final class VoteFanUITests: XCTestCase {
         XCTAssertTrue(vote.isEnabled)
     }
 
-    /// After voting, the same black pill takes the vote back, so the viewer can re-pick.
-    func testVotedPillUndoesTheVote() {
+    /// After voting, the HUD block reads out the picked look and its share, and the Undo
+    /// button beside it takes the vote back so the viewer can re-pick.
+    func testVotedBlockShowsTheShareAndUndoTakesTheVoteBack() {
         let app = XCUIApplication()
         app.launchArguments = [Self.sampleDataArgument]
         app.launch()
@@ -61,12 +62,15 @@ final class VoteFanUITests: XCTestCase {
         vote.tap()
         let results = app.descendants(matching: .any)["feed-vote-results"].firstMatch
         XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after voting")
-        let votedPill = app.buttons["feed-vote-hero"].firstMatch
-        XCTAssertTrue(votedPill.label.contains("Undo vote"), "the voted pill should offer Undo")
-        XCTAssertTrue(votedPill.isEnabled, "the voted pill must stay tappable to undo")
+        let voted = app.descendants(matching: .any)["feed-vote-hero"].firstMatch
+        XCTAssertTrue(voted.label.hasPrefix("Voted for"), "the block should read out the pick: \(voted.label)")
+        XCTAssertTrue(voted.label.contains("percent"), "the block should give the look's share: \(voted.label)")
 
-        votedPill.tap()
-        XCTAssertTrue(results.waitForNonExistence(timeout: 5), "the results stayed after undoing from the pill")
+        let undo = app.buttons["feed-vote-undo"].firstMatch
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), "no Undo beside the voted block")
+        bringIntoOpenArea(undo, in: app)
+        undo.tap()
+        XCTAssertTrue(results.waitForNonExistence(timeout: 5), "the results stayed after Undo")
         XCTAssertTrue(app.buttons["feed-vote-hero"].firstMatch.label.hasPrefix("Vote for"))
     }
 
