@@ -2,6 +2,18 @@ import Foundation
 import UIKit
 import Supabase
 
+/// How an edit changes a wardrobe piece's price.
+enum PriceChange: Equatable {
+    case unchanged
+    case set(Decimal)
+    case cleared
+
+    static func from(old: Decimal?, new: Decimal?) -> PriceChange {
+        guard old != new else { return .unchanged }
+        return new.map(PriceChange.set) ?? .cleared
+    }
+}
+
 extension API {
     // MARK: - Wardrobe
 
@@ -26,7 +38,7 @@ extension API {
 
     static func createWardrobeItem(ownerId: UUID, image: UIImage, name: String?, category: String,
                                    subcategory: String?, color: String?, season: String?, brand: String?,
-                                   wearFrequency: String?, tags: [String] = []) async throws {
+                                   wearFrequency: String?, tags: [String] = [], price: Decimal? = nil) async throws {
 #if DEBUG
         if SampleData.isActive { return }
 #endif
@@ -41,12 +53,15 @@ extension API {
             let id: UUID; let ownerId: UUID; let imageUrl: String; let name: String?
             let category: String; let subcategory: String?; let color: String?; let season: String?
             let brand: String?; let wearFrequency: String?; let tags: [String]
+            /// Omitted from the JSON when nil, so saving without a price still
+            /// works before migration 20261124000100 is applied.
+            let price: Decimal?
         }
         do {
             try await client.from("wardrobe_items").insert(Insert(
                 id: itemId, ownerId: ownerId, imageUrl: path, name: name,
                 category: category, subcategory: subcategory, color: color, season: season,
-                brand: brand, wearFrequency: wearFrequency, tags: tags
+                brand: brand, wearFrequency: wearFrequency, tags: tags, price: price
             )).execute()
         } catch {
             await removeStorageFiles(bucket: "wardrobe-items", paths: [path])
@@ -70,7 +85,8 @@ extension API {
 
     static func updateWardrobeItem(id: UUID, ownerId: UUID, image: UIImage?, name: String?, category: String,
                                    subcategory: String?, color: String?, season: String?, brand: String?,
-                                   wearFrequency: String?, tags: [String]) async throws {
+                                   wearFrequency: String?, tags: [String],
+                                   price: PriceChange = .unchanged) async throws {
 #if DEBUG
         if SampleData.isActive { return }
 #endif
@@ -91,12 +107,37 @@ extension API {
             let imageUrl: String; let name: String?; let category: String
             let subcategory: String?; let color: String?; let season: String?
             let brand: String?; let wearFrequency: String?; let tags: [String]
+            let price: PriceChange
+
+            enum CodingKeys: String, CodingKey {
+                case imageUrl, name, category, subcategory, color, season, brand, wearFrequency, tags, price
+            }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(imageUrl, forKey: .imageUrl)
+                try container.encode(name, forKey: .name)
+                try container.encode(category, forKey: .category)
+                try container.encode(subcategory, forKey: .subcategory)
+                try container.encode(color, forKey: .color)
+                try container.encode(season, forKey: .season)
+                try container.encode(brand, forKey: .brand)
+                try container.encode(wearFrequency, forKey: .wearFrequency)
+                try container.encode(tags, forKey: .tags)
+                // Leave the column out entirely when untouched, so edits keep
+                // working on servers without migration 20261124000100.
+                switch price {
+                case .unchanged: break
+                case .set(let value): try container.encode(value, forKey: .price)
+                case .cleared: try container.encodeNil(forKey: .price)
+                }
+            }
         }
         do {
             try await client.from("wardrobe_items").update(Update(
                 imageUrl: newImage ?? oldImage, name: name, category: category,
                 subcategory: subcategory, color: color, season: season,
-                brand: brand, wearFrequency: wearFrequency, tags: tags
+                brand: brand, wearFrequency: wearFrequency, tags: tags, price: price
             )).eq("id", value: id).eq("owner_id", value: ownerId).execute()
         } catch {
             if let newImage { await removeStorageFiles(bucket: "wardrobe-items", paths: [newImage]) }

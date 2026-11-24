@@ -17,6 +17,8 @@ struct StyleInsightsView: View {
         Group {
             if inline {
                 analyticsPanel
+                    // A container, so the panel's own identifier doesn't replace its rows' ones.
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("profile.analytics.content")
             } else {
                 ScrollView {

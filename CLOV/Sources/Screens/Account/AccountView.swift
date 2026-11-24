@@ -50,6 +50,7 @@ struct AccountView: View {
                     .padding(.bottom, -12)
                 if showingAnalytics {
                     StyleInsightsView(inline: true)
+                    WardrobeInsightsView()
                 }
                 segmentPicker
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 20, hasLoaded: hasLoaded, retry: { await load() }) {

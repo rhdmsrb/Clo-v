@@ -364,7 +364,7 @@ private struct WardrobeItemCard: View {
 /// original image. Clothing photos often need more breathing room than a
 /// center-cropped social post; fitting the image prevents hems and shoes from
 /// disappearing at the edges of the grid.
-private struct WardrobePhoto: View {
+struct WardrobePhoto: View {
     let url: String
 
     var body: some View {
@@ -421,6 +421,7 @@ struct AddWardrobeItemView: View {
     @State private var color = ""
     @State private var season: WardrobeSeason?
     @State private var brand = ""
+    @State private var priceText = ""
     @State private var frequency: WardrobeFrequency?
     @State private var tags: Set<String> = []
     @State private var isSaving = false
@@ -435,6 +436,7 @@ struct AddWardrobeItemView: View {
         _color = State(initialValue: item?.color ?? "")
         _season = State(initialValue: item?.season.flatMap(WardrobeSeason.init(rawValue:)))
         _brand = State(initialValue: item?.brand ?? "")
+        _priceText = State(initialValue: PriceInput.text(for: item?.price))
         _frequency = State(initialValue: item?.wearFrequency.flatMap(WardrobeFrequency.init(rawValue:)))
         _tags = State(initialValue: Set(item?.tags ?? []))
     }
@@ -482,6 +484,12 @@ struct AddWardrobeItemView: View {
                         LabeledField(label: "SEASON", padding: 12) { Picker("Season", selection: $season) { Text("Any").tag(nil as WardrobeSeason?); ForEach(WardrobeSeason.allCases) { Text($0.label).tag(Optional($0)) } }.pickerStyle(.menu) }
                         LabeledField(label: "BRAND", padding: 12) { TextField("Brand", text: $brand) }
                     }
+                    LabeledField(label: "PRICE (USD, OPTIONAL)", padding: 12) {
+                        TextField("49.99", text: $priceText)
+                            .keyboardType(.decimalPad)
+                            .accessibilityLabel("Price in US dollars")
+                            .accessibilityIdentifier("wardrobe.price")
+                    }
                     LabeledField(label: "WEAR FREQUENCY", padding: 12) { Picker("Wear frequency", selection: $frequency) { Text("Not set").tag(nil as WardrobeFrequency?); ForEach(WardrobeFrequency.allCases) { Text($0.label).tag(Optional($0)) } }.pickerStyle(.menu) }
                     LabeledField(label: "STYLE TAGS", padding: 10) {
                         FlowLayout(spacing: 7) {
@@ -515,6 +523,11 @@ struct AddWardrobeItemView: View {
 
     private func save() async {
         guard image != nil || item != nil else { self.error = "Add a photo first."; return }
+        let price: Decimal?
+        switch PriceInput.parse(priceText) {
+        case .success(let value): price = value
+        case .failure(let failure): self.error = PriceInput.message(for: failure); return
+        }
         isSaving = true; error = nil; defer { isSaving = false }
         do {
             if let item {
@@ -523,12 +536,13 @@ struct AddWardrobeItemView: View {
                                                  subcategory: subcategory.nilIfBlank, color: color.nilIfBlank,
                                                  season: season?.rawValue, brand: brand.nilIfBlank,
                                                  wearFrequency: frequency?.rawValue,
-                                                 tags: Array(tags.union((item.tags ?? []).filter { $0.hasPrefix("Photo credit:") })).sorted())
+                                                 tags: Array(tags.union((item.tags ?? []).filter { $0.hasPrefix("Photo credit:") })).sorted(),
+                                                 price: PriceChange.from(old: item.price, new: price))
             } else if let image {
                 try await API.createWardrobeItem(ownerId: appState.userId, image: image, name: name.nilIfBlank,
                                                  category: category.rawValue, subcategory: subcategory.nilIfBlank,
                                                  color: color.nilIfBlank, season: season?.rawValue, brand: brand.nilIfBlank,
-                                                 wearFrequency: frequency?.rawValue, tags: tags.sorted())
+                                                 wearFrequency: frequency?.rawValue, tags: tags.sorted(), price: price)
             }
             appState.contentDidChange(); Haptics.success(); await onSaved(); dismiss()
         } catch { Haptics.error(); self.error = "Couldn't save this item. Please try again." }
