@@ -156,16 +156,16 @@ final class EngagementUITests: XCTestCase {
     }
 
     func testVotingRevealsTheResult() throws {
-        let app = launch(arguments: ["--uiTestEnableFitCheckReel"])
+        let app = launch()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
-        while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
+        while !card.exists && attempts < 6 { app.swipeUp(); attempts += 1 }
         XCTAssertTrue(card.waitForExistence(timeout: 10), "No Fit-Check card on the feed.")
         let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
         XCTAssertTrue(carousel.waitForExistence(timeout: 5), "No photo carousel on the card.")
-        carousel.tap()
+        carousel.doubleTap()
         XCTAssertTrue(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 10), "Vote screen did not open.")
 
         // Before voting the chip reads "Vote #" with no count.

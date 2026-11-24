@@ -81,12 +81,12 @@ struct FeedView: View {
         .onChange(of: appState.profile?.stylePreferences) { _, _ in refreshVisibleItems() }
     }
 
-    /// The hold-to-vote screen when the post is in the loaded feed (the usual
-    /// case for a card tap); the detail screen for links from elsewhere.
+    /// The photo-fan vote screen when the post is in the loaded feed (the usual
+    /// case for a photo tap); the detail screen for links from elsewhere.
     @ViewBuilder
     private func routeDestination(_ route: FitCheckRoute) -> some View {
         if let item = items.first(where: { $0.id == route.id }) {
-            FitCheckReelView(
+            VoteFanScreen(
                 item: item,
                 voterId: appState.userId,
                 isFollowing: followingIDs.contains(item.creatorId),
@@ -161,9 +161,7 @@ struct FeedView: View {
                         onToggleFollow: { follow in toggleFollow(item.creatorId, follow: follow) },
                         onLike: { like in try await setLiked(like, item: item) },
                         onComment: { commentItem = item },
-                        onOpen: FitCheckReelView.isEnabled
-                            ? { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) }
-                            : nil,
+                        onOpen: { openedRoute = FitCheckRoute(id: item.id, photoIndex: $0) },
                         onVoteChange: { photoId, total in applyVote(photoId: photoId, total: total, itemID: item.id) },
                         onPhotoDisplay: {
                             guard !firstPhotoDisplayed, item.id == visibleItems.first?.id else { return }

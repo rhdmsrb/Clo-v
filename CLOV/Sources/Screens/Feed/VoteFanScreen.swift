@@ -9,6 +9,8 @@ struct VoteFanScreen: View {
     let onToggleFollow: (Bool) -> Void
     let onEvent: (String) -> Void
     let onImpression: () -> Void
+    /// Reports the viewer's vote and the new total so the feed card can update in place.
+    let onVoteChange: ((UUID?, Int) -> Void)?
 
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -37,13 +39,15 @@ struct VoteFanScreen: View {
 
     init(item: FeedItemDTO, voterId: UUID, isFollowing: Bool, initialPhotoIndex: Int? = nil,
          onToggleFollow: @escaping (Bool) -> Void,
-         onEvent: @escaping (String) -> Void, onImpression: @escaping () -> Void) {
+         onEvent: @escaping (String) -> Void, onImpression: @escaping () -> Void,
+         onVoteChange: ((UUID?, Int) -> Void)? = nil) {
         self.item = item
         self.voterId = voterId
         self.isFollowing = isFollowing
         self.onToggleFollow = onToggleFollow
         self.onEvent = onEvent
         self.onImpression = onImpression
+        self.onVoteChange = onVoteChange
         _model = StateObject(wrappedValue: ReelVoteModel(item: item, voterId: voterId, initialLook: initialPhotoIndex))
         _commentsModel = StateObject(wrappedValue: VoteFanCommentsModel(fitCheckId: item.id))
         _likeCount = State(initialValue: item.likeCount)
@@ -345,11 +349,17 @@ struct VoteFanScreen: View {
 
     /// Runs once the server has confirmed the vote. The success haptic already played in the model.
     private func voteRecorded() {
-        appState.contentDidChange()
+        refreshFeedVote()
         guard model.error == nil, !reduceMotion,
               VoteReveal.shouldCelebrate(myVote: model.myVote, photoIds: photoIds, counts: model.counts, total: model.total)
         else { return }
         celebration.celebrate()
+    }
+
+    /// Updates the feed card directly when it can; otherwise reloads the home feed.
+    private func refreshFeedVote() {
+        onVoteChange?(model.myVote, model.total)
+        appState.contentDidChange(reloadHomeFeed: onVoteChange == nil)
     }
 
     private func castVote() {
@@ -367,7 +377,7 @@ struct VoteFanScreen: View {
         guard model.canRetract else { return }
         celebration.cancel()
         Haptics.impact(.light)
-        model.retractVote { appState.contentDidChange() }
+        model.retractVote { refreshFeedVote() }
         AccessibilityNotification.Announcement("Vote undone. Pick again.").post()
     }
 

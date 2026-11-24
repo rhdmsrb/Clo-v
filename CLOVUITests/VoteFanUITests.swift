@@ -8,6 +8,8 @@ final class VoteFanUITests: XCTestCase {
     private static let sampleDataArgument = "--uiTestSampleData"
     private static let holdSeconds: TimeInterval = 1.2
     private static let earlyReleaseSeconds: TimeInterval = 0.2
+    /// The feed card needs a two-second hold (HomeFitCard.holdToVoteSeconds); hold a little longer.
+    private static let feedHoldSeconds: TimeInterval = 2.6
     /// Past one 3 s carousel interval but inside the card's 5 s stay on the picked look.
 
     override func setUpWithError() throws {
@@ -16,19 +18,15 @@ final class VoteFanUITests: XCTestCase {
 
     // MARK: - Tests
 
-    func testTappingFeedPhotoStaysOnFeed() {
-        let app = XCUIApplication()
-        app.launchArguments = [Self.sampleDataArgument]
-        app.launch()
-
-        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
-        XCTAssertTrue(carousel.waitForExistence(timeout: 15))
-        bringIntoOpenArea(carousel, in: app)
-        carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-
-        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 2))
-        XCTAssertTrue(carousel.exists)
-        XCTAssertTrue(app.buttons["feedTab"].isHittable)
+    /// Double-tapping a feed photo opens the photo-fan vote screen; Back returns to the feed.
+    func testDoubleTappingFeedPhotoOpensThePhotoFan() {
+        let app = openMayasVoteScreen()
+        XCTAssertTrue(app.descendants(matching: .any)["voteFan"].waitForExistence(timeout: 5), "photo fan missing")
+        XCTAssertFalse(app.buttons["feedTab"].isHittable, "floating tab bar should be hidden on the vote screen")
+        app.buttons["reelBackButton"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 10),
+                      "back did not return to the feed")
+        XCTAssertTrue(app.buttons["feedTab"].waitForExistence(timeout: 5))
     }
 
     /// The black Vote pill on the photo votes without leaving the feed, then Undo brings it back.
@@ -146,7 +144,6 @@ final class VoteFanUITests: XCTestCase {
     }
 
     func testEarlyReleaseDoesNotVoteAndHoldVotesThenUndoRetracts() throws {
-        throw XCTSkip("The full-screen vote screen is hidden for now (FitCheckReelView.isEnabled = false).")
         let app = openMayasVoteScreen()
         let fan = app.descendants(matching: .any)["voteFan"]
         XCTAssertTrue(fan.waitForExistence(timeout: 5), "photo fan missing")
@@ -199,10 +196,10 @@ final class VoteFanUITests: XCTestCase {
         input.tap()
         input.typeText("Looks great on this one")
         app.buttons["voteFanCommentSend"].tap()
-        let close = app.buttons["comments.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        close.tap()
-        XCTAssertTrue(waitUntilGone(close, timeout: 5))
+        // The fan shows comments inline (no sheet to close); a successful post clears the input.
+        let cleared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "NOT (value CONTAINS 'Looks great on this one')"), object: input)
+        XCTAssertEqual(XCTWaiter().wait(for: [cleared], timeout: 5), .completed, "the comment was not posted")
 
         XCTAssertTrue(app.buttons["reelBackButton"].waitForExistence(timeout: 5))
         XCTAssertNil(count.label.rangeOfCharacter(from: .decimalDigits), "comments must not reveal results")
@@ -219,7 +216,7 @@ final class VoteFanUITests: XCTestCase {
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
-        while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
+        while !card.exists && attempts < 6 { app.swipeUp(); attempts += 1 }
         XCTAssertTrue(card.waitForExistence(timeout: 10), "maya's post not found")
 
         let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
@@ -233,7 +230,7 @@ final class VoteFanUITests: XCTestCase {
         waitUntilStill(carousel)
         attach(app, name: "feed-card-before-vote")
 
-        carousel.press(forDuration: 1.2)
+        carousel.press(forDuration: Self.feedHoldSeconds)
         XCTAssertTrue(results.waitForExistence(timeout: 5), "results did not appear after holding the photo")
         XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].exists, "a hold must vote, not open the vote screen")
         let ownPick = card.descendants(matching: .any)
@@ -247,19 +244,6 @@ final class VoteFanUITests: XCTestCase {
         undo.tap()
         XCTAssertTrue(hint.waitForExistence(timeout: 5), "the hint did not return after Undo")
         XCTAssertTrue(results.waitForNonExistence(timeout: 5), "the results stayed after Undo")
-    }
-
-    /// The full-screen vote screen is hidden for now: tapping a feed photo stays on the feed.
-    func testTappingTheFeedPhotoDoesNotOpenTheVoteScreen() throws {
-        let app = XCUIApplication()
-        app.launchArguments += [Self.sampleDataArgument]
-        app.launch()
-        let carousel = app.descendants(matching: .any)["feed-photo-carousel"].firstMatch
-        XCTAssertTrue(carousel.waitForExistence(timeout: 15), "no photo on the feed")
-        carousel.tap()
-        XCTAssertFalse(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 3),
-                       "the vote screen is hidden and must not open")
-        XCTAssertTrue(carousel.exists, "tapping the photo should stay on the feed")
     }
 
     /// A profile tile opens the post as the feed card (with its vote hint), not the vote screen.
@@ -327,23 +311,23 @@ final class VoteFanUITests: XCTestCase {
 
     private func openMayasVoteScreen(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += [Self.sampleDataArgument, "--uiTestEnableFitCheckReel"] + arguments
+        app.launchArguments += [Self.sampleDataArgument] + arguments
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15), "feed never appeared")
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
-        while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
+        while !card.exists && attempts < 6 { app.swipeUp(); attempts += 1 }
         XCTAssertTrue(card.waitForExistence(timeout: 10), "maya's post not found")
         let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
         XCTAssertTrue(carousel.waitForExistence(timeout: 5), "no feed carousel on maya's post")
         bringIntoOpenArea(carousel, in: app)
-        // A tap that lands while the carousel is auto-advancing only stops the
-        // animation, so retry rather than depend on the timing.
+        // A double tap opens the vote screen. One that lands while the carousel is
+        // auto-advancing only stops the animation, so retry rather than depend on the timing.
         let screen = app.descendants(matching: .any)["voteFanScreen"]
         var taps = 0
         while !screen.exists && taps < 3 {
-            carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).doubleTap()
             _ = screen.waitForExistence(timeout: 4)
             taps += 1
         }
