@@ -239,16 +239,20 @@ struct HomeFitCard: View {
     // MARK: Result on the photo
 
     private static let resultSpring = Animation.spring(response: 0.42, dampingFraction: 0.68)
-    /// Darker than a plain yellow so the crown reads on the white tag.
-    private static let crownGold = Color(red: 0.84, green: 0.6, blue: 0.05)
-    private static let badgeCornerRadius: CGFloat = 2
+
+    /// "63% · Your pick · Top": words instead of icons, on the same tag as the countdown.
+    static func resultTagText(percent: Int, isMine: Bool, isLeading: Bool) -> String {
+        ["\(percent)%", isMine ? "Your pick" : nil, isLeading ? "Top" : nil]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
 
     private var resultTransition: AnyTransition {
         reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .topLeading).combined(with: .opacity)
     }
 
-    /// The shown look's share as a white tag matching the countdown: a check on the
-    /// viewer's pick and a crown on the leader. It follows the thumbnails and swipes.
+    /// The shown look's share as a tag matching the countdown, noting the viewer's pick
+    /// and the leader. It follows the thumbnails and swipes.
     @ViewBuilder
     private var resultBadge: some View {
         if let photo = shownPhoto {
@@ -256,24 +260,10 @@ struct HomeFitCard: View {
             let isMine = model.myVote == photo.id
             let isLeading = isLeadingPhoto(photo.id)
             let title = PostCardContent.voteButtonTitle(position: photo.position)
-            HStack(spacing: Spacing.xs) {
-                if isMine {
-                    Image(systemName: "checkmark.circle.fill")
-                }
-                Text("\(percent)%")
-                    .monospacedDigit()
-                    .contentTransition(.numericText(value: Double(percent)))
-                if isLeading {
-                    Image(systemName: "crown.fill")
-                        .foregroundStyle(Self.crownGold)
-                }
-            }
-            .font(Theme.font(.subheadline, weight: .bold))
-            // The tag is always white, so its text stays dark in dark mode too.
-            .foregroundStyle(Color.black)
-            .padding(.horizontal, Spacing.s + 2)
-            .padding(.vertical, Spacing.xs + 1)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: Self.badgeCornerRadius, style: .continuous))
+            Text(Self.resultTagText(percent: percent, isMine: isMine, isLeading: isLeading))
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(percent)))
+                .photoTagStyle()
             .motionSafeAnimation(Theme.snap, value: photo.id)
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .allowsHitTesting(false)

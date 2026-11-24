@@ -49,6 +49,15 @@ struct CountdownBadge: View {
         if let expiresAt {
             TimelineView(.periodic(from: .now, by: Self.refresh)) { context in
                 let remaining = expiresAt.timeIntervalSince(context.date)
+                if style == .boxed {
+                    // Text only, on the same smoky glass tag as the vote result.
+                    Text(remaining > 0 ? "\(CountdownText.compact(remaining: remaining)) left" : "Ended")
+                        .monospacedDigit()
+                        .photoTagStyle()
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(CountdownText.accessibilityLabel(remaining: remaining))
+                        .accessibilityIdentifier("countdown-badge")
+                } else {
                 Label(style == .boxed ? CountdownText.compact(remaining: remaining) : CountdownText.label(remaining: remaining),
                       systemImage: remaining > 0 ? "hourglass" : "checkmark.seal")
                     .font(Theme.font(style == .boxed ? .subheadline : .caption, weight: style == .boxed ? .bold : .semibold))
@@ -63,6 +72,7 @@ struct CountdownBadge: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(CountdownText.accessibilityLabel(remaining: remaining))
                     .accessibilityIdentifier("countdown-badge")
+                }
             }
         }
     }
@@ -74,6 +84,31 @@ struct CountdownBadge: View {
         case .boxed: Color.white
         }
     }
+}
+
+/// A small tag laid over a photo: white text on a dim, blurred capsule, so it reads on
+/// any photo without the glare of a solid white box.
+struct PhotoTagStyle: ViewModifier {
+    private static let dimming = 0.28
+
+    func body(content: Content) -> some View {
+        content
+            .font(Theme.font(.footnote, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, Spacing.s + 2)
+            .padding(.vertical, Spacing.xs + 1)
+            .background {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Capsule().fill(.black.opacity(Self.dimming)))
+                    .environment(\.colorScheme, .dark)
+            }
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+}
+
+extension View {
+    func photoTagStyle() -> some View { modifier(PhotoTagStyle()) }
 }
 
 /// Icon and title with a tight gap, for badges and tags.
