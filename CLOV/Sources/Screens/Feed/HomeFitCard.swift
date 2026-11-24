@@ -121,15 +121,13 @@ struct HomeFitCard: View {
                 }
         }
         .overlay { if expired { endedOverlay } }
-        // Results pop into the middle of the photo once revealed, for the look on screen.
-        .overlay {
+        // Once revealed, a small tag in the top-left corner (opposite the countdown) gives the
+        // shown look's share, so the outfit itself stays uncovered.
+        .overlay(alignment: .topLeading) {
             if model.isResultsRevealed {
-                // Centred in the space above the title, so it never covers the caption.
-                centerResult
+                resultBadge
                     .transition(resultTransition)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.top, Spacing.xxl)
-                    .padding(.bottom, resultCaptionClearance)
+                    .padding(Spacing.sm)
             }
         }
         .animation(Theme.animation(Self.resultSpring, reduceMotion: reduceMotion), value: model.isResultsRevealed)
@@ -241,58 +239,31 @@ struct HomeFitCard: View {
     // MARK: Result on the photo
 
     private static let resultSpring = Animation.spring(response: 0.42, dampingFraction: 0.68)
-    @ScaledMetric(relativeTo: .largeTitle) private var resultPercentSize: CGFloat = 64
-    /// Room kept free at the photo's foot for the occasion tag, the title and the hanging row.
-    @ScaledMetric(relativeTo: .title) private var resultCaptionClearance: CGFloat = 190
 
     private var resultTransition: AnyTransition {
-        reduceMotion ? .opacity : .scale(scale: 0.55).combined(with: .opacity)
+        reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .topLeading).combined(with: .opacity)
     }
 
-    /// The shown look's share of the votes, large and centred. It follows the thumbnails
-    /// and swipes, so the viewer can compare each look's result on the photo itself.
+    /// The shown look's share ("48%") as a tag matching the countdown. It follows the
+    /// thumbnails and swipes; the Vote block already names the viewer's pick, so the tag
+    /// carries only the number. VoiceOver still hears the pick and the leader.
     @ViewBuilder
-    private var centerResult: some View {
+    private var resultBadge: some View {
         if let photo = shownPhoto {
             let percent = model.percent(for: photo.id)
             let isMine = model.myVote == photo.id
             let isLeading = isLeadingPhoto(photo.id)
             let title = PostCardContent.voteButtonTitle(position: photo.position)
-            VStack(spacing: Spacing.xs) {
-                HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
-                    if isLeading {
-                        Image(systemName: "crown.fill")
-                            .font(.system(size: resultPercentSize * 0.4))
-                            .foregroundStyle(Color(red: 1, green: 0.82, blue: 0.35))
-                    }
-                    Text("\(percent)%")
-                        .font(.system(size: resultPercentSize, weight: .black))
-                        .monospacedDigit()
-                        .contentTransition(.numericText(value: Double(percent)))
-                }
-                Label(isMine ? "\(title) · your pick" : title,
-                      systemImage: isMine ? "checkmark.circle.fill" : "hanger")
-                    .font(Theme.font(.subheadline, weight: .semibold))
-                if let insight = model.insight {
-                    Text(insight)
-                        .font(Theme.font(.footnote, weight: .medium))
-                        .multilineTextAlignment(.center)
-                        .opacity(0.9)
-                        .accessibilityIdentifier("feed-vote-insight")
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, Spacing.l)
-            .padding(.vertical, Spacing.m)
-            .background(.black.opacity(0.42), in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous))
-            .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
-            .padding(.horizontal, Spacing.xl)
-            .motionSafeAnimation(Theme.snap, value: photo.id)
-            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-            .allowsHitTesting(false)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(title), \(percent) percent\(isMine ? ", your vote" : "")\(isLeading ? ", leading" : "")")
-            .accessibilityIdentifier("feed-vote-results")
+            Text("\(percent)%")
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(percent)))
+                .photoTagStyle()
+                .motionSafeAnimation(Theme.snap, value: photo.id)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .allowsHitTesting(false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(title), \(percent) percent\(isMine ? ", your vote" : "")\(isLeading ? ", leading" : "")")
+                .accessibilityIdentifier("feed-vote-results")
         }
     }
 
@@ -305,7 +276,7 @@ struct HomeFitCard: View {
     // MARK: Voting
 
     /// Before voting: a hint (the thumbnails pick the look, Vote casts it). After voting the
-    /// result sits on the photo, so only the total and Undo remain here.
+    /// share sits on the photo, and the total, the insight line and Undo sit here.
     @ViewBuilder
     private var voteStatus: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
@@ -314,6 +285,8 @@ struct HomeFitCard: View {
                     Text(footerText)
                         .font(Theme.caption)
                         .foregroundStyle(Theme.mutedForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("feed-vote-insight")
                     Spacer(minLength: 0)
                 }
             } else if model.canVote {
@@ -336,7 +309,8 @@ struct HomeFitCard: View {
         let votes = model.total == 1 ? "1 vote" : "\(model.total) votes"
         if model.isEnded { return "Voting ended · \(votes)" }
         if model.isCreator { return "Your Fit-Check · \(votes)" }
-        return votes
+        guard let insight = model.insight else { return votes }
+        return "\(votes) · \(insight)"
     }
 
     private func castVoteForShownPhoto() {
