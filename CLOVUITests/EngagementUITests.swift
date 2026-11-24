@@ -91,7 +91,30 @@ final class EngagementUITests: XCTestCase {
         let field = app.textFields["search.query"]
         field.tap()
         field.typeText("blazer")
-        XCTAssertTrue(app.staticTexts["No looks found. Try another search or filter."].waitForExistence(timeout: 10))
+        let headline = app.staticTexts["search.noResults.headline"]
+        XCTAssertTrue(headline.waitForExistence(timeout: 10), "no empty state for a search with no results")
+        XCTAssertTrue(headline.label.contains("blazer"), "the empty state should name the search")
+        XCTAssertTrue(app.buttons["search.noResults.suggestion_Brunch"].exists, "no Try instead suggestions")
+        XCTAssertTrue(app.buttons["search.noResults.clearFilters"].exists, "no Clear filters link with a tag on")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "explore-no-results"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
+    /// A Try instead chip runs that search, replacing the one that came back empty.
+    func testExploreEmptyStateSuggestionRunsANewSearch() throws {
+        let app = launch()
+        app.openExplore()
+        let field = app.textFields["search.query"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("zzzz-nothing")
+        let suggestion = app.buttons["search.noResults.suggestion_Brunch"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "no Try instead suggestions")
+        XCTAssertFalse(app.buttons["search.noResults.clearFilters"].exists, "Clear filters shows with no filter on")
+        suggestion.tap()
+        XCTAssertEqual(field.value as? String, "Brunch", "the chip should replace the search")
     }
 
     func testExploreTilesHaveMatchingDimensions() throws {

@@ -40,6 +40,9 @@ struct SearchExploreView: View {
     private static let searchDebounce: Duration = .milliseconds(300)
     private var searchTerm: String { SearchTerm.sanitized(query) }
     private var requestKey: String { "\(searchTerm)|\(filter.occasion ?? "")" }
+    /// The search or a filter is narrowing the results.
+    private var isNarrowed: Bool { !searchTerm.isEmpty || !filter.isDefault }
+    private var isEmptyResult: Bool { displayed.isEmpty && !canLoadMore }
 
     var body: some View {
         ScrollView {
@@ -56,13 +59,18 @@ struct SearchExploreView: View {
                 ExploreQuickFilters(filter: filter, onChange: applyFilter)
                     .padding(.horizontal, -Self.pagePadding)
                 Divider()
+                // A narrowed search that finds nothing gets its own empty state (below);
+                // this one is only for an Explore with nothing posted at all.
                 AsyncStateView(isLoading: isLoading, error: error,
-                               isEmpty: displayed.isEmpty && !canLoadMore,
-                               emptyText: hasLoaded && error == nil
-                                ? "No looks found. Try another search or filter."
-                                : "No looks to explore yet. Check back when your circle starts posting.",
+                               isEmpty: isEmptyResult && !isNarrowed,
+                               emptyText: "No looks to explore yet. Check back when your circle starts posting.",
                                topPadding: 28, hasLoaded: hasLoaded, retry: { await load() }) {
                     if let relationshipsNotice { relationshipsBanner(relationshipsNotice) }
+                    if isEmptyResult {
+                        SearchNoResultsView(term: searchTerm, activeFilterCount: filter.activeCount,
+                                            ideas: Self.suggestions, onSearch: applySearch,
+                                            onClearFilters: { applyFilter(ExploreFilter()) })
+                    }
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Self.gridSpacing), count: Self.gridColumns),
                               spacing: Spacing.l) {
                         ForEach(displayed) { item in
