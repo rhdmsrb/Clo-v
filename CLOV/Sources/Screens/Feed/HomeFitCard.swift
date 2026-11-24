@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Feed post in the editorial hero style: a full-bleed photo with nearly square corners
-/// (auto-rotating; press and hold to vote for the look on screen), a row hanging off its
+/// (auto-rotating; hold for two seconds to vote for the look on screen, double-tap to open
+/// the voting screen), a row hanging off its
 /// bottom edge (Like and Comment in small white pills, a large black Vote pill), then the
 /// author, look thumbnails, the results once revealed, and the caption. Voting goes
 /// through `ReelVoteModel`, so the optimistic update, rollback and resync match the rest
@@ -15,7 +16,7 @@ struct HomeFitCard: View {
     let onToggleFollow: (Bool) -> Void
     let onLike: (Bool) async throws -> Void
     let onComment: () -> Void
-    /// Opens the full-screen vote screen on a look; `nil` while that screen is hidden.
+    /// Opens the full-screen vote screen on a look (a double tap on the photo); `nil` while that screen is hidden.
     let onOpen: ((Int) -> Void)?
     /// The viewer's vote (`nil` after an undo) and the new total, once the server confirmed it.
     let onVoteChange: (UUID?, Int) -> Void
@@ -31,6 +32,8 @@ struct HomeFitCard: View {
     private static let votePillMinWidth: CGFloat = 150
     /// Dots sit 10pt above the carousel's foot and are about 19pt tall.
     private static let hiddenDotsInset: CGFloat = 32
+    /// Seconds a finger must stay on the photo to vote, long enough that a scroll or a tap never votes.
+    static let holdToVoteSeconds: TimeInterval = 2
 
     init(item: FeedItemDTO, viewerId: UUID, isLiked: Bool, isFollowing: Bool, showsFollow: Bool,
          onToggleFollow: @escaping (Bool) -> Void, onLike: @escaping (Bool) async throws -> Void,
@@ -104,13 +107,15 @@ struct HomeFitCard: View {
             PhotoCarousel(urls: photoURLs, currentIndex: $photoIndex,
                           autoAdvance: !expired && !isHoldingToVote && model.myVote == nil,
                           contentMode: .fill, accessibilityIdentifier: "feed-photo-carousel",
-                          onTap: onOpen.map { open in { open(photoIndex) } },
+                          onDoubleTap: onOpen.map { open in { open(photoIndex) } },
                           prioritizesSelectedPhoto: true, onPhotoDisplay: onPhotoDisplay)
                 // The carousel draws page dots at its foot; run it past the clipped edge so the
                 // dots stay hidden behind the hanging row. The thumbnails show the position.
                 .padding(.bottom, -Self.hiddenDotsInset)
                 // On the carousel itself, beside its own gestures, so a hold always reaches it.
-                .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote) { castVoteForShownPhoto() }
+                .holdToVote(isEnabled: canVote, isPressing: $isHoldingToVote, duration: Self.holdToVoteSeconds) {
+                    castVoteForShownPhoto()
+                }
         }
         .overlay { if expired { endedOverlay } }
         // Results pop into the middle of the photo once revealed, for the look on screen.
@@ -294,7 +299,7 @@ struct HomeFitCard: View {
                     if model.canRetract { undoButton }
                 }
             } else if model.canVote {
-                Text("Pick a look, then tap Vote. Or hold the photo.")
+                Text("Pick a look, then tap Vote. Or hold the photo for 2 seconds.")
                     .font(Theme.caption)
                     .foregroundStyle(Theme.mutedForeground)
                     .accessibilityIdentifier("feed-vote-hint")

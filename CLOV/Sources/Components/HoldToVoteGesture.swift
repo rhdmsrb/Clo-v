@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// Press-and-hold (~0.6s) to vote, with a progress ring and haptics.
+/// Press-and-hold (0.6s by default) to vote, with a progress ring and haptics.
 /// Early lift or sliding away cancels. VoiceOver gets a plain action instead.
 struct HoldToVoteGesture: ViewModifier {
     var isEnabled: Bool = true
     /// Mirrors whether a hold is in progress, so a parent can pause auto-advancing photos while it lasts.
     var isPressing: Binding<Bool>?
+    /// Seconds the finger must stay down before the vote is cast.
+    var duration: TimeInterval = HoldProgress.duration
     let onVote: () -> Void
 
     private static let slopDistance: CGFloat = 24
@@ -31,7 +33,7 @@ struct HoldToVoteGesture: ViewModifier {
             // own tap and long-press gestures, and a child's gesture wins over a parent's
             // exclusive one, so a plain long press here never fired on a carousel.
             .simultaneousGesture(
-                LongPressGesture(minimumDuration: HoldProgress.duration, maximumDistance: Self.slopDistance)
+                LongPressGesture(minimumDuration: duration, maximumDistance: Self.slopDistance)
                     .updating($isTouching) { pressing, state, _ in state = pressing }
                     .onEnded { _ in if isEnabled { finish() } }
             )
@@ -88,7 +90,7 @@ struct HoldToVoteGesture: ViewModifier {
                 try? await Task.sleep(nanoseconds: Self.tickNanoseconds)
                 guard !Task.isCancelled else { return }
                 let previous = hold
-                hold = hold.tick(elapsed: Date().timeIntervalSince(startedAt))
+                hold = hold.tick(elapsed: Date().timeIntervalSince(startedAt), duration: duration)
                 if hold.crossedMilestones(since: previous) > 0 { Haptics.impact(.light) }
             }
         }
@@ -134,10 +136,11 @@ struct HoldToVoteGesture: ViewModifier {
 }
 
 extension View {
-    /// Hold ~0.6s to vote. Adds the "Vote for this look" accessibility action.
+    /// Hold for `duration` seconds (0.6 by default) to vote. Adds the "Vote for this look" accessibility action.
     func holdToVote(isEnabled: Bool = true, isPressing: Binding<Bool>? = nil,
+                    duration: TimeInterval = HoldProgress.duration,
                     onVote: @escaping () -> Void) -> some View {
-        modifier(HoldToVoteGesture(isEnabled: isEnabled, isPressing: isPressing, onVote: onVote))
+        modifier(HoldToVoteGesture(isEnabled: isEnabled, isPressing: isPressing, duration: duration, onVote: onVote))
     }
 }
 
