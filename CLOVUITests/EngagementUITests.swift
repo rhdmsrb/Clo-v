@@ -91,7 +91,30 @@ final class EngagementUITests: XCTestCase {
         let field = app.textFields["search.query"]
         field.tap()
         field.typeText("blazer")
-        XCTAssertTrue(app.staticTexts["No looks found. Try another search or filter."].waitForExistence(timeout: 10))
+        let headline = app.staticTexts["search.noResults.headline"]
+        XCTAssertTrue(headline.waitForExistence(timeout: 10), "no empty state for a search with no results")
+        XCTAssertTrue(headline.label.contains("blazer"), "the empty state should name the search")
+        XCTAssertTrue(app.buttons["search.noResults.suggestion_Brunch"].exists, "no Try instead suggestions")
+        XCTAssertTrue(app.buttons["search.noResults.clearFilters"].exists, "no Clear filters link with a tag on")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "explore-no-results"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
+    /// A Try instead chip runs that search, replacing the one that came back empty.
+    func testExploreEmptyStateSuggestionRunsANewSearch() throws {
+        let app = launch()
+        app.openExplore()
+        let field = app.textFields["search.query"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("zzzz-nothing")
+        let suggestion = app.buttons["search.noResults.suggestion_Brunch"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "no Try instead suggestions")
+        XCTAssertFalse(app.buttons["search.noResults.clearFilters"].exists, "Clear filters shows with no filter on")
+        suggestion.tap()
+        XCTAssertEqual(field.value as? String, "Brunch", "the chip should replace the search")
     }
 
     func testExploreTilesHaveMatchingDimensions() throws {
@@ -156,16 +179,16 @@ final class EngagementUITests: XCTestCase {
     }
 
     func testVotingRevealsTheResult() throws {
-        let app = launch(arguments: ["--uiTestEnableFitCheckReel"])
+        let app = launch()
         XCTAssertTrue(app.descendants(matching: .any)["feed-post-card"].firstMatch.waitForExistence(timeout: 15))
         let card = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier == 'feed-post-card' AND label BEGINSWITH 'maya'")).firstMatch
         var attempts = 0
-        while !card.exists && attempts < 6 { app.swipeDown(); attempts += 1 }
+        while !card.exists && attempts < 6 { app.swipeUp(); attempts += 1 }
         XCTAssertTrue(card.waitForExistence(timeout: 10), "No Fit-Check card on the feed.")
         let carousel = card.descendants(matching: .any)["feed-photo-carousel"].firstMatch
         XCTAssertTrue(carousel.waitForExistence(timeout: 5), "No photo carousel on the card.")
-        carousel.tap()
+        carousel.doubleTap()
         XCTAssertTrue(app.descendants(matching: .any)["voteFanScreen"].waitForExistence(timeout: 10), "Vote screen did not open.")
 
         // Before voting the chip reads "Vote #" with no count.

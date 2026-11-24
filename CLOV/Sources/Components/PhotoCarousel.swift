@@ -15,6 +15,8 @@ struct PhotoCarousel: View {
     var accessibilityIdentifier: String = "photo-carousel"
     /// Called on a tap, from the carousel's own gesture (a parent's tap gesture is not reliably reached through the paged TabView).
     var onTap: (() -> Void)?
+    /// Called on a double tap. VoiceOver gets it as the "Open voting" action, since its own double tap activates.
+    var onDoubleTap: (() -> Void)?
     var prioritizesSelectedPhoto = false
     var onPhotoDisplay: (() -> Void)?
 
@@ -38,6 +40,7 @@ struct PhotoCarousel: View {
         contentMode: ContentMode = .fill,
         accessibilityIdentifier: String = "photo-carousel",
         onTap: (() -> Void)? = nil,
+        onDoubleTap: (() -> Void)? = nil,
         prioritizesSelectedPhoto: Bool = false,
         onPhotoDisplay: (() -> Void)? = nil
     ) {
@@ -48,6 +51,7 @@ struct PhotoCarousel: View {
         self.contentMode = contentMode
         self.accessibilityIdentifier = accessibilityIdentifier
         self.onTap = onTap
+        self.onDoubleTap = onDoubleTap
         self.prioritizesSelectedPhoto = prioritizesSelectedPhoto
         self.onPhotoDisplay = onPhotoDisplay
         _logic = State(initialValue: CarouselAutoAdvance(pageCount: urls.count, index: currentIndex.wrappedValue))
@@ -99,6 +103,8 @@ struct PhotoCarousel: View {
                 .onChanged { if CarouselAutoAdvance.isHorizontalSwipe($0.translation) { stopForGood() } }
         )
         .simultaneousGesture(TapGesture().onEnded { stopForGood(); onTap?() })
+        .simultaneousGesture(TapGesture(count: 2).onEnded { stopForGood(); onDoubleTap?() },
+                             including: onDoubleTap == nil ? .none : .all)
         .simultaneousGesture(
             LongPressGesture(minimumDuration: Self.holdDuration, maximumDistance: CarouselAutoAdvance.swipeThreshold)
                 .onEnded { _ in stopForGood() }
@@ -120,6 +126,9 @@ struct PhotoCarousel: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel("Photos")
+        .accessibilityActions {
+            if let onDoubleTap { Button("Open voting", action: onDoubleTap) }
+        }
         .accessibilityValue(urls.isEmpty ? "" : "Photo \(logic.index + 1) of \(urls.count)")
         .accessibilityAdjustableAction { direction in
             stopForGood()

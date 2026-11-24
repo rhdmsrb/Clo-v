@@ -19,17 +19,26 @@ struct MasonryGrid<Item: Identifiable, Tile: View>: View {
             ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
                 LazyVStack(spacing: spacing) {
                     ForEach(column) { item in
-                        Button { onTap(item) } label: {
-                            tile(item)
-                                .aspectRatio(MasonryLayout.clampedRatio(aspectRatio(item)), contentMode: .fit)
-                                .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-                        }
-                        .buttonStyle(InstantPressStyle())
+                        Button { onTap(item) } label: { sizedTile(item) }
+                            .buttonStyle(InstantPressStyle())
                     }
                 }
+                // Equal columns even when one is empty (a single post), so a tile is
+                // always half the width instead of growing to its photo's natural size.
+                .frame(maxWidth: .infinity, alignment: .top)
             }
         }
         .accessibilityIdentifier("masonry-grid")
+    }
+
+    /// The frame comes from the column width and the ratio; the tile (often a filled
+    /// photo) is laid over it and clipped, so its own size can never widen the column.
+    private func sizedTile(_ item: Item) -> some View {
+        Color.clear
+            .aspectRatio(MasonryLayout.clampedRatio(aspectRatio(item)), contentMode: .fit)
+            .overlay { tile(item) }
+            .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
     }
 }
 

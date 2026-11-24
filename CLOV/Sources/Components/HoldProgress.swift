@@ -4,7 +4,7 @@ import Foundation
 struct HoldProgress: Equatable {
     enum Phase: Equatable { case idle, holding, completed }
 
-    /// Seconds the finger must stay down.
+    /// Default seconds the finger must stay down.
     static let duration: TimeInterval = 0.6
     /// Progress fractions at which a light haptic tick fires.
     static let hapticMilestones: [Double] = [0.33, 0.66]
@@ -19,11 +19,11 @@ struct HoldProgress: Equatable {
         phase == .completed ? self : HoldProgress(phase: .holding, progress: 0)
     }
 
-    /// Advance given seconds elapsed since `begin`. Never completes by itself;
-    /// completion is confirmed by the system long-press via `complete()`.
-    func tick(elapsed: TimeInterval) -> HoldProgress {
-        guard phase == .holding else { return self }
-        let fraction = min(max(elapsed / Self.duration, 0), 1)
+    /// Advance given seconds elapsed since `begin`, for a hold lasting `duration`.
+    /// Never completes by itself; completion is confirmed by the system long-press via `complete()`.
+    func tick(elapsed: TimeInterval, duration: TimeInterval = Self.duration) -> HoldProgress {
+        guard phase == .holding, duration > 0 else { return self }
+        let fraction = min(max(elapsed / duration, 0), 1)
         return HoldProgress(phase: .holding, progress: max(progress, fraction))
     }
 

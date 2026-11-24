@@ -1,11 +1,15 @@
 import SwiftUI
 
-/// Press-and-hold (~0.6s) to vote, with a progress ring and haptics.
+/// Press-and-hold (0.6s by default) to vote, with a progress ring and haptics.
 /// Early lift or sliding away cancels. VoiceOver gets a plain action instead.
 struct HoldToVoteGesture: ViewModifier {
     var isEnabled: Bool = true
     /// Mirrors whether a hold is in progress, so a parent can pause auto-advancing photos while it lasts.
     var isPressing: Binding<Bool>?
+    /// Mirrors the hold's 0...1 progress, so a parent can draw its own gauge; back to 0 when it ends.
+    var progress: Binding<Double>?
+    /// Seconds the finger must stay down before the vote is cast.
+    var duration: TimeInterval = HoldProgress.duration
     let onVote: () -> Void
 
     private static let slopDistance: CGFloat = 24
@@ -19,21 +23,26 @@ struct HoldToVoteGesture: ViewModifier {
     @State private var ticker: Task<Void, Never>?
     @State private var showBurst = false
     @State private var burstTask: Task<Void, Never>?
+    /// True while a finger is down on the view, from touch-down until lift or slide-away.
+    @GestureState private var isTouching = false
 
     func body(content: Content) -> some View {
         // Always the same view structure so @State (burst, hold) survives
         // isEnabled flipping false right after an optimistic vote.
         content
             .overlay { ring }
-            .onLongPressGesture(
-                minimumDuration: HoldProgress.duration,
-                maximumDistance: Self.slopDistance,
-                perform: { if isEnabled { finish() } },
-                onPressingChanged: { pressing in
-                    guard isEnabled else { return cancel() }
-                    pressing ? start() : cancel()
-                }
+            // Simultaneous, not `onLongPressGesture`: the photo carousel underneath has its
+            // own tap and long-press gestures, and a child's gesture wins over a parent's
+            // exclusive one, so a plain long press here never fired on a carousel.
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: duration, maximumDistance: Self.slopDistance)
+                    .updating($isTouching) { pressing, state, _ in state = pressing }
+                    .onEnded { _ in if isEnabled { finish() } }
             )
+            .onChange(of: isTouching) { _, touching in
+                guard isEnabled else { return cancel() }
+                touching ? start() : cancel()
+            }
             .accessibilityActions {
                 if isEnabled { Button("Vote for this look", action: onVote) }
             }
@@ -83,7 +92,8 @@ struct HoldToVoteGesture: ViewModifier {
                 try? await Task.sleep(nanoseconds: Self.tickNanoseconds)
                 guard !Task.isCancelled else { return }
                 let previous = hold
-                hold = hold.tick(elapsed: Date().timeIntervalSince(startedAt))
+                hold = hold.tick(elapsed: Date().timeIntervalSince(startedAt), duration: duration)
+                progress?.wrappedValue = hold.progress
                 if hold.crossedMilestones(since: previous) > 0 { Haptics.impact(.light) }
             }
         }
@@ -93,14 +103,19 @@ struct HoldToVoteGesture: ViewModifier {
         ticker?.cancel()
         ticker = nil
         isPressing?.wrappedValue = false
+        progress?.wrappedValue = 0
         if hold.phase != .completed { hold = hold.cancel() }
     }
 
     private func finish() {
         ticker?.cancel()
         ticker = nil
-        guard hold.phase == .holding else { return }
+        // `.idle` too: the system confirmed the hold even if the touch-down update
+        // has not reached `start()` yet. Only a hold that already voted is skipped.
+        guard hold.phase != .completed else { return }
         isPressing?.wrappedValue = false
+        progress?.wrappedValue = 0
+        if hold.phase == .idle { hold = hold.begin() }
         hold = hold.complete()
         // Success haptic is fired by the vote model (covers the accessibility path too).
         Haptics.impact(.heavy)
@@ -126,10 +141,13 @@ struct HoldToVoteGesture: ViewModifier {
 }
 
 extension View {
-    /// Hold ~0.6s to vote. Adds the "Vote for this look" accessibility action.
+    /// Hold for `duration` seconds (0.6 by default) to vote. Adds the "Vote for this look" accessibility action.
     func holdToVote(isEnabled: Bool = true, isPressing: Binding<Bool>? = nil,
+                    progress: Binding<Double>? = nil,
+                    duration: TimeInterval = HoldProgress.duration,
                     onVote: @escaping () -> Void) -> some View {
-        modifier(HoldToVoteGesture(isEnabled: isEnabled, isPressing: isPressing, onVote: onVote))
+        modifier(HoldToVoteGesture(isEnabled: isEnabled, isPressing: isPressing, progress: progress,
+                                   duration: duration, onVote: onVote))
     }
 }
 

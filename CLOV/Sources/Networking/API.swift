@@ -369,11 +369,12 @@ enum API {
             let id: UUID
             var caption: String?
             var status: String
+            var expiresAt: Date?
             var fitCheckPhotos: [FitCheckPhoto]
         }
         let rows: [Row] = try await client
             .from("fit_checks")
-            .select("id, caption, status, fit_check_photos(id, fit_check_id, image_url, position)")
+            .select("id, caption, status, expires_at, fit_check_photos(id, fit_check_id, image_url, position)")
             .eq("creator_id", value: creatorId)
             .neq("status", value: "draft")
             .order("created_at", ascending: false)
@@ -385,6 +386,7 @@ enum API {
                 id: row.id,
                 caption: row.caption,
                 status: row.status,
+                expiresAt: row.expiresAt,
                 thumbnailURL: row.fitCheckPhotos.first(where: { $0.position == 1 }).flatMap { urls[$0.imageUrl] }
             )
         }

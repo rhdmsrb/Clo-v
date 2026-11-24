@@ -18,6 +18,14 @@ final class SharedComponentsLogicTests: XCTestCase {
         XCTAssertEqual(a.tick(elapsed: 5).phase, .holding)
     }
 
+    func testFeedHoldFillsOverTwoSeconds() {
+        let start = HoldProgress.idle.begin()
+        let halfway = start.tick(elapsed: 1, duration: HomeFitCard.holdToVoteSeconds)
+        XCTAssertEqual(halfway.progress, 0.5, accuracy: 0.001)
+        XCTAssertEqual(halfway.tick(elapsed: 2, duration: HomeFitCard.holdToVoteSeconds).progress, 1)
+        XCTAssertEqual(start.tick(elapsed: 1, duration: 0), start, "a zero-length hold never advances")
+    }
+
     func testEarlyLiftCancelsToIdle() {
         XCTAssertEqual(HoldProgress.idle.begin().tick(elapsed: 0.4).cancel(), .idle)
     }
