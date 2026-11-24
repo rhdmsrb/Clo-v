@@ -142,6 +142,31 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Style momentum"].exists)
     }
 
+    func testProfileMenuOpensWardrobeInsights() throws {
+        let app = launchTestApp()
+
+        let accountTab = app.buttons["accountTab"]
+        XCTAssertTrue(accountTab.waitForExistence(timeout: 15))
+        accountTab.tap()
+
+        let menu = app.buttons["profile.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "Profile menu should be on the Profile screen")
+        menu.tap()
+        let insights = app.buttons["profileShortcut_WardrobeInsights"]
+        XCTAssertTrue(insights.waitForExistence(timeout: 5), "Wardrobe insights should be in the profile menu")
+        insights.tap()
+
+        XCTAssertTrue(app.navigationBars["Wardrobe insights"].waitForExistence(timeout: 5))
+        // An empty test wardrobe shows the empty state; otherwise the dimension chips.
+        let colorChip = app.buttons["wardrobeInsights.dimension.color"]
+        let emptyState = app.staticTexts["No pieces yet"]
+        XCTAssertTrue(colorChip.waitForExistence(timeout: 10) || emptyState.exists)
+        if colorChip.exists {
+            colorChip.tap()
+            XCTAssertTrue(colorChip.isSelected, "Tapping a dimension chip should select it")
+        }
+    }
+
     func testFeedDoesNotExposeHeaderModes() throws {
         let app = launchTestApp()
 

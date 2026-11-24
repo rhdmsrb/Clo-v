@@ -89,6 +89,9 @@ struct WardrobeItem: Codable, Identifiable, Equatable {
     /// Times the owner logged wearing this piece ("Wore it today").
     var wearCount: Int?
     var lastWornAt: Date?
+    /// Purchase price in US dollars; nil until set, or on servers without
+    /// migration 20261124000100.
+    var price: Decimal?
 
     var wearSummary: String? {
         guard let wearCount, wearCount > 0 else { return nil }

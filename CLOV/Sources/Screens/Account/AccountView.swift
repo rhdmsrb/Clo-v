@@ -3,7 +3,7 @@ import PhotosUI
 
 /// Where the profile menu navigates.
 private enum ProfileDestination: Hashable {
-    case wardrobe, groups, friends, yourWeek, privacy, appearance, settings, notifications
+    case wardrobe, wardrobeInsights, groups, friends, yourWeek, privacy, appearance, settings, notifications
 }
 
 @MainActor
@@ -200,6 +200,8 @@ struct AccountView: View {
         Menu {
             Button("Wardrobe", systemImage: "hanger") { destination = .wardrobe }
                 .accessibilityIdentifier("profileShortcut_Wardrobe")
+            Button("Wardrobe insights", systemImage: "chart.pie") { destination = .wardrobeInsights }
+                .accessibilityIdentifier("profileShortcut_WardrobeInsights")
             Button("Groups", systemImage: "person.3") { destination = .groups }
                 .accessibilityIdentifier("profileShortcut_Groups")
             Button("Friends", systemImage: "person.2") { destination = .friends }
@@ -238,6 +240,7 @@ struct AccountView: View {
     private func destinationView(_ destination: ProfileDestination) -> some View {
         switch destination {
         case .wardrobe: WardrobeView()
+        case .wardrobeInsights: WardrobeInsightsView()
         case .groups: GroupsView(embedded: true)
         case .friends: FriendsView()
         case .yourWeek: StyleInsightsView()

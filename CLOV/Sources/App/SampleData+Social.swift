@@ -70,9 +70,13 @@ extension SampleData {
                          subcategory: nil, color: row.2, season: row.3, brand: row.4,
                          wearFrequency: index.isMultiple(of: 2) ? "often" : "sometimes",
                          tags: index == 0 ? ["vintage", "layering"] : [],
-                         createdAt: Date().addingTimeInterval(-hours(Double(index + 1) * 24)), updatedAt: nil)
+                         createdAt: Date().addingTimeInterval(-hours(Double(index + 1) * 24)), updatedAt: nil,
+                         wearCount: sampleWears[index], lastWornAt: nil, price: samplePrices[index])
         }
     }
+
+    private static let sampleWears = [12, 30, 8, 0, 3, 0]
+    private static let samplePrices: [Decimal?] = [98, 19.9, 120, 410, nil, 230]
 
     // MARK: - Writes
 
