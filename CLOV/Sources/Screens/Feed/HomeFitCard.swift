@@ -240,19 +240,13 @@ struct HomeFitCard: View {
 
     private static let resultSpring = Animation.spring(response: 0.42, dampingFraction: 0.68)
 
-    /// "63% · Your pick · Top": words instead of icons, on the same tag as the countdown.
-    static func resultTagText(percent: Int, isMine: Bool, isLeading: Bool) -> String {
-        ["\(percent)%", isMine ? "Your pick" : nil, isLeading ? "Top" : nil]
-            .compactMap { $0 }
-            .joined(separator: " · ")
-    }
-
     private var resultTransition: AnyTransition {
         reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .topLeading).combined(with: .opacity)
     }
 
-    /// The shown look's share as a tag matching the countdown, noting the viewer's pick
-    /// and the leader. It follows the thumbnails and swipes.
+    /// The shown look's share ("48%") as a tag matching the countdown. It follows the
+    /// thumbnails and swipes; the Vote block already names the viewer's pick, so the tag
+    /// carries only the number. VoiceOver still hears the pick and the leader.
     @ViewBuilder
     private var resultBadge: some View {
         if let photo = shownPhoto {
@@ -260,16 +254,16 @@ struct HomeFitCard: View {
             let isMine = model.myVote == photo.id
             let isLeading = isLeadingPhoto(photo.id)
             let title = PostCardContent.voteButtonTitle(position: photo.position)
-            Text(Self.resultTagText(percent: percent, isMine: isMine, isLeading: isLeading))
+            Text("\(percent)%")
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(percent)))
                 .photoTagStyle()
-            .motionSafeAnimation(Theme.snap, value: photo.id)
-            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-            .allowsHitTesting(false)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(title), \(percent) percent\(isMine ? ", your vote" : "")\(isLeading ? ", leading" : "")")
-            .accessibilityIdentifier("feed-vote-results")
+                .motionSafeAnimation(Theme.snap, value: photo.id)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .allowsHitTesting(false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(title), \(percent) percent\(isMine ? ", your vote" : "")\(isLeading ? ", leading" : "")")
+                .accessibilityIdentifier("feed-vote-results")
         }
     }
 
