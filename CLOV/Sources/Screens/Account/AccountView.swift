@@ -49,7 +49,7 @@ struct AccountView: View {
                 actionButtons
                     .padding(.bottom, -12)
                 if showingAnalytics {
-                    StyleInsightsView(inline: true)
+                    StyleInsightsView(inline: true) { destination = .wardrobeInsights }
                 }
                 segmentPicker
                 AsyncStateView(isLoading: isLoading, error: error, topPadding: 20, hasLoaded: hasLoaded, retry: { await load() }) {
@@ -200,8 +200,6 @@ struct AccountView: View {
         Menu {
             Button("Wardrobe", systemImage: "hanger") { destination = .wardrobe }
                 .accessibilityIdentifier("profileShortcut_Wardrobe")
-            Button("Wardrobe insights", systemImage: "chart.pie") { destination = .wardrobeInsights }
-                .accessibilityIdentifier("profileShortcut_WardrobeInsights")
             Button("Groups", systemImage: "person.3") { destination = .groups }
                 .accessibilityIdentifier("profileShortcut_Groups")
             Button("Friends", systemImage: "person.2") { destination = .friends }

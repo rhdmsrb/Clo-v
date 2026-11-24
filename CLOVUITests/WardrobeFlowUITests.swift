@@ -142,18 +142,18 @@ final class WardrobeFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Style momentum"].exists)
     }
 
-    func testProfileMenuOpensWardrobeInsights() throws {
+    func testProfileAnalyticsOpensWardrobeInsights() throws {
         let app = launchTestApp()
 
         let accountTab = app.buttons["accountTab"]
         XCTAssertTrue(accountTab.waitForExistence(timeout: 15))
         accountTab.tap()
 
-        let menu = app.buttons["profile.menu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 10), "Profile menu should be on the Profile screen")
-        menu.tap()
-        let insights = app.buttons["profileShortcut_WardrobeInsights"]
-        XCTAssertTrue(insights.waitForExistence(timeout: 5), "Wardrobe insights should be in the profile menu")
+        let analytics = app.buttons["profile.analytics"]
+        XCTAssertTrue(analytics.waitForExistence(timeout: 10), "Analytics should be on the Profile screen")
+        analytics.tap()
+        let insights = app.buttons["profile.analytics.wardrobeInsights"]
+        XCTAssertTrue(insights.waitForExistence(timeout: 5), "Wardrobe insights should be in the Analytics panel")
         insights.tap()
 
         XCTAssertTrue(app.navigationBars["Wardrobe insights"].waitForExistence(timeout: 5))

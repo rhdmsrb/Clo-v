@@ -3,6 +3,8 @@
 @MainActor
 struct StyleInsightsView: View {
     var inline = false
+    /// Shown as a row at the foot of the inline panel when set.
+    var onOpenWardrobeInsights: (() -> Void)? = nil
     @EnvironmentObject private var appState: AppState
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var report: WeeklyStyleReport?
@@ -53,6 +55,7 @@ struct StyleInsightsView: View {
                 }
             }
             .padding(.bottom, report == nil || error != nil ? 16 : 0)
+            if let onOpenWardrobeInsights { wardrobeInsightsRow(action: onOpenWardrobeInsights) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card)
@@ -63,6 +66,37 @@ struct StyleInsightsView: View {
                 .allowsHitTesting(false)
         }
         .padding(.top, 4)
+    }
+
+    private func wardrobeInsightsRow(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "chart.pie")
+                    .font(Theme.bodyEmphasis)
+                    .foregroundStyle(Theme.accentDeep)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Wardrobe insights")
+                        .font(Theme.bodyEmphasis)
+                        .foregroundStyle(Theme.ink)
+                    Text("What you own, what it's worth, what you wear")
+                        .font(Theme.font(.footnote))
+                        .foregroundStyle(Theme.mutedForeground)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(Theme.label)
+                    .foregroundStyle(Theme.mutedForeground)
+                    .accessibilityHidden(true)
+            }
+            .padding(16)
+            .frame(minHeight: Theme.minTapSize)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) { Divider().overlay(Theme.line.opacity(0.08)) }
+        .accessibilityHint("Opens a breakdown of your wardrobe by category, color, brand, season and price")
+        .accessibilityIdentifier("profile.analytics.wardrobeInsights")
     }
 
     private func analyticsMetrics(_ report: WeeklyStyleReport) -> some View {
