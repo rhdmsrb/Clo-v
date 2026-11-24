@@ -250,7 +250,8 @@ struct AccountView: View {
     }
 
     private var actionButtons: some View {
-        ProfileActionTabs(onAnalytics: { showingAnalytics.toggle() }, analyticsExpanded: showingAnalytics) {
+        ProfileActionTabs(onAnalytics: { showingAnalytics.toggle() }, analyticsExpanded: showingAnalytics,
+                          onWardrobe: { destination = .wardrobe }) {
             ShareLink(item: shareText) { Text("Share") }
                 .accessibilityLabel("Share profile")
                 .accessibilityIdentifier("profile.share")

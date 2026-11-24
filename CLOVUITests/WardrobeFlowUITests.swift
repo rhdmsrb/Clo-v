@@ -164,6 +164,28 @@ final class WardrobeFlowUITests: XCTestCase {
         }
     }
 
+    func testProfileWardrobeButtonOpensWardrobe() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uiTestSampleData", "-appearance.colorScheme", "light"]
+        app.launch()
+
+        let accountTab = app.buttons["accountTab"]
+        XCTAssertTrue(accountTab.waitForExistence(timeout: 15))
+        accountTab.tap()
+
+        let wardrobe = app.buttons["profile.wardrobe"]
+        XCTAssertTrue(wardrobe.waitForExistence(timeout: 10), "Wardrobe should sit beside Share and Analytics")
+        let share = app.descendants(matching: .any)["profile.share"].firstMatch
+        XCTAssertEqual(wardrobe.frame.midY, share.frame.midY, accuracy: 2, "Wardrobe should be in the Share row")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "profile-actions"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        wardrobe.tap()
+        XCTAssertTrue(app.buttons["Add wardrobe item"].waitForExistence(timeout: 5))
+    }
+
     func testFeedDoesNotExposeHeaderModes() throws {
         let app = launchTestApp()
 
