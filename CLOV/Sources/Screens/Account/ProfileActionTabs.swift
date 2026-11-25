@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Share / Analytics row under the profile header. Editing the profile lives in
-/// Settings → Preferences, so it is not offered here.
+/// Share / Analytics / Wardrobe row under the profile header. Editing the profile
+/// lives in Settings → Preferences, so it is not offered here.
 struct ProfileActionTabs<ShareContent: View>: View {
     let onAnalytics: () -> Void
     let analyticsExpanded: Bool
+    let onWardrobe: () -> Void
     @ViewBuilder let share: () -> ShareContent
 
     private typealias Metrics = ProfileActionTabMetrics
@@ -19,11 +20,17 @@ struct ProfileActionTabs<ShareContent: View>: View {
                     .accessibilityValue(analyticsExpanded ? "Expanded" : "Collapsed")
                     .accessibilityIdentifier("profile.analytics")
             }
+            pill {
+                Button(action: onWardrobe) { Text("Wardrobe") }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens your wardrobe")
+                    .accessibilityIdentifier("profile.wardrobe")
+            }
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    /// Both actions share one pill so the row reads as two equal buttons.
+    /// Every action shares one pill so the row reads as equal buttons.
     private func pill<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
             .font(Theme.bodyEmphasis)
